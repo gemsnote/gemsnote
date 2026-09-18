@@ -1,0 +1,29 @@
+services:
+
+  mongodb:
+    image: mongo:4.2
+    container_name: mongodb
+    restart: always
+    ports:
+      - 127.0.0.1:27017:27017
+    volumes:
+      - ./data/mongo/db:/data/db
+
+  gemsnote:
+    build: .
+    image: gemsnote:1.0.0
+    container_name: gemsnote
+    restart: always
+    depends_on:
+      - mongodb
+    ports:
+      - 127.0.0.1:9000:9000
+    volumes:
+      - type: bind
+        source: ./conf/app.docker-mongodb.conf
+        target: /opt/gemsnote/conf/app.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./files:/opt/gemsnote/files
+      - ./public/upload:/opt/gemsnote/public/upload

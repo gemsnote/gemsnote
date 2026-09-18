@@ -1,0 +1,74 @@
+package admin
+
+import (
+	"github.com/gemsnote/gemsnote/app/info"
+	. "github.com/gemsnote/gemsnote/app/lea"
+	"github.com/revel/revel"
+	"gopkg.in/mgo.v2/bson"
+	//	"time"
+)
+
+// admin 首页
+
+type AdminUser struct {
+	AdminBaseController
+}
+
+// admin 主页
+var userPageSize = 10
+
+func (c AdminUser) Index(sorter, keywords string, pageSize int) revel.Result {
+	pageNumber := c.GetPage()
+	if pageSize == 0 {
+		pageSize = userPageSize
+	}
+	sorterField, isAsc := c.getSorter("CreatedTime", false, []string{"email", "username", "verified", "createdTime", "accountType"})
+	pageInfo, users := userService.ListUsers(pageNumber, pageSize, sorterField, isAsc, keywords)
+	c.ViewArgs["pageInfo"] = pageInfo
+	c.ViewArgs["users"] = users
+	c.ViewArgs["keywords"] = keywords
+	return c.RenderTemplate("admin/user/list.html")
+}
+
+func (c AdminUser) Add() revel.Result {
+	return c.RenderTemplate("admin/user/add.html")
+}
+
+// 添加
+func (c AdminUser) Register(email, pwd string) revel.Result {
+	re := info.NewRe()
+
+	if re.Ok, re.Msg = Vd("email", email); !re.Ok {
+		return c.RenderRe(re)
+	}
+	if re.Ok, re.Msg = Vd("password", pwd); !re.Ok {
+		return c.RenderRe(re)
+	}
+
+	// 注册
+	re.Ok, re.Msg = authService.Register(email, pwd, "")
+
+	return c.RenderRe(re)
+}
+
+// 修改帐户
+func (c AdminUser) ResetPwd(userId string) revel.Result {
+	if !bson.IsObjectIdHex(userId) {
+		return c.NotFound("user")
+	}
+	userInfo := userService.GetUserInfo(userId)
+	if userInfo.UserId == "" {
+		return c.NotFound("user")
+	}
+	c.ViewArgs["userInfo"] = userInfo
+	return c.RenderTemplate("admin/user/reset_pwd.html")
+}
+
+func (c AdminUser) DoResetPwd(userId, pwd string) revel.Result {
+	re := info.NewRe()
+	if re.Ok, re.Msg = Vd("password", pwd); !re.Ok {
+		return c.RenderRe(re)
+	}
+	re.Ok, re.Msg = userService.ResetPwd(c.GetUserId(), userId, pwd)
+	return c.RenderRe(re)
+}

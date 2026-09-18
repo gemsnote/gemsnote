@@ -1,0 +1,36 @@
+services:
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: gemsnote
+      POSTGRES_PASSWORD: gemsnote
+      POSTGRES_DB: gemsnote
+    #ports:
+    #  - 127.0.0.1:5432:5432
+    volumes:
+      # PostgreSQL 18 stores PGDATA under 18/docker in this parent directory.
+      - ./data:/var/lib/postgresql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/001-gemsnote-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/002-gemsnote-seed.sql:ro
+
+  gemsnote:
+    build: .
+    image: gemsnote:1.0.0
+    container_name: gemsnote
+    restart: always
+    depends_on:
+      - postgres
+    ports:
+      - 127.0.0.1:9000:9000
+    volumes:
+      - type: bind
+        source: ./conf/app.docker-postgres.conf
+        target: /opt/gemsnote/conf/app.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./files:/opt/gemsnote/files
+      - ./public/upload:/opt/gemsnote/public/upload

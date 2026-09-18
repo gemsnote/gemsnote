@@ -1,0 +1,211 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# module:testrunner
+
+# Home is My Blog
+GET     /                                      Web.Page
+GET     /note                                  Web.Page
+# gemsnote home
+GET     /index                                 Web.Page
+
+GET     /login                                  Web.Page
+POST     /doLogin                                   Auth.DoLogin
+GET     /logout                                     Auth.Logout
+
+GET     /register                              Web.Page
+POST     /doRegister                                Auth.DoRegister
+
+GET 	/findPassword/:token						Web.Page
+GET 	/findPassword								Web.Page
+POST 	/doFindPassword								Auth.DoFindPassword
+POST	/findPasswordUpdate							Auth.FindPasswordUpdate
+
+#####
+# 这么多列表, 只是为了最后一句pjax
+# note
+* /note/listNotes Note.ListNotes
+* /note/listTrashNotes Note.ListTrashNotes
+* /note/getNoteAndContent Note.GetNoteAndContent
+* /note/getNoteContent Note.GetNoteContent
+* /note/updateNoteOrContent Note.UpdateNoteOrContent
+* /note/deleteNote Note.DeleteNote
+* /note/deleteTrash Note.DeleteTrash
+* /note/moveNote Note.MoveNote
+* /note/copyNote Note.CopyNote
+* /note/copySharedNote Note.CopySharedNote
+* /note/searchNoteByTags Note.SearchNoteByTags
+* /note/setNote2Blog Note.SetNote2Blog
+* /note/exportPdf Note.ExportPDF
+* /note/toPdf Note.ToPdf
+* /note/getNoteAndContentBySrc Note.GetNoteAndContentBySrc
+# pjax
+GET     /note/:noteId                            Web.Page
+GET     /member                                  Web.Page
+GET     /member/*path                            Web.Page
+GET     /admin                                   Web.Page
+GET     /admin/*path                             Web.Page
+
+# Vue build output
+GET     /assets/*filepath                        Static.Serve("frontend/dist/assets")
+GET     /web/bootstrap                          Web.Bootstrap
+# Versioned API namespace.  During the first migration phase these routes
+# expose the same business operations under /api2; the legacy /api namespace
+# remains unchanged for existing clients.
+POST    /api2/logout                            Api2.Logout
+POST    /api2/auth/session                      Api2.Login
+POST    /api2/auth/register                     Api2.Register
+POST    /api2/auth/password/request             Api2.RequestPasswordReset
+POST    /api2/auth/password/reset               Api2.ResetPassword
+GET     /api2/bootstrap                          Api2.Bootstrap
+GET     /api2/groups                             Api2.Groups
+POST    /api2/admin/data                         Api2.AdminData
+POST    /api2/attachments                        Api2.Attachments
+POST    /api2/attachments/upload                 Api2.UploadAttachment
+POST    /api2/attachments/delete                 Api2.DeleteAttachment
+GET     /api2/attachments/download               Api2.DownloadAttachment
+POST    /api2/avatar                             Api2.UploadAvatar
+POST    /api2/notes                              Api2.Notes
+POST    /api2/star                               Api2.Star
+POST    /api2/document                           Api2.Document
+POST    /api2/save                               Api2.Save
+POST    /api2/restore                            Api2.Restore
+GET     /api2/file/getImage                      ApiFile.GetImage
+GET     /api2/file/getAttach                     ApiFile.GetAttach
+GET     /api2/system/version                     ApiSystem.Version
+GET     /api2/shared/capabilities                ApiShared.Capabilities
+POST    /api2/shared/snapshots                   ApiShared.CreateSnapshot
+GET     /api2/shared/snapshots/:snapshotId/items ApiShared.SnapshotItems
+GET     /api2/shared/notes/:noteId/content       ApiShared.NoteContent
+GET     /api2/shared/notes/:noteId/files/:fileId ApiShared.NoteFile
+POST    /api2/file/pasteImage                   File.PasteImage
+POST    /api2/file/uploadAvatar                 File.UploadAvatar
+POST    /api2/attach/uploadAttach               Attach.UploadAttach
+POST    /api2/attach/deleteAttach               Attach.DeleteAttach
+POST    /api2/attach/getAttachs                 Attach.GetAttachs
+GET     /api2/attach/download                   Attach.Download
+GET     /api2/attach/downloadAll                Attach.DownloadAll
+GET     /api2/web/bootstrap                     Web.Bootstrap
+POST    /api2/web/notes                         Web.Notes
+POST    /api2/web/star                          Web.Star
+POST    /api2/web/document                      Web.Document
+POST    /api2/web/save                          Web.Save
+POST    /api2/web/restore                       Web.Restore
+GET     /api2/web/groups                        Web.Groups
+POST    /api2/web/shareMembers                  Web.ShareMembers
+POST    /api2/web/adminData                     Web.AdminData
+POST    /api2/web/adminSettings                 Web.AdminSettings
+POST    /api2/web/adminResetPwd                 Web.AdminResetPwd
+POST    /api2/web/adminRegister                 Web.AdminRegister
+POST    /api2/web/emailChange                   Web.EmailChange
+POST    /api2/web/verifyEmail                   Web.VerifyEmail
+POST    /api2/member/group/addGroup             MemberGroup.AddGroup
+POST    /api2/member/group/updateGroupTitle     MemberGroup.UpdateGroupTitle
+POST    /api2/member/group/deleteGroup           MemberGroup.DeleteGroup
+POST    /api2/member/group/addUser               MemberGroup.AddUser
+POST    /api2/member/group/deleteUser            MemberGroup.DeleteUser
+POST    /api2/noteContentHistory/listHistories   Api2.Histories
+# Browser-only mutation endpoints (session authentication).
+POST    /api2/note/deleteNote                   Note.DeleteNote
+POST    /api2/note/deleteTrash                  Note.DeleteTrash
+POST    /api2/note/moveNote                     Note.MoveNote
+POST    /api2/note/copyNote                     Note.CopyNote
+POST    /api2/note/copySharedNote               Note.CopySharedNote
+POST    /api2/notebook/updateNotebookTitle      Notebook.UpdateNotebookTitle
+POST    /api2/user/updateUsername               User.UpdateUsername
+POST    /api2/user/updatePwd                    User.UpdatePwd
+POST    /api2/user/reSendActiveEmail            User.ReSendActiveEmail
+POST    /api2/share/listShareNotes              Share.ListShareNotes
+POST    /api2/share/addShareNote                Share.AddShareNote
+POST    /api2/share/deleteShareNote             Share.DeleteShareNote
+POST    /api2/share/deleteShareNoteBySharedUser Share.DeleteShareNoteBySharedUser
+# API2 sync/client contract (legacy response models under the new namespace).
+POST    /api2/auth/login                        ApiAuth.Login
+POST    /api2/auth/logout                       ApiAuth.Logout
+GET     /api2/user/getSyncState                 ApiUser.GetSyncState
+GET     /api2/user/info                         ApiUser.Info
+GET     /api2/notebook/getSyncNotebooks         ApiNotebook.GetSyncNotebooks
+GET     /api2/note/getSyncNotes                 ApiNote.GetSyncNotes
+GET     /api2/tag/getSyncTags                   ApiTag.GetSyncTags
+GET     /api2/note/getNoteContent               ApiNote.GetNoteContent
+GET     /api2/note/getNote                      ApiNote.GetNote
+GET     /api2/note/getHistories                 ApiNote.GetHistories
+GET     /api2/note/getHistoryContent            ApiNote.GetHistoryContent
+POST    /api2/notebook/addNotebook              Notebook.AddNotebook
+POST    /api2/notebook/updateNotebook            ApiNotebook.UpdateNotebook
+POST    /api2/notebook/deleteNotebook           Notebook.DeleteNotebook
+POST    /api2/note/addNote                      ApiNote.AddNote
+POST    /api2/note/updateNote                   ApiNote.UpdateNote
+POST    /api2/tag/addTag                        ApiTag.AddTag
+POST    /api2/tag/deleteTag                     ApiTag.DeleteTag
+# API2 client sync mutation paths (kept separate from browser Web handlers).
+POST    /api2/client/notebook/add               ApiNotebook.AddNotebook
+POST    /api2/client/notebook/update            ApiNotebook.UpdateNotebook
+POST    /api2/client/notebook/delete            ApiNotebook.DeleteNotebook
+POST    /api2/client/note/add                   ApiNote.AddNote
+POST    /api2/client/note/update                ApiNote.UpdateNote
+POST    /api2/client/note/deleteTrash           ApiNote.DeleteTrash
+POST    /api2/client/tag/add                   ApiTag.AddTag
+POST    /api2/client/tag/delete                ApiTag.DeleteTag
+GET     /api/shared/capabilities                ApiShared.Capabilities
+GET     /api/system/version                     ApiSystem.Version
+POST    /api/shared/snapshots                   ApiShared.CreateSnapshot
+GET     /api/shared/snapshots/:snapshotId/items ApiShared.SnapshotItems
+GET     /api/shared/notes/:noteId/content       ApiShared.NoteContent
+GET     /api/shared/notes/:noteId/files/:fileId ApiShared.NoteFile
+POST    /web/notes                              Web.Notes
+POST    /web/star                               Web.Star
+# Note content history (explicit routes preserve the legacy query-parameter API).
+GET     /api/note/getHistories                  ApiNote.GetHistories
+GET     /api/note/getHistoryContent             ApiNote.GetHistoryContent
+POST    /web/document                           Web.Document
+POST    /web/save                               Web.Save
+POST    /web/restore                            Web.Restore
+GET     /web/groups                             Web.Groups
+POST    /web/shareMembers                       Web.ShareMembers
+POST    /web/adminData                          Web.AdminData
+POST    /web/adminSettings                      Web.AdminSettings
+POST    /web/adminResetPwd                      Web.AdminResetPwd
+POST    /web/adminRegister                      Web.AdminRegister
+POST    /web/emailChange                        Web.EmailChange
+POST    /web/verifyEmail                        Web.VerifyEmail
+GET     /user/activeEmail                       Web.Page
+GET     /user/updateEmail                       Web.Page
+GET     /user/account                           Web.Page
+
+# Removed public publishing features
+GET     /blog                                   Deprecated.Gone
+*       /blog/*path                             Deprecated.Gone
+GET     /preview                                Deprecated.Gone
+*       /preview/*path                          Deprecated.Gone
+
+# Map static resources from the /app/public folder to the /public path
+GET     /favicon.ico                            Static.Serve("public/images/favicon.ico")
+GET     /public/*filepath                       Static.Serve("public")
+GET     /js/*filepath                       Static.Serve("public/js")
+GET     /images/*filepath                       Static.Serve("public/images")
+GET     /img/*filepath                       Static.Serve("public/img")
+GET     /css/*filepath                       Static.Serve("public/css")
+GET     /fonts/*filepath                       Static.Serve("public/fonts")
+GET     /tinymce/*filepath                       Static.Serve("public/tinymce")
+#GET     /plugins/*filepath                       Static.Serve("public/tinymce/plugins")
+GET     /upload/*filepath                       Static.Serve("public/upload")
+
+# member
+# the prefix of member's controllername is "Member"
+*       /member               	MemberIndex.Index
+*       /member/index           MemberIndex.Index
+
+# 不知道为什么, group就是不行 member/blog可以
+*       /member/group/index           MemberGroup.Index
+*       /member/group/addGroup           MemberGroup.AddGroup
+*       /member/group/updateGroupTitle           MemberGroup.UpdateGroupTitle
+*       /member/group/deleteGroup           MemberGroup.DeleteGroup
+*       /member/group/addUser           MemberGroup.AddUser
+*       /member/group/deleteUser           MemberGroup.DeleteUser
+
+# common
+*       /:controller/:action                    :controller.:action
+*       /api/:controller/:action                :controller.:action
+*       /member/:controller/:action             :controller.:action

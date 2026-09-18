@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build and test Web UI
+        run: |
+          npm ci --prefix frontend
+          npm test --prefix frontend
+          npm run build --prefix frontend
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test
+        run: go test ./...
+
+      - name: Generate Revel entrypoint
+        run: go run ./app/cmd build . "$RUNNER_TEMP/gemsnote-revel-build" prod
+
+      - name: Compile server
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o "$RUNNER_TEMP/gemsnote" ./app/tmp
+
+      - name: Build Docker image
+        run: docker build -t gemsnote:ci .

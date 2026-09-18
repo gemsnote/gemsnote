@@ -1,0 +1,47 @@
+language: go
+go: 1.15
+
+services:
+  - mongodb # 2.4.12
+
+install:
+  - go version
+  - export PATH=$PATH:$HOME/gopath/bin
+  # - go get -v github.com/gemsnote/gemsnote/app
+  - go get -u github.com/revel/cmd/revel
+  # - ls $GOPATH/src/github.com/revel/
+  # - go get github.com/revel/moudle/revel
+  # - go install github.com/revel/cmd/revel
+  - revel version
+  - pwd
+  - ls
+
+script:
+  - wget https://github.com/gemsnote/gemsnote/archive/refs/heads/master.zip
+  - unzip master.zip
+  - mv gemsnote-master gemsnote
+  - cd gemsnote
+
+  - mongo --version
+  - mongorestore -h localhost -d gemsnote --dir ./mongodb_backup/gemsnote_install_data/
+
+  - cd ./sh
+  # - cd $GOPATH/src/github.com/gemsnote/gemsnote/sh
+  - sh run.sh &
+
+  # gen tmp/main.go, routes/routes.go
+  #- go run app/cmd/main.go
+  # build
+  #- go build -o gemsnote github.com/gemsnote/gemsnote/app/tmp
+  # run with port 9000
+  #- ./gemsnote -importPath=github.com/gemsnote/gemsnote -runMode=dev -port=9000 &
+
+  - sleep 10s;
+  # test
+  - curl http://localhost:9000
+  - curl http://localhost:9000/blog
+  - curl http://localhost:9000/login
+  - curl http://localhost:9000/demo
+
+  # - revel build github.com/gemsnote/gemsnote tmp
+  # OK
