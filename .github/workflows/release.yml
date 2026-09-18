@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and publish (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,25 +18,31 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     outputs:
+      tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
       - name: Validate tag and application version
         id: version
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must use vMAJOR.MINOR.PATCH" >&2
             exit 1
           fi
-          tag_version=${GITHUB_REF_NAME#v}
+          tag_version=${RELEASE_TAG#v}
           app_version=$(sed -n 's/^const Current = "\([^"]*\)"/\1/p' app/version/version.go)
           if [[ "$tag_version" != "$app_version" ]]; then
             echo "Tag version $tag_version does not match app version $app_version" >&2
             exit 1
           fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$tag_version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
@@ -75,6 +87,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -111,6 +125,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
@@ -124,7 +143,8 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes --title "Gemsnote $GITHUB_REF_NAME"
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        run: gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "Gemsnote $RELEASE_TAG"
 
   publish-image:
     needs: [validate, build]
@@ -135,6 +155,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
 
       - name: Set image name
         id: image

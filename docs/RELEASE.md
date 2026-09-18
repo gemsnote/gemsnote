@@ -31,6 +31,8 @@ git push origin v1.0.0
 
 镜像发布使用工作流自带的 `GITHUB_TOKEN`，无需配置 Docker Hub 凭据。首次发布的 GHCR 包默认可能为私有；如需公开拉取，请在 GitHub 的包设置中将其可见性改为 Public。公开后可用 `docker pull ghcr.io/<仓库所有者>/gemsnote:1.0.0` 拉取，Docker 会自动选择匹配主机架构的镜像。本流程只发布明确的版本标签，不更新 `latest`。
 
+如果发布工作流本身修复后需要重试已有标签，不要删除或强推标签，也不要只点旧运行记录的“重新运行”（它仍使用原来的工作流版本）。将修复后的工作流合并到 GitHub 默认分支后，在 Actions → Release → Run workflow 中填写已有标签（如 `v1.0.0`）。手动运行会从该标签检出源码，重新测试、构建并发布；请先确认该标签尚未创建 GitHub Release，避免重复创建失败。
+
 每个发布包都包含服务端、Vue `frontend/dist`、MongoDB/PostgreSQL 迁移工具、配置、页面资源、数据库 Schema、初始数据和文档；运行发布包不需要安装 Node.js。
 
 ## 发布新版本
