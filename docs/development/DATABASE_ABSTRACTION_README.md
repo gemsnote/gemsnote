@@ -44,7 +44,7 @@ go run ./tools/migration -direction mongo_to_pg ...
 go run ./tools/migration -direction pg_to_mongo ...
 ```
 
-完整参数、备份和校验流程见 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)。
+完整参数、备份和校验流程见 [数据库迁移指南](MIGRATION_GUIDE.md)。
 
 ## 测试
 

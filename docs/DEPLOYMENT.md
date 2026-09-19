@@ -167,6 +167,17 @@ schema，目标 PostgreSQL 必须预先具有 `database/schema.sql` 中的表结
 Web 默认只发布到宿主机 `127.0.0.1:9000`。
 镜像构建不会带入本地 `conf/app.conf`、Compose 专用配置、`files/` 或 `public/upload/` 中的数据；镜像内的 `conf/app.conf` 来自 `conf/app.conf-default`。Compose 在运行时挂载对应配置及文件目录，因此部署前仍需编辑宿主机上的配置并备份持久化数据。
 
+### 使用 GHCR 发布镜像
+
+正式版本镜像发布在 `ghcr.io/gemsnote/gemsnote:<版本>`。先拉取并标记为 Compose 文件中的应用镜像名：
+
+```bash
+docker pull ghcr.io/gemsnote/gemsnote:1.0.0
+docker tag ghcr.io/gemsnote/gemsnote:1.0.0 gemsnote:1.0.0
+```
+
+然后执行下面的 PostgreSQL 或 MongoDB Compose 启动命令时不要加 `--build`，即可直接使用已拉取的镜像。GHCR 包若为私有，需要先执行 `docker login ghcr.io`；公开包可直接拉取。镜像支持 Linux amd64 和 arm64，Docker 会根据主机架构选择对应镜像。
+
 ### Docker + PostgreSQL
 
 首次启动前创建应用文件持久化目录：
@@ -394,4 +405,19 @@ curl http://127.0.0.1:9000/api/system/version
 
 升级前停止写入，同时备份数据库、`files/`、`public/upload/` 和实际配置。PostgreSQL 使用 `pg_dump`，MongoDB 只需 `mongodump --db <业务库>`，不要迁移 `admin/config/local`。数据库端口不要暴露到公网，Web 服务通过反向代理提供 HTTPS，启用 HTTPS 后将 `cookie.secure=true`。
 
-更专门的数据转换说明参阅 [迁移指南](MIGRATION_GUIDE.md)。
+更专门的数据转换说明参阅 [数据库迁移指南](../development/MIGRATION_GUIDE.md)。
+
+## 四、测试与自动化构建
+
+源码修改后，在仓库根目录运行基础检查：
+
+```bash
+npm ci --prefix frontend
+npm test --prefix frontend
+npm run build --prefix frontend
+go test ./...
+```
+
+数据库 CRUD 和迁移往返测试需要按[数据库抽象指南](../development/DATABASE_ABSTRACTION_README.md)设置对应的集成测试环境变量。服务端的 GitHub Actions 会在每次 push 和 Pull Request 中执行前端测试、Go 测试、构建校验和 Docker 构建。
+
+推送与应用版本一致的 `vMAJOR.MINOR.PATCH` 标签后，Actions 会构建 Release 包并发布 GHCR 多架构镜像。服务端和 desktop 的本地构建、tag 要求及发布产物详见[自动化构建与发布](../development/RELEASE.md)。

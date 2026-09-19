@@ -27,9 +27,9 @@ git push origin v1.0.0
 3. 构建 Linux amd64、Linux arm64、Windows amd64、macOS amd64 和 macOS arm64 发布包；
 4. 生成 `checksums.txt`；
 5. 根据提交记录生成 Release Notes 并创建 GitHub Release；
-6. 同时向 GitHub Container Registry（GHCR）推送包含 `linux/amd64` 和 `linux/arm64` 的镜像，镜像标签为 `ghcr.io/<仓库所有者>/gemsnote:<版本号>`，例如 `ghcr.io/<仓库所有者>/gemsnote:1.0.0`。GitHub Release 与镜像发布都在版本校验和发布包构建通过后执行。
+6. 同时向 GitHub Container Registry（GHCR）推送包含 `linux/amd64` 和 `linux/arm64` 的镜像，镜像标签为 `ghcr.io/gemsnote/gemsnote:<版本号>`，例如 `ghcr.io/gemsnote/gemsnote:1.0.0`。GitHub Release 与镜像发布都在版本校验和发布包构建通过后执行。
 
-镜像发布使用工作流自带的 `GITHUB_TOKEN`，无需配置 Docker Hub 凭据。首次发布的 GHCR 包默认可能为私有；如需公开拉取，请在 GitHub 的包设置中将其可见性改为 Public。公开后可用 `docker pull ghcr.io/<仓库所有者>/gemsnote:1.0.0` 拉取，Docker 会自动选择匹配主机架构的镜像。本流程只发布明确的版本标签，不更新 `latest`。
+镜像发布使用工作流自带的 `GITHUB_TOKEN`，无需配置 Docker Hub 凭据。首次发布的 GHCR 包默认可能为私有；如需公开拉取，请在 GitHub 的包设置中将其可见性改为 Public。公开后可用 `docker pull ghcr.io/gemsnote/gemsnote:1.0.0` 拉取，Docker 会自动选择匹配主机架构的镜像。本流程只发布明确的版本标签，不更新 `latest`。
 
 如果发布工作流本身修复后需要重试已有标签，不要删除或强推标签，也不要只点旧运行记录的“重新运行”（它仍使用原来的工作流版本）。将修复后的工作流合并到 GitHub 默认分支后，在 Actions → Release → Run workflow 中填写已有标签（如 `v1.0.0`）。手动运行会从该标签检出源码，重新测试、构建并发布；请先确认该标签尚未创建 GitHub Release，避免重复创建失败。
 
@@ -75,7 +75,7 @@ scripts/build-release.sh <version> <goos> <goarch> <绝对输出目录>
 
 发布包包含服务端、迁移工具、`frontend/dist`、配置、数据库 Schema、初始数据和文档，运行时不需要 Node.js。包内通过 `run.sh`（Linux/macOS）或 `run.bat`（Windows）启动。发布前应检查包内 `conf`，不要带入本地密码、`.env` 或运行时数据；`files/` 不会打包，`public/upload` 为空目录。
 
-启动前编辑 `conf/app.conf`，配置数据库连接并修改 `app.secret`。全新 PostgreSQL 数据库按部署方式执行 Schema 和 seed；MongoDB 不会自动导入 BSON，需要先按 [DEPLOYMENT.md](DEPLOYMENT.md) 恢复或连接数据库。已有数据库不会因重新构建 Release 而重置 seed 或密码。
+启动前编辑 `conf/app.conf`，配置数据库连接并修改 `app.secret`。全新 PostgreSQL 数据库按部署方式执行 Schema 和 seed；MongoDB 不会自动导入 BSON，需要先按 [部署、测试与交付](../DEPLOYMENT.md) 恢复或连接数据库。已有数据库不会因重新构建 Release 而重置 seed 或密码。
 
 ## 手工构建 Desktop
 
