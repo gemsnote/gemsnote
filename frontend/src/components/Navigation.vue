@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed,ref} from 'vue'
+import {computed,onMounted,ref} from 'vue'
 import {request,resolveAvatarUrl} from '../api'
 import {language,languages,setLanguage,t} from '../i18n'
 import brandMark from '../assets/gemsnote_s.png'
@@ -8,14 +8,29 @@ const props=defineProps<{admin?:boolean,user?:{Username?:string;Email?:string;Lo
 const emit=defineEmits<{synced:[]}>()
 const menuOpen=ref(false)
 const languageOpen=ref(false)
+const logoutPrompt=ref(false)
+let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
 const desktop=computed(()=>!!props.desktop)
 const syncing=ref(false)
 
 function close(){menuOpen.value=false;languageOpen.value=false}
-function chooseLanguage(value:typeof language.value){setLanguage(value);close()}
+function updateNativeLanguage(value:typeof language.value){
+  const setNative=(window as any).go?.main?.App?.SetLanguage
+  if(typeof setNative==='function')void setNative(value)
+}
+function chooseLanguage(value:typeof language.value){setLanguage(value);updateNativeLanguage(value);close()}
 function focusOut(event:FocusEvent){if(!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node|null))close()}
+function askLogoutChoice(){
+  close();logoutPrompt.value=true
+  return new Promise<boolean>(resolve=>{resolveLogoutChoice=resolve})
+}
+function chooseLogout(force:boolean){
+  logoutPrompt.value=false
+  const resolve=resolveLogoutChoice;resolveLogoutChoice=undefined;resolve?.(force)
+}
+onMounted(()=>updateNativeLanguage(language.value))
 async function runSync(full=false){
   if(syncing.value)return
   syncing.value=true
@@ -29,7 +44,10 @@ async function runSync(full=false){
       if(typeof syncNow==='function'&&!await syncNow())return
     }else await request(full?'/web/fullSync':'/web/sync',{})
     emit('synced')
-  }catch(e){window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:e instanceof Error?e.message:String(e),Full:full}}))}
+  }catch(e){
+    const message=e instanceof Error?e.message:String(e)
+    if(message!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:full}}))
+  }
   finally{syncing.value=false}
 }
 async function logout(event:MouseEvent){
@@ -47,16 +65,17 @@ async function logout(event:MouseEvent){
     return
   }
   try{
-    let hasPending=!!props.pending
-    if(!hasPending){
-      try{hasPending=!!(await request<any>('/web/bootstrap')).PendingChanges}catch{/* logout reports the real session error below */}
-    }
-    const force=hasPending&&confirm(t('仍有未同步的更改。是否在不同步的情况下退出？'))
-    await request('/web/logout',force?{force:true}:{})
+    await request('/web/logout',{})
     location.href='/login'
   }catch(e){
     const message=e instanceof Error?e.message:String(e)
-    window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message==='syncFailed'?t('退出前同步失败，请确认服务端可用后重试'):message,Full:false}}))
+    if(message==='syncFailed'){
+      if(!await askLogoutChoice())return
+      try{await request('/web/logout',{force:true});location.href='/login'}
+      catch(forceError){window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:forceError instanceof Error?forceError.message:String(forceError),Full:false}}))}
+      return
+    }
+    window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
   }
 }
 </script>
@@ -80,4 +99,16 @@ async function logout(event:MouseEvent){
       </div>
     </div>
   </nav>
+  <Teleport to="body">
+    <section v-if="logoutPrompt" class="choice-dialog-backdrop" role="presentation" @click.self="chooseLogout(false)">
+      <div class="choice-dialog" role="dialog" aria-modal="true" :aria-label="t('退出登录')">
+        <h2>{{t('退出登录')}}</h2>
+        <p>{{t('退出前同步失败，是否在不同步的情况下退出？')}}</p>
+        <div class="choice-dialog-actions">
+          <button class="primary" @click="chooseLogout(true)">{{t('确定')}}</button>
+          <button @click="chooseLogout(false)">{{t('取消')}}</button>
+        </div>
+      </div>
+    </section>
+  </Teleport>
 </template>
