@@ -248,6 +248,28 @@ func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
 	}
 
 	noteId := bson.NewObjectId()
+	// API2 desktop retries must be idempotent. A timeout can happen after the
+	// server commits the note but before the client receives the response. Use
+	// the stable local note ID when supplied so retrying returns the same note
+	// instead of creating a duplicate.
+	if noteOrContent.ClientNoteId != "" && bson.IsObjectIdHex(noteOrContent.ClientNoteId) {
+		noteId = bson.ObjectIdHex(noteOrContent.ClientNoteId)
+		if existing := noteService.GetNoteById(noteOrContent.ClientNoteId); existing.NoteId != "" {
+			if existing.UserId.Hex() != c.getUserId() {
+				re.Msg = "noPermission"
+				return c.RenderJSON(re)
+			}
+			noteOrContent.NoteId = existing.NoteId.Hex()
+			noteOrContent.NotebookId = existing.NotebookId.Hex()
+			noteOrContent.UserId = existing.UserId.Hex()
+			noteOrContent.Usn = existing.Usn
+			noteOrContent.CreatedTime = existing.CreatedTime
+			noteOrContent.UpdatedTime = existing.UpdatedTime
+			noteOrContent.Content = ""
+			noteOrContent.Abstract = ""
+			return c.RenderJSON(noteOrContent)
+		}
+	}
 	// TODO 先上传图片/附件, 如果不成功, 则返回false
 	//
 	attachNum := 0
@@ -481,6 +503,10 @@ func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
 			needUpdateNote = true
 			noteUpdate["NotebookId"] = bson.ObjectIdHex(noteOrContent.NotebookId)
 		}
+	}
+	if c.Has("CreatedTime") && IsValidTime(noteOrContent.CreatedTime) {
+		needUpdateNote = true
+		noteUpdate["CreatedTime"] = noteOrContent.CreatedTime
 	}
 
 	if c.Has("Content") {

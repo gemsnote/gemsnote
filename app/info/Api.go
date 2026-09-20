@@ -17,11 +17,12 @@ type NoteFile struct {
 	IsAttach    bool // 是否是附件, 不是附件就是图片
 }
 type ApiNote struct {
-	NoteId     string
-	NotebookId string
-	UserId     string
-	Title      string
-	Desc       string
+	NoteId       string
+	ClientNoteId string // API2 desktop idempotency key; stable local note ID
+	NotebookId   string
+	UserId       string
+	Title        string
+	Desc         string
 	//	ImgSrc     string
 	Tags       []string
 	Abstract   string
