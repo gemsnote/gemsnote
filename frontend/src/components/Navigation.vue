@@ -47,7 +47,12 @@ async function logout(event:MouseEvent){
     return
   }
   try{
-    await request('/web/logout',{})
+    let hasPending=!!props.pending
+    if(!hasPending){
+      try{hasPending=!!(await request<any>('/web/bootstrap')).PendingChanges}catch{/* logout reports the real session error below */}
+    }
+    const force=hasPending&&confirm(t('仍有未同步的更改。是否在不同步的情况下退出？'))
+    await request('/web/logout',force?{force:true}:{})
     location.href='/login'
   }catch(e){
     const message=e instanceof Error?e.message:String(e)

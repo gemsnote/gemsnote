@@ -10,6 +10,7 @@ const translations: Record<string, string> = {
   '珠玑笔记': 'Gemsnote', '页面不存在': 'Page not found', '返回笔记': 'Back to notes',
   '语言': 'Language', '返回': 'Back', '用户': 'User', '用户菜单': 'User menu', '全局导航': 'Main navigation',
   '立即同步': 'Sync now', '有未同步的更改': 'Unsynced changes', '完全同步': 'Full sync',
+  '仍有未同步的更改。是否在不同步的情况下退出？': 'There are unsynced changes. Sign out without syncing?',
   '管理': 'Administration', '账号': 'Account', '退出': 'Sign out',
   '退出前同步失败，请确认服务端可用后重试': 'Sync failed before sign-out. Check the server and try again.',
   '登录': 'Sign in', '注册': 'Register', '找回密码': 'Forgot password', '欢迎回来': 'Welcome back',
