@@ -10,7 +10,7 @@ import RichEditor from '../components/RichEditor.vue'
 import {language,t,formatDate} from '../i18n'
 const route=useRoute(),router=useRouter(),boot=ref<any>({}),notes=ref<any[]>([]),current=ref<any>(null)
 const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),trash=ref(false),starred=ref(false),sharedOwner=ref('')
-const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),syncSuccess=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),sharePerm=ref('0'),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
+const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),sharePerm=ref('0'),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
 const mobileNotesVisible=ref(false)
@@ -156,8 +156,8 @@ function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sor
 function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
 function handleSyncResult(result:any){
  const value=result?.detail||result||{}
- if(value.Ok===false){syncSuccess.value='';error.value=String(value.Msg||t('同步失败'));return}
- if(value.Full){error.value='';syncSuccess.value=t('完全同步成功');setTimeout(()=>{syncSuccess.value=''},2200)}
+ if(value.Ok===false){error.value=String(value.Msg||t('同步失败'));return}
+ if(value.Full)error.value=''
 }
 onMounted(async()=>{(window as any).__gemsnoteBeforeLogout=flush;(window as any).__gemsnoteSyncNow=async()=>{if(!await flush())return false;if(!await bootstrap())return false;await load();return true};window.addEventListener('sync-result',handleSyncResult as EventListener);updateCompact();window.addEventListener('resize',updateCompact);window.addEventListener('beforeunload',leave);window.addEventListener('keydown',shortcut);window.addEventListener('pointerdown',closeBookMenu);const wails=(window as any).runtime;if(wails?.EventsOn){const offRevoked=wails.EventsOn('shared-notes-revoked',(ids:string[])=>{if(ids?.includes(current.value?.Note?.NoteId)){error.value=t('该共享笔记已被撤销访问权限');current.value=null;attachments.value=[]}});const offSync=wails.EventsOn('sync-finished',async(result:any)=>{handleSyncResult(result);try{if(!await bootstrap())return;await load();if(current.value&&!dirty.value){const noteId=current.value.Note.NoteId;const doc=await request('/web/document',{noteId});if(current.value?.Note.NoteId===noteId&&!dirty.value){current.value=doc;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',')}}}catch(e){error.value=String(e)}});if(typeof offRevoked==='function')runtimeUnsubscribers.push(offRevoked);if(typeof offSync==='function')runtimeUnsubscribers.push(offSync)}try{if(await bootstrap()){await load();if(route.params.noteId)await open(String(route.params.noteId))}}catch(e){error.value=String(e)}})
 onBeforeUnmount(()=>{delete (window as any).__gemsnoteBeforeLogout;delete (window as any).__gemsnoteSyncNow;clearTimeout(saveTimer);clearTimeout(searchTimer);stopResize?.();runtimeUnsubscribers.splice(0).forEach(unsubscribe=>unsubscribe());document.body.classList.remove('panel-resizing');window.removeEventListener('sync-result',handleSyncResult as EventListener);window.removeEventListener('resize',updateCompact);window.removeEventListener('beforeunload',leave);window.removeEventListener('keydown',shortcut);window.removeEventListener('pointerdown',closeBookMenu)})
@@ -234,7 +234,6 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <main class="editor">
 <p v-if="error" role="alert" class="error">{{error}} <button @click="error=''">{{t('关闭')}}</button>
 </p>
-<p v-if="syncSuccess" role="status" class="sync-success">{{syncSuccess}}</p>
 <template v-if="current">
 <header class="toolbar">
 <input class="toolbar-title" v-model="title" :readonly="!writable" @input="changed" :aria-label="t('笔记标题')">

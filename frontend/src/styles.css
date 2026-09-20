@@ -20,6 +20,12 @@ small,.muted{color:#7a867f;font-size:12px}
 .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .error{background:#fff0eb;color:#a33f2b;padding:12px;border-radius:6px}
 .sync-success{background:#e4f2e6;color:#245c35;padding:12px;border-radius:6px}
+.sync-progress-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#172e3266}
+.sync-progress-dialog{width:min(420px,88vw);padding:28px;border-radius:14px;background:#fff;box-shadow:0 18px 70px #10251f40;text-align:center}
+.sync-progress-dialog h2{margin:0 0 18px}
+.sync-progress-dialog p{min-height:24px;margin:0 0 14px;color:#52665c}
+.sync-progress-dialog progress{display:block;width:100%;height:12px;accent-color:#235c48}
+.sync-progress-dialog small{display:block;margin-top:10px}
 .shell{display:flex;height:100%;min-height:0}
 .notebooks{width:230px;flex-shrink:0;background:#eef1eb;overflow:hidden;border-right:1px solid #dce2da;display:flex;flex-direction:column}
 .notebooks.collapsed{width:64px!important;background:#193b35;border-right-color:#2f5148}

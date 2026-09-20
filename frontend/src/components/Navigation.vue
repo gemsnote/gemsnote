@@ -19,6 +19,10 @@ function focusOut(event:FocusEvent){if(!(event.currentTarget as HTMLElement).con
 async function runSync(full=false){
   if(syncing.value)return
   syncing.value=true
+  if(full){
+    close()
+    window.dispatchEvent(new CustomEvent('sync-progress',{detail:{Stage:'start',Current:0,Total:100}}))
+  }
   try{
     if(!desktop.value&&!full){
       const syncNow=(window as any).__gemsnoteSyncNow
