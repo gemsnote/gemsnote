@@ -13,6 +13,8 @@ const translations: Record<string, string> = {
   '退出登录': 'Sign out', '退出前同步失败，是否在不同步的情况下退出？': 'Sync failed. Sign out without syncing?',
   '确定': 'Confirm',
   '管理': 'Administration', '账号': 'Account', '退出': 'Sign out',
+  '关于': 'About', '关于珠玑笔记': 'About Gemsnote', '版本': 'Version', '平台': 'Platform',
+  '运行环境': 'Runtime',
   '退出前同步失败，请确认服务端可用后重试': 'Sync failed before sign-out. Check the server and try again.',
   '登录': 'Sign in', '注册': 'Register', '找回密码': 'Forgot password', '欢迎回来': 'Welcome back',
   '创建账号': 'Create an account', '服务器': 'Server', '邮箱或用户名': 'Email or username',

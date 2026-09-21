@@ -9,6 +9,8 @@ const emit=defineEmits<{synced:[]}>()
 const menuOpen=ref(false)
 const languageOpen=ref(false)
 const logoutPrompt=ref(false)
+const aboutOpen=ref(false)
+const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
@@ -29,6 +31,14 @@ function askLogoutChoice(){
 function chooseLogout(force:boolean){
   logoutPrompt.value=false
   const resolve=resolveLogoutChoice;resolveLogoutChoice=undefined;resolve?.(force)
+}
+async function showAbout(){
+  close()
+  const getAbout=(window as any).go?.main?.App?.GetAboutInfo
+  if(typeof getAbout==='function'){
+    try{aboutInfo.value={...aboutInfo.value,...await getAbout()}}catch{}
+  }
+  aboutOpen.value=true
 }
 onMounted(()=>updateNativeLanguage(language.value))
 async function runSync(full=false){
@@ -95,6 +105,7 @@ async function logout(event:MouseEvent){
         <div v-if="languageOpen" class="language-options" role="menu" :aria-label="t('语言')">
           <button v-for="item in languages" :key="item.code" role="menuitemradio" :aria-checked="language===item.code" @click="chooseLanguage(item.code)"><span>{{item.name}}</span><span v-if="language===item.code" aria-hidden="true">✓</span></button>
         </div>
+        <button v-if="desktop" class="about-trigger" role="menuitem" @click="showAbout">{{t('关于')}}</button>
         <a href="/api2/logout" role="menuitem" @click="logout">{{t('退出')}}</a>
       </div>
     </div>
@@ -108,6 +119,19 @@ async function logout(event:MouseEvent){
           <button class="primary" @click="chooseLogout(true)">{{t('确定')}}</button>
           <button @click="chooseLogout(false)">{{t('取消')}}</button>
         </div>
+      </div>
+    </section>
+    <section v-if="aboutOpen" class="choice-dialog-backdrop" role="presentation" @click.self="aboutOpen=false">
+      <div class="choice-dialog about-dialog" role="dialog" aria-modal="true" :aria-label="t('关于珠玑笔记')">
+        <img :src="brandMark" :alt="t('珠玑笔记')">
+        <h2>{{t('珠玑笔记')}}</h2>
+        <p>{{t('日积字句，终得珠玑。')}}</p>
+        <dl>
+          <div><dt>{{t('版本')}}</dt><dd>{{aboutInfo.Version||'—'}}</dd></div>
+          <div><dt>{{t('平台')}}</dt><dd>{{aboutInfo.Platform}} / {{aboutInfo.Arch}}</dd></div>
+          <div><dt>{{t('运行环境')}}</dt><dd>{{aboutInfo.Runtime}}</dd></div>
+        </dl>
+        <div class="choice-dialog-actions"><button class="primary" @click="aboutOpen=false">{{t('关闭')}}</button></div>
       </div>
     </section>
   </Teleport>
