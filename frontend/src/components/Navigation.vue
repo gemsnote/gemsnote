@@ -8,7 +8,9 @@ const props=defineProps<{admin?:boolean,user?:{Username?:string;Email?:string;Lo
 const emit=defineEmits<{synced:[]}>()
 const menuOpen=ref(false)
 const languageOpen=ref(false)
+const syncOpen=ref(false)
 const logoutPrompt=ref(false)
+const resetPrompt=ref(false)
 const aboutOpen=ref(false)
 const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
@@ -17,7 +19,7 @@ const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
 const desktop=computed(()=>!!props.desktop)
 const syncing=ref(false)
 
-function close(){menuOpen.value=false;languageOpen.value=false}
+function close(){menuOpen.value=false;languageOpen.value=false;syncOpen.value=false}
 function updateNativeLanguage(value:typeof language.value){
   const setNative=(window as any).go?.main?.App?.SetLanguage
   if(typeof setNative==='function')void setNative(value)
@@ -41,24 +43,42 @@ async function showAbout(){
   aboutOpen.value=true
 }
 onMounted(()=>updateNativeLanguage(language.value))
-async function runSync(full=false){
+async function runSync(mode:'full'|'reset'='full'){
   if(syncing.value)return
   syncing.value=true
-  if(full){
-    close()
-    window.dispatchEvent(new CustomEvent('sync-progress',{detail:{Stage:'start',Current:0,Total:100}}))
-  }
+  close()
+  window.dispatchEvent(new CustomEvent('sync-progress',{detail:{Stage:'start',Current:0,Total:100,Mode:mode}}))
   try{
-    if(!desktop.value&&!full){
-      const syncNow=(window as any).__gemsnoteSyncNow
-      if(typeof syncNow==='function'&&!await syncNow())return
-    }else await request(full?'/web/fullSync':'/web/sync',{})
+    if(mode==='reset'){
+      const beforeReset=(window as any).__gemsnoteBeforeReset
+      if(typeof beforeReset==='function'&&!await beforeReset())throw new Error(t('本地笔记保存失败，已取消重新同步'))
+      await request('/web/resetSync',{confirm:true})
+      const afterReset=(window as any).__gemsnoteAfterReset
+      if(typeof afterReset==='function')afterReset()
+      location.href='/note'
+      return
+    }
+    await request('/web/fullSync',{})
     emit('synced')
   }catch(e){
     const message=e instanceof Error?e.message:String(e)
-    if(message!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:full}}))
+    if(message!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:true,Reset:mode==='reset'}}))
   }
   finally{syncing.value=false}
+}
+async function runImmediateSync(){
+  if(syncing.value)return
+  syncing.value=true
+  try{
+    if(!desktop.value){
+      const syncNow=(window as any).__gemsnoteSyncNow
+      if(typeof syncNow==='function'&&!await syncNow())return
+    }else await request('/web/sync',{})
+    emit('synced')
+  }catch(e){
+    const message=e instanceof Error?e.message:String(e)
+    if(message!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
+  }finally{syncing.value=false}
 }
 async function logout(event:MouseEvent){
   event.preventDefault()
@@ -93,15 +113,19 @@ async function logout(event:MouseEvent){
 <template>
   <nav :class="workspace?['space-footer',{collapsed}]:'settings-nav'" :aria-label="t('全局导航')">
     <RouterLink v-if="!workspace" to="/note" class="settings-brand" :title="t('返回笔记')"><img :src="brandMark" :alt="t('珠玑笔记')"><span>{{t('珠玑笔记')}}</span></RouterLink>
-    <button v-if="workspace&&desktop" class="footer-sync" :class="{'has-pending':pending}" :disabled="syncing" :aria-busy="syncing" :title="pending?t('有未同步的更改'):t('立即同步')" :aria-label="t('立即同步')" @click="runSync()">↻<span v-if="pending" class="sync-pending-dot" aria-hidden="true"></span></button>
+    <button v-if="workspace&&desktop" class="footer-sync" :class="{'has-pending':pending}" :disabled="syncing" :aria-busy="syncing" :title="pending?t('有未同步的更改'):t('立即同步')" :aria-label="t('立即同步')" @click="runImmediateSync">↻<span v-if="pending" class="sync-pending-dot" aria-hidden="true"></span></button>
     <RouterLink v-if="!workspace&&backOnly" to="/note" class="settings-back">{{t('返回')}}</RouterLink>
     <div v-else class="user-menu" @focusout="focusOut" @keydown.escape="close">
       <button class="avatar-button" :aria-expanded="menuOpen" aria-haspopup="menu" :aria-label="t('用户菜单')" @click="menuOpen=!menuOpen"><img v-if="avatarSrc" :src="avatarSrc" alt=""><span v-else>{{initials}}</span></button>
       <div v-if="menuOpen" class="user-popover" role="menu">
-        <a v-if="desktop" href="#" role="menuitem" :aria-busy="syncing" @click.prevent="runSync(true)">{{t('完全同步')}}</a>
+        <button v-if="desktop" class="sync-trigger" role="menuitem" aria-haspopup="menu" :aria-expanded="syncOpen" @click="syncOpen=!syncOpen;languageOpen=false">{{t('同步')}} <span aria-hidden="true">{{syncOpen?'▾':'▸'}}</span></button>
+        <div v-if="desktop&&syncOpen" class="sync-options" role="menu" :aria-label="t('同步')">
+          <button role="menuitem" :disabled="syncing" @click="runSync('full')">{{t('完全同步')}}</button>
+          <button role="menuitem" :disabled="syncing" @click="close();resetPrompt=true">{{t('重新同步')}}</button>
+        </div>
         <RouterLink v-if="admin&&!desktop" to="/admin" role="menuitem" @click="close">{{t('管理')}}</RouterLink>
         <RouterLink to="/member" role="menuitem" @click="close">{{t('账号')}}</RouterLink>
-        <button class="language-trigger" role="menuitem" aria-haspopup="menu" :aria-expanded="languageOpen" @click="languageOpen=!languageOpen">{{t('语言')}} <span aria-hidden="true">{{languageOpen?'▾':'▸'}}</span></button>
+        <button class="language-trigger" role="menuitem" aria-haspopup="menu" :aria-expanded="languageOpen" @click="languageOpen=!languageOpen;syncOpen=false">{{t('语言')}} <span aria-hidden="true">{{languageOpen?'▾':'▸'}}</span></button>
         <div v-if="languageOpen" class="language-options" role="menu" :aria-label="t('语言')">
           <button v-for="item in languages" :key="item.code" role="menuitemradio" :aria-checked="language===item.code" @click="chooseLanguage(item.code)"><span>{{item.name}}</span><span v-if="language===item.code" aria-hidden="true">✓</span></button>
         </div>
@@ -118,6 +142,16 @@ async function logout(event:MouseEvent){
         <div class="choice-dialog-actions">
           <button class="primary" @click="chooseLogout(true)">{{t('确定')}}</button>
           <button @click="chooseLogout(false)">{{t('取消')}}</button>
+        </div>
+      </div>
+    </section>
+    <section v-if="resetPrompt" class="choice-dialog-backdrop" role="presentation" @click.self="resetPrompt=false">
+      <div class="choice-dialog" role="dialog" aria-modal="true" :aria-label="t('重新同步')">
+        <h2>{{t('重新同步')}}</h2>
+        <p>{{t('将删除当前账户的全部本地数据，从服务端重新下载。未上传的本地修改会永久丢失。是否继续？')}}</p>
+        <div class="choice-dialog-actions">
+          <button @click="resetPrompt=false">{{t('取消')}}</button>
+          <button class="primary" @click="resetPrompt=false;runSync('reset')">{{t('确认重新同步')}}</button>
         </div>
       </div>
     </section>

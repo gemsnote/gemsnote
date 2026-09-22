@@ -4,6 +4,7 @@ import {t} from './i18n'
 
 const syncVisible=ref(false)
 const syncStage=ref('start')
+const syncMode=ref<'full'|'reset'>('full')
 const syncCurrent=ref(0)
 const syncTotal=ref(100)
 const unsubscribers:Array<()=>void>=[]
@@ -12,6 +13,7 @@ const stageText=computed(()=>t(({start:'正在准备同步',notebooks:'正在同
 
 function showSyncProgress(event:any){
  const value=event?.detail||event||{}
+ if(value.Mode==='full'||value.Mode==='reset')syncMode.value=value.Mode
  syncStage.value=String(value.Stage||'start')
  syncCurrent.value=Number(value.Current||0)
  syncTotal.value=Number(value.Total||100)
@@ -41,8 +43,8 @@ onBeforeUnmount(()=>{
 <template>
  <RouterView />
  <section v-if="syncVisible" class="sync-progress-backdrop" aria-live="polite">
-  <div class="sync-progress-dialog" role="dialog" aria-modal="true" :aria-label="t('完全同步')">
-   <h2>{{t('完全同步')}}</h2>
+  <div class="sync-progress-dialog" role="dialog" aria-modal="true" :aria-label="t(syncMode==='reset'?'重新同步':'完全同步')">
+   <h2>{{t(syncMode==='reset'?'重新同步':'完全同步')}}</h2>
    <p>{{stageText}}</p>
    <progress :value="syncPercent" max="100"></progress>
    <small>{{syncPercent}}%</small>

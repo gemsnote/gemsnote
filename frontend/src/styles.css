@@ -137,11 +137,11 @@ small,.muted{color:#7a867f;font-size:12px}
 .settings-nav .user-popover{top:48px;bottom:auto}
 .user-popover a{display:block;color:#243b36;padding:9px 12px;border-radius:6px;font-size:13px}
 .user-popover a:hover{background:#eaf1ec}
-.user-popover .language-trigger,.user-popover .about-trigger,.language-options button{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:transparent;color:#243b36;text-align:left;padding:9px 12px;border-radius:6px;font-size:13px}
-.user-popover .language-trigger:hover,.user-popover .about-trigger:hover,.language-options button:hover{background:#eaf1ec}
+.user-popover .language-trigger,.user-popover .sync-trigger,.user-popover .about-trigger,.language-options button,.sync-options button{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:transparent;color:#243b36;text-align:left;padding:9px 12px;border-radius:6px;font-size:13px}
+.user-popover .language-trigger:hover,.user-popover .sync-trigger:hover,.user-popover .about-trigger:hover,.language-options button:hover,.sync-options button:hover{background:#eaf1ec}
 .about-dialog{text-align:center}.about-dialog>img{width:72px;height:72px}.about-dialog h2{margin:8px 0 4px}.about-dialog>p{margin-bottom:18px}
 .about-dialog dl{margin:0 0 20px;text-align:left}.about-dialog dl div{display:flex;justify-content:space-between;gap:24px;padding:7px 0;border-bottom:1px solid #edf1ee}.about-dialog dt{color:#65766e}.about-dialog dd{margin:0;color:#243b36;overflow-wrap:anywhere}
-.language-options{padding:2px 0 4px 12px;border-left:2px solid #dbe9dd;margin-left:12px}
+.language-options,.sync-options{padding:2px 0 4px 12px;border-left:2px solid #dbe9dd;margin-left:12px}
 .language-options button[aria-checked=true]{color:#24543f;font-weight:700}
 .user-popover .sync-msg{display:block;padding:2px 12px 6px;color:#7a867f;font-size:12px}
 .notebooks,.note-list{position:relative}
