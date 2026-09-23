@@ -13,11 +13,38 @@ import (
 	"net/url"
 
 	"github.com/gemsnote/gemsnote/app/info"
+	appversion "github.com/gemsnote/gemsnote/app/version"
 	"github.com/revel/revel"
 	"gopkg.in/mgo.v2/bson"
 )
 
 type Api2 struct{ BaseController }
+
+// TokenLogin is the API2 desktop login contract. Authentication, public user
+// profile and protocol version are intentionally returned in one round trip.
+func (c Api2) TokenLogin() revel.Result {
+	var p struct{ Email, Pwd string }
+	if len(c.Params.JSON) > 0 {
+		if err := c.body(&p); err != nil {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+		}
+	} else {
+		p.Email = c.Params.Form.Get("email")
+		p.Pwd = c.Params.Form.Get("pwd")
+	}
+	user, err := authService.Login(p.Email, p.Pwd)
+	if err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("wrongUsernameOrPassword")})
+	}
+	token := bson.NewObjectId().Hex()
+	sessionService.SetUserId(token, user.UserId.Hex())
+	return c.RenderJSON(map[string]interface{}{
+		"Ok":     true,
+		"Token":  token,
+		"User":   info.ApiUser{UserId: user.UserId.Hex(), Username: user.Username, Email: user.Email, Verified: user.Verified, Logo: user.Logo},
+		"Server": map[string]string{"Name": "gemsnote", "Version": appversion.Current, "MinVersion": ""},
+	})
+}
 
 func (c Api2) Login() revel.Result {
 	var p struct{ Email, Pwd, Captcha string }
@@ -251,7 +278,7 @@ func (c Api2) RequireSession() revel.Result {
 	// Login must remain public; Logout is idempotent and may be called after a
 	// session has already expired. Bootstrap is also public so the login page
 	// can discover registration/captcha state.
-	if c.MethodName == "Bootstrap" || c.MethodName == "Login" || c.MethodName == "Logout" || c.MethodName == "Register" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
+	if c.MethodName == "Bootstrap" || c.MethodName == "Login" || c.MethodName == "TokenLogin" || c.MethodName == "Logout" || c.MethodName == "Register" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
 		return nil
 	}
 	if c.GetUserId() == "" || !sessionService.ValidateUserSession(c.Session.ID(), c.GetUserId()) {

@@ -11,6 +11,8 @@ const translations: Record<string, string> = {
   '语言': 'Language', '返回': 'Back', '用户': 'User', '用户菜单': 'User menu', '全局导航': 'Main navigation',
   '立即同步': 'Sync now', '有未同步的更改': 'Unsynced changes', '完全同步': 'Full sync',
   '同步': 'Sync', '重新同步': 'Reset and sync', '确认重新同步': 'Reset and sync',
+  '选择登录后的同步方式': 'Choose sync after sign-in', '暂不同步': 'Not now',
+  '检测到此账号已有本地缓存。重新同步会删除该账号的全部本地数据，并从服务端重新下载；未上传的修改会永久丢失。': 'A local cache exists for this account. Reset and sync deletes all local data for this account and downloads it again from the server. Unsynced changes will be permanently lost.',
   '本地笔记保存失败，已取消重新同步': 'Could not save the local note. Reset and sync was canceled.',
   '将删除当前账户的全部本地数据，从服务端重新下载。未上传的本地修改会永久丢失。是否继续？': 'All local data for this account will be deleted and downloaded again from the server. Unsynced local changes will be permanently lost. Continue?',
   '退出登录': 'Sign out', '退出前同步失败，是否在不同步的情况下退出？': 'Sync failed. Sign out without syncing?',

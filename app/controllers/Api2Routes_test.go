@@ -49,6 +49,9 @@ func TestAPI2BrowserRoutesHaveExplicitMethods(t *testing.T) {
 			t.Errorf("missing browser API2 route: %s", route)
 		}
 	}
+	if !regexp.MustCompile(`(?m)^POST\s+/api2/auth/login\s+Api2\.TokenLogin\s*$`).Match(content) {
+		t.Fatal("API2 token login must use the single-response TokenLogin action")
+	}
 }
 
 func TestAPI2EmptyHistoriesAreArray(t *testing.T) {

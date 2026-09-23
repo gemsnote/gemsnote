@@ -4,9 +4,18 @@ API2 是新客户端使用的版本化接口空间，前缀为 `/api2`。第一�
 
 ## 认证
 
-Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`email`、`pwd`、可选 `captcha`），成功后设置同源 session cookie。Desktop 与服务端之间使用 `POST /api2/auth/login`，成功后返回 API token。旧版登录路径是 `/api/doLogin`，仅供兼容客户端使用。
+Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`email`、`pwd`、可选 `captcha`），成功后设置同源 session cookie。Desktop 与服务端之间使用 `POST /api2/auth/login`。该接口在一次响应中返回认证 token、用户资料和服务端协议版本，登录流程不需要再请求 `/api2/user/info` 或 `/api2/system/version`：
 
-Desktop 使用返回的 `token` 访问 `GET /api2/user/info?token=...` 获取用户资料及头像路径；该接口不依赖 Web Cookie。
+```json
+{
+  "Ok": true,
+  "Token": "...",
+  "User": {"UserId": "...", "Username": "admin", "Email": "...", "Verified": true, "Logo": "..."},
+  "Server": {"Name": "gemsnote", "Version": "1.0.0", "MinVersion": ""}
+}
+```
+
+API2 当前处于定稿前阶段，客户端应按上述结构实现，不提供对早期 Gemsnote API2 登录响应的兼容。旧版登录路径 `/api/doLogin` 仅供 Leanote 兼容客户端使用。
 
 ## Web 核心接口
 

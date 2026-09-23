@@ -121,7 +121,7 @@ POST    /api2/share/addShareNote                Share.AddShareNote
 POST    /api2/share/deleteShareNote             Share.DeleteShareNote
 POST    /api2/share/deleteShareNoteBySharedUser Share.DeleteShareNoteBySharedUser
 # API2 sync/client contract (legacy response models under the new namespace).
-POST    /api2/auth/login                        ApiAuth.Login
+POST    /api2/auth/login                        Api2.TokenLogin
 POST    /api2/auth/logout                       ApiAuth.Logout
 GET     /api2/user/getSyncState                 ApiUser.GetSyncState
 GET     /api2/user/info                         ApiUser.Info
