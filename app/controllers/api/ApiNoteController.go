@@ -62,13 +62,7 @@ func (c ApiNote) GetSyncNotesWithContent(afterUsn, maxEntry int) revel.Result {
 		maxEntry = 50
 	}
 	userID := c.getUserId()
-	notes := noteService.GetSyncNotes(userID, afterUsn, maxEntry)
-	for i := range notes {
-		if notes[i].IsDeleted || notes[i].NoteId == "" {
-			continue
-		}
-		notes[i].Content = noteService.GetNoteContent(notes[i].NoteId, userID).Content
-	}
+	notes := noteService.GetSyncNotesWithContent(userID, afterUsn, maxEntry)
 	return c.RenderJSON(notes)
 }
 

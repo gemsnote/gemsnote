@@ -133,6 +133,38 @@ func (this *NoteService) GetSyncNotes(userId string, afterUsn, maxEntry int) []i
 	return this.ToApiNotes(notes)
 }
 
+// GetSyncNotesWithContent returns a bounded sync page with note bodies. Fetch
+// the bodies in one query instead of issuing one query per note; large reset
+// syncs otherwise spend most of their time waiting on database round trips.
+func (this *NoteService) GetSyncNotesWithContent(userId string, afterUsn, maxEntry int) []info.ApiNote {
+	notes := this.GetSyncNotes(userId, afterUsn, maxEntry)
+	if len(notes) == 0 {
+		return notes
+	}
+
+	noteIds := make([]bson.ObjectId, 0, len(notes))
+	for _, note := range notes {
+		if bson.IsObjectIdHex(note.NoteId) && !note.IsDeleted {
+			noteIds = append(noteIds, bson.ObjectIdHex(note.NoteId))
+		}
+	}
+	contents := []info.NoteContent{}
+	if len(noteIds) > 0 {
+		db.ListByQWithFields(db.NoteContents, bson.M{
+			"_id":    bson.M{"$in": noteIds},
+			"UserId": bson.ObjectIdHex(userId),
+		}, []string{"_id", "Content"}, &contents)
+	}
+	contentById := make(map[string]string, len(contents))
+	for _, content := range contents {
+		contentById[content.NoteId.Hex()] = content.Content
+	}
+	for i := range notes {
+		notes[i].Content = contentById[notes[i].NoteId]
+	}
+	return notes
+}
+
 // note与apiNote的转换
 func (this *NoteService) ToApiNotes(notes []info.Note) []info.ApiNote {
 	// 2, 得到所有图片, 附件信息
