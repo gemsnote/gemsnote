@@ -127,6 +127,7 @@ GET     /api2/user/getSyncState                 ApiUser.GetSyncState
 GET     /api2/user/info                         ApiUser.Info
 GET     /api2/notebook/getSyncNotebooks         ApiNotebook.GetSyncNotebooks
 GET     /api2/note/getSyncNotes                 ApiNote.GetSyncNotes
+GET     /api2/note/getSyncNotesWithContent      ApiNote.GetSyncNotesWithContent
 GET     /api2/tag/getSyncTags                   ApiTag.GetSyncTags
 GET     /api2/note/getNoteContent               ApiNote.GetNoteContent
 GET     /api2/note/getNote                      ApiNote.GetNote

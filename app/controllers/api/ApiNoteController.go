@@ -55,6 +55,23 @@ func (c ApiNote) GetSyncNotes(afterUsn, maxEntry int) revel.Result {
 	return c.RenderJSON(notes)
 }
 
+// GetSyncNotesWithContent is the API2 fresh-cache endpoint. It avoids one
+// HTTP round trip per note by returning a bounded metadata/content page.
+func (c ApiNote) GetSyncNotesWithContent(afterUsn, maxEntry int) revel.Result {
+	if maxEntry <= 0 || maxEntry > 50 {
+		maxEntry = 50
+	}
+	userID := c.getUserId()
+	notes := noteService.GetSyncNotes(userID, afterUsn, maxEntry)
+	for i := range notes {
+		if notes[i].IsDeleted || notes[i].NoteId == "" {
+			continue
+		}
+		notes[i].Content = noteService.GetNoteContent(notes[i].NoteId, userID).Content
+	}
+	return c.RenderJSON(notes)
+}
+
 // 得到笔记本下的笔记
 // [OK]
 func (c ApiNote) GetNotes(notebookId string) revel.Result {

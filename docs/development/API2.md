@@ -29,6 +29,7 @@ API2 当前处于定稿前阶段，客户端应按上述结构实现，不提供
 | POST | `/api2/save` | 新建或保存笔记；字段 `noteId`、`notebookId`、`ownerId`、`title`、`content`、`tags`、`isNew`、`isMarkdown`、`usn` |
 | POST | `/api2/star` | 设置星标；字段 `noteId`、`starred` |
 | POST | `/api2/restore` | 从回收站恢复；字段 `noteId` |
+| GET | `/api2/note/getSyncNotesWithContent` | Desktop 重新同步专用的笔记元数据与正文分页快照；`maxEntry` 最大为 50 |
 
 登录和上传等过渡接口仍使用表单或 multipart；上传、分组、共享和管理接口在第一阶段通过 `/api2/<旧控制器>/<动作>` 暴露，Web 已统一从 API2 命名空间访问；这些接口的 JSON 化和更严格的资源语义将在后续小版本中逐步补齐。文件读取使用 `/api2/file/getImage`、`/api2/file/getAttach`。
 

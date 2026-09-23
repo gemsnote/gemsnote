@@ -44,6 +44,7 @@ func TestAPI2BrowserRoutesHaveExplicitMethods(t *testing.T) {
 		"GET /api2/bootstrap",
 		"GET /api2/groups",
 		"GET /api2/user/info",
+		"GET /api2/note/getSyncNotesWithContent",
 	} {
 		if !routes[route] {
 			t.Errorf("missing browser API2 route: %s", route)
