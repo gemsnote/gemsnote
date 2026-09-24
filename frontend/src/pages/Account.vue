@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { request, upload, resolveAvatarUrl } from '../api'
 import Navigation from '../components/Navigation.vue'
+import FilePicker from '../components/FilePicker.vue'
+import {confirmAction} from '../dialogs'
 import {t} from '../i18n'
 
 type GroupUser = { UserId: string; Username: string; Email: string }
@@ -12,6 +14,7 @@ const admin = ref(false)
 const message = ref('')
 const username = ref('')
 const email = ref('')
+const serverAddress = ref('')
 const emailPwd = ref('')
 const oldPwd = ref('')
 const pwd = ref('')
@@ -36,6 +39,7 @@ onMounted(async () => {
     const bootstrap = await request('/web/bootstrap')
     if (!bootstrap.User) { location.href = '/login'; return }
     user.value = bootstrap.User; username.value = bootstrap.User.Username; email.value = bootstrap.User.Email; admin.value = bootstrap.IsAdmin
+    serverAddress.value = bootstrap.Desktop ? bootstrap.Host || '' : location.origin
     await loadGroups()
   } catch (error) { showError(error) }
 })
@@ -50,9 +54,7 @@ async function update(path: string, data: any) {
     }
   } catch (error) { showError(error) }
 }
-async function avatar(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
+async function avatar(file: File) {
   try { const result = await upload('/file/uploadAvatar', file); user.value.Logo = resolveAvatarUrl(result.Id); message.value = t('头像已更新') } catch (error) { showError(error) }
 }
 async function addGroup() {
@@ -67,7 +69,7 @@ async function renameGroup(group: Group) {
   try { await request('/member/group/updateGroupTitle', { groupId: group.GroupId, title }); editingGroupId.value = ''; message.value = t('分组名称已更新'); await loadGroups() } catch (error) { showError(error) }
 }
 async function deleteGroup(group: Group) {
-  if (!confirm(t('确定删除分组“{name}”吗？', {name:group.Title}))) return
+  if (!await confirmAction(t('确定删除分组“{name}”吗？', {name:group.Title}))) return
   try { await request('/member/group/deleteGroup', { groupId: group.GroupId }); message.value = t('分组已删除'); await loadGroups() } catch (error) { showError(error) }
 }
 async function addUser(group: Group) {
@@ -76,7 +78,7 @@ async function addUser(group: Group) {
   try { await request('/member/group/addUser', { groupId: group.GroupId, email: memberEmail }); addUserEmails.value[group.GroupId] = ''; message.value = t('用户已加入分组'); await loadGroups() } catch (error) { showError(error) }
 }
 async function deleteUser(group: Group, member: GroupUser) {
-  if (!confirm(t('确定将 {name} 移出此分组吗？', {name:member.Email || member.Username}))) return
+  if (!await confirmAction(t('确定将 {name} 移出此分组吗？', {name:member.Email || member.Username}))) return
   try { await request('/member/group/deleteUser', { groupId: group.GroupId, userId: member.UserId }); message.value = t('用户已移出分组'); await loadGroups() } catch (error) { showError(error) }
 }
 </script>
@@ -86,7 +88,8 @@ async function deleteUser(group: Group, member: GroupUser) {
     <Navigation :admin="admin" :user="user" back-only />
     <main class="settings">
       <h1>{{t('账号管理')}}</h1><p class="muted">{{ user.Email }}</p><p v-if="message" role="status" class="message">{{ message }}</p>
-      <section class="card"><h2>{{t('个人资料')}}</h2><img v-if="user.Logo" :src="user.Logo" class="avatar" :alt="t('当前头像')"><label>{{t('更换头像')}}<input type="file" accept="image/*" @change="avatar"></label><form @submit.prevent="update('/user/updateUsername', { username })"><label>{{t('用户名')}}<input v-model="username" required></label><button>{{t('更新用户名')}}</button></form><form @submit.prevent="update('/web/emailChange', { email, pwd: emailPwd })"><label>{{t('新邮箱')}}<input v-model="email" type="email" required></label><label>{{t('当前密码')}}<input v-model="emailPwd" type="password" required></label><button>{{t('发送邮箱验证邮件')}}</button></form><button @click="update('/user/reSendActiveEmail', {})">{{t('重新发送当前邮箱验证邮件')}}</button></section>
+      <label v-if="serverAddress" class="server-address">{{t('服务器地址')}}<input :value="serverAddress" :title="serverAddress" readonly></label>
+      <section class="card"><h2>{{t('个人资料')}}</h2><img v-if="user.Logo" :src="user.Logo" class="avatar" :alt="t('当前头像')"><FilePicker :label="t('更换头像')" accept="image/*" @selected="avatar"/><form @submit.prevent="update('/user/updateUsername', { username })"><label>{{t('用户名')}}<input v-model="username" required></label><button>{{t('更新用户名')}}</button></form><form @submit.prevent="update('/web/emailChange', { email, pwd: emailPwd })"><label>{{t('新邮箱')}}<input v-model="email" type="email" required></label><label>{{t('当前密码')}}<input v-model="emailPwd" type="password" required></label><button>{{t('发送邮箱验证邮件')}}</button></form><button @click="update('/user/reSendActiveEmail', {})">{{t('重新发送当前邮箱验证邮件')}}</button></section>
       <section class="card"><h2>{{t('修改密码')}}</h2><form @submit.prevent="update('/user/updatePwd', { oldPwd, pwd })"><label>{{t('原密码')}}<input v-model="oldPwd" type="password" autocomplete="current-password" required></label><label>{{t('新密码')}}<input v-model="pwd" type="password" autocomplete="new-password" required></label><button class="primary">{{t('修改并重新登录')}}</button></form></section>
       <section class="card groups">
         <h2>{{t('用户分组')}}</h2><p class="muted">{{t('将已有账号加入分组后，可在分享笔记或笔记本时选择整个分组。')}}</p>
@@ -108,6 +111,7 @@ async function deleteUser(group: Group, member: GroupUser) {
 
 <style scoped>
 .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover }
+.server-address { max-width: 760px }
 .message { color: var(--accent, #1769aa) }
 .inline-form, .actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap }
 .groups { max-width: 760px }.group { padding: 1rem 0; border-top: 1px solid #e5e7eb }.group header { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap }.group h3 { margin: 0; margin-right: .25rem }.actions { margin-left: auto }.members { list-style: none; padding: 0; margin: .75rem 0 }.members li { display: flex; align-items: center; gap: .75rem; padding: .35rem 0 }.members .muted { flex: 1 }.danger { color: #b42318 }

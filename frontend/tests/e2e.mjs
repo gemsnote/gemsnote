@@ -17,7 +17,7 @@ try {
   await page.goto(`${baseURL}/login`)
   await page.getByLabel('邮箱或用户名').fill(username)
   await page.getByLabel('密码').fill(password)
-  await page.getByRole('button', { name: '继续' }).click()
+  await page.getByRole('button', { name: '登录', exact: true }).click()
   await page.waitForURL(/\/note/)
 
   await page.getByLabel('用户菜单').click()
@@ -102,8 +102,8 @@ try {
   await page.getByRole('heading', { name: '附件' }).waitFor()
   await page.getByRole('link', { name: attachmentName }).waitFor()
   const deleteResponse = page.waitForResponse(response => response.url().includes('/api2/attachments/delete'))
-  page.once('dialog', dialog => dialog.accept())
   await page.getByRole('listitem').filter({ hasText: attachmentName }).getByRole('button', { name: '删除' }).click()
+  await page.getByRole('dialog', { name: '珠玑笔记', exact: true }).getByRole('button', { name: '确定', exact: true }).click()
   const deleteResult = await (await deleteResponse).json()
   if (!deleteResult.Ok) throw new Error(`attachment delete failed: ${deleteResult.Msg}`)
   await page.getByRole('link', { name: attachmentName }).waitFor({ state: 'detached' })

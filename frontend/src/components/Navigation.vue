@@ -12,6 +12,7 @@ const syncOpen=ref(false)
 const logoutPrompt=ref(false)
 const resetPrompt=ref(false)
 const aboutOpen=ref(false)
+const aboutLoading=ref(false),aboutError=ref('')
 const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
@@ -36,29 +37,31 @@ function chooseLogout(force:boolean){
 }
 async function showAbout(){
   close()
-  const getAbout=(window as any).go?.main?.App?.GetAboutInfo
-  if(typeof getAbout==='function'){
-    try{aboutInfo.value={...aboutInfo.value,...await getAbout()}}catch{}
-  }
   aboutOpen.value=true
+  aboutLoading.value=true;aboutError.value=''
+  try{aboutInfo.value=await request('/api2/desktop/about')}
+  catch(e){aboutError.value=e instanceof Error?e.message:String(e)}
+  finally{aboutLoading.value=false}
 }
 onMounted(()=>updateNativeLanguage(language.value))
 async function runSync(mode:'full'|'reset'='full'){
   if(syncing.value)return
   syncing.value=true
   close()
-  window.dispatchEvent(new CustomEvent('sync-progress',{detail:{Stage:'start',Current:0,Total:100,Mode:mode}}))
+  window.dispatchEvent(new CustomEvent('sync-progress',{detail:{Stage:'start',Current:0,Total:0,Percent:0,Mode:mode}}))
   try{
     if(mode==='reset'){
       const beforeReset=(window as any).__gemsnoteBeforeReset
       if(typeof beforeReset==='function'&&!await beforeReset())throw new Error(t('本地笔记保存失败，已取消重新同步'))
       await request('/web/resetSync',{confirm:true})
+      window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:true,Full:true,Reset:true}}))
       const afterReset=(window as any).__gemsnoteAfterReset
       if(typeof afterReset==='function')afterReset()
       location.href='/note'
       return
     }
     await request('/web/fullSync',{})
+    window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:true,Full:true}}))
     emit('synced')
   }catch(e){
     const message=e instanceof Error?e.message:String(e)
@@ -160,12 +163,14 @@ async function logout(event:MouseEvent){
         <img :src="brandMark" :alt="t('珠玑笔记')">
         <h2>{{t('珠玑笔记')}}</h2>
         <p>{{t('日积字句，终得珠玑。')}}</p>
-        <dl>
+        <p v-if="aboutLoading" role="status">{{t('正在加载…')}}</p>
+        <p v-else-if="aboutError" class="error" role="alert">{{t('无法读取应用信息')}}: {{aboutError}}</p>
+        <dl v-else>
           <div><dt>{{t('版本')}}</dt><dd>{{aboutInfo.Version||'—'}}</dd></div>
           <div><dt>{{t('平台')}}</dt><dd>{{aboutInfo.Platform}} / {{aboutInfo.Arch}}</dd></div>
           <div><dt>{{t('运行环境')}}</dt><dd>{{aboutInfo.Runtime}}</dd></div>
         </dl>
-        <div class="choice-dialog-actions"><button class="primary" @click="aboutOpen=false">{{t('关闭')}}</button></div>
+        <div class="choice-dialog-actions"><button v-if="aboutError" @click="showAbout">{{t('重试')}}</button><button class="primary" @click="aboutOpen=false">{{t('关闭')}}</button></div>
       </div>
     </section>
   </Teleport>

@@ -63,7 +63,7 @@ func (c ApiNote) GetSyncNotesWithContent(afterUsn, maxEntry int) revel.Result {
 	}
 	userID := c.getUserId()
 	notes := noteService.GetSyncNotesWithContent(userID, afterUsn, maxEntry)
-	return c.RenderJSON(notes)
+	return syncSnapshotResult{data: notes}
 }
 
 // 得到笔记本下的笔记
