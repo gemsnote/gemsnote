@@ -5,6 +5,8 @@ import (
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"gopkg.in/mgo.v2/bson"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -12,6 +14,46 @@ import (
 每添加,更新note时, 都将tag添加到tags表中
 */
 type TagService struct {
+}
+
+// GetUsedTags derives the workspace list from notes, not the legacy tag index.
+// This also exposes tags saved before the workspace maintained NoteTags.
+func (this *TagService) GetUsedTags(userId string) []info.NoteTag {
+	notes := []info.Note{}
+	db.ListByQWithFields(db.Notes, bson.M{"UserId": bson.ObjectIdHex(userId), "IsTrash": false, "IsDeleted": false}, []string{"Tags"}, &notes)
+	indexed := map[string]info.NoteTag{}
+	for _, tag := range this.GetTags(userId) {
+		indexed[tag.Tag] = tag
+	}
+	tags := usedNoteTags(notes)
+	for i, tag := range tags {
+		if saved, ok := indexed[tag.Tag]; ok {
+			saved.Count = tag.Count
+			tags[i] = saved
+		} else {
+			tags[i].UserId = bson.ObjectIdHex(userId)
+		}
+	}
+	return tags
+}
+
+func usedNoteTags(notes []info.Note) []info.NoteTag {
+	counts := map[string]int{}
+	for _, note := range notes {
+		seen := map[string]bool{}
+		for _, tag := range note.Tags {
+			if strings.TrimSpace(tag) != "" && !seen[tag] {
+				counts[tag]++
+				seen[tag] = true
+			}
+		}
+	}
+	tags := make([]info.NoteTag, 0, len(counts))
+	for tag, count := range counts {
+		tags = append(tags, info.NoteTag{Tag: tag, Count: count})
+	}
+	sort.Slice(tags, func(i, j int) bool { return tags[i].Tag < tags[j].Tag })
+	return tags
 }
 
 /*

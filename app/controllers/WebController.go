@@ -48,14 +48,7 @@ func (c Web) Bootstrap() revel.Result {
 			notebooks[key] = []info.ShareNotebooks{{IsDefault: true, Notebook: info.Notebook{Title: owner.Username}}}
 		}
 	}
-	allTags := tagService.GetTags(userId)
-	tags := make([]info.NoteTag, 0, len(allTags))
-	for _, tag := range allTags {
-		tag.Count = noteService.CountNoteByTag(userId, tag.Tag)
-		if tag.Count > 0 {
-			tags = append(tags, tag)
-		}
-	}
+	tags := tagService.GetUsedTags(userId)
 	starredCount, _ := noteService.ListStarNotes(userId, 1, 1, "UpdatedTime", false)
 	return c.RenderJSON(map[string]interface{}{"Ok": true, "User": c.GetUserInfo(), "IsAdmin": c.GetUsername() == configService.GetAdminUsername(), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()})
 }
@@ -157,6 +150,13 @@ func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNe
 		ok, msg, _ = noteService.UpdateNoteContent(c.GetUserId(), noteId, content, "", true, -1, time.Now())
 		if !ok {
 			return c.RenderJSON(info.Re{Ok: false, Msg: msg})
+		}
+	}
+	// Maintain the current tag index for sync clients as well as the legacy index.
+	saved := noteService.GetNoteById(noteId)
+	for _, tag := range saved.Tags {
+		if strings.TrimSpace(tag) != "" {
+			tagService.AddOrUpdateTag(saved.UserId.Hex(), tag)
 		}
 	}
 	return c.Document(noteId)
