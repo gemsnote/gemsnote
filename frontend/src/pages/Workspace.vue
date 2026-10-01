@@ -294,12 +294,15 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div class="note-tag-line"><span>{{t('标签')}}</span><input class="tag-input" v-model="tags" :readonly="!writable" @input="changed" :placeholder="t('标签，以逗号分隔')" :aria-label="t('笔记标签')"></div>
 <section v-if="panel" class="dialog-backdrop" @click.self="panel=''">
 <div class="dialog" role="dialog" aria-modal="true">
-<button class="close" @click="panel=''">{{t('关闭')}}</button>
+<button v-if="panel!=='move'" class="close" @click="panel=''">{{t('关闭')}}</button>
 <template v-if="panel==='move'">
 <h2>{{t('移动或复制笔记')}}</h2>
 <NotebookPicker v-model="destination" :items="notebookTree"/>
+<div class="choice-dialog-actions">
 <button :disabled="!destination" @click="move()">{{t('移动')}}</button>
 <button :disabled="!destination" @click="move(true)">{{t('复制')}}</button>
+<button @click="panel=''">{{t('取消')}}</button>
+</div>
 </template>
 <template v-if="panel==='share'">
 <h2>{{t('共享笔记')}}</h2>
@@ -352,9 +355,11 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div class="dialog" role="dialog" aria-modal="true" :aria-label="t('移动笔记本')">
 <h2>{{t('移动笔记本')}}</h2>
 <NotebookPicker v-model="bookDestination" :items="notebookTree" :exclude="movingBook" root/>
-<button :disabled="movingBookBusy" @click="movingBook=''">{{t('取消')}}</button>
-<button :disabled="movingBookBusy" @click="moveBook">{{t('移动')}}</button>
 <p v-if="error" role="alert">{{error}}</p>
+<div class="choice-dialog-actions">
+<button :disabled="movingBookBusy" @click="moveBook">{{t('移动')}}</button>
+<button :disabled="movingBookBusy" @click="movingBook=''">{{t('取消')}}</button>
+</div>
 </div></section>
 </div>
 </template>
