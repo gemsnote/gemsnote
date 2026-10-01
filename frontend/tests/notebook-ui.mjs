@@ -7,16 +7,27 @@ try {
  for(const desktop of [false,true]) {
  const page=await browser.newPage({viewport:{width:1440,height:900}})
  await page.addInitScript(()=>localStorage.setItem('gemsnote:language','zh-CN'))
- const books=[{NotebookId:'a',Title:'Parent',Subs:[{NotebookId:'b',ParentNotebookId:'a',Title:'Child',Subs:[{NotebookId:'c',ParentNotebookId:'b',Title:'Grandchild'}]}]},{NotebookId:'d',Title:'Other'}]
+ const books=[{NotebookId:'a',Title:'Parent',NumberNotes:1,Subs:[{NotebookId:'b',ParentNotebookId:'a',Title:'Child',NumberNotes:0,Subs:[{NotebookId:'c',ParentNotebookId:'b',Title:'Grandchild',NumberNotes:0}]}]},{NotebookId:'d',Title:'Other',NumberNotes:0}]
+ const allBooks=[books[0],books[0].Subs[0],books[0].Subs[0].Subs[0],books[1]]
+ let noteBook='a',totalNotes=1
  const mutations=[]
  await page.route('**/api2/**',async route=>{
   const path=new URL(route.request().url()).pathname
   let data={Ok:true}
-  if(path==='/api2/bootstrap')data={Desktop:desktop,User:{UserId:'u',Username:'user'},Notebooks:books,Tags:[],TotalNotes:1}
-  else if(path==='/api2/notes')data=[{NoteId:'n',NotebookId:'a',Title:'Test note',IsMarkdown:true}]
-  else if(path==='/api2/document')data={Note:{NoteId:'n',NotebookId:'a',UserId:'u',Title:'Test note',IsMarkdown:true,Tags:[]},Content:'# Hello',Writable:true}
+  if(path==='/api2/bootstrap')data={Desktop:desktop,User:{UserId:'u',Username:'user'},Notebooks:books,Tags:[],TotalNotes:totalNotes}
+  else if(path==='/api2/notes')data=[{NoteId:'n',NotebookId:noteBook,Title:'Test note',IsMarkdown:true}]
+  else if(path==='/api2/document')data={Note:{NoteId:'n',NotebookId:noteBook,UserId:'u',Title:'Test note',IsMarkdown:true,Tags:[]},Content:'# Hello',Writable:true}
   else if(path==='/api2/attachments')data={Ok:true,List:[]}
-  else if(path.includes('moveNotebook')||path.includes('copyNote')||path.includes('moveNote'))mutations.push({path,body:path.includes('moveNotebook')?new URLSearchParams(route.request().postDataJSON()):new URLSearchParams(route.request().postData()||'')})
+  else if(path.includes('moveNotebook')||path.includes('copyNote')||path.includes('moveNote')){
+   const body=path.includes('moveNotebook')?new URLSearchParams(route.request().postDataJSON()):new URLSearchParams(route.request().postData()||'')
+   mutations.push({path,body})
+   if(!path.includes('moveNotebook')){
+    const target=allBooks.find(book=>book.NotebookId===body.get('notebookId'))
+    target.NumberNotes++
+    if(path.includes('copyNote'))totalNotes++
+    else{allBooks.find(book=>book.NotebookId===noteBook).NumberNotes--;noteBook=target.NotebookId}
+   }
+  }
   await route.fulfill({json:data})
  })
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/note/n`)
@@ -42,6 +53,18 @@ try {
  await dialog.getByRole('button',{name:'Grandchild',exact:true}).click()
  await dialog.getByRole('button',{name:'复制',exact:true}).click()
  expect(mutations.at(-1).body.get('notebookId')).toBe('c')
+ const count=name=>page.locator('.notebook-select').filter({has:page.locator(`span[title="${name}"]`)}).locator('small')
+ // Expand the hierarchy and verify refreshed counts without reloading the page.
+ await page.locator('.notebook-select').filter({hasText:'Parent'}).click()
+ await page.locator('.notebook-select').filter({hasText:'Child'}).click()
+ await expect(count('Parent')).toHaveText('1')
+ await expect(count('Grandchild')).toHaveText('1')
+ await page.getByRole('button',{name:'移动/复制',exact:true}).click()
+ await dialog.getByRole('button',{name:'Other',exact:true}).click()
+ await dialog.getByRole('button',{name:'移动',exact:true}).click()
+ await expect(count('Parent')).toHaveText('0')
+ await expect(count('Other')).toHaveText('1')
+ await expect(count('Grandchild')).toHaveText('1')
  await page.locator('.notebook-row').filter({hasText:'Parent'}).hover()
  await page.getByRole('button',{name:'Parent 菜单',exact:true}).click()
  await page.getByRole('menuitem',{name:'移动',exact:true}).click()

@@ -8,6 +8,7 @@ import Navigation from '../components/Navigation.vue'
 import brandMark from '../assets/gemsnote_s.png'
 import RichEditor from '../components/RichEditor.vue'
 import NotebookPicker from '../components/NotebookPicker.vue'
+import TagInput from '../components/TagInput.vue'
 import {language,t,formatDate} from '../i18n'
 import {confirmAction,promptText} from '../dialogs'
 const route=useRoute(),router=useRouter(),boot=ref<any>({}),notes=ref<any[]>([]),current=ref<any>(null),authenticated=ref(false)
@@ -16,6 +17,10 @@ const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(fal
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
 const mobileNotesVisible=ref(false)
+const tagInput=ref<InstanceType<typeof TagInput>>()
+const tagSearch=ref('')
+const filteredTags=computed(()=>{const key=tagSearch.value.trim().toLocaleLowerCase();const result=[...(boot.value.Tags||[])].filter((tag:any)=>String(tag.Tag).toLocaleLowerCase().includes(key)).sort((a:any,b:any)=>(Number(b.Count)||0)-(Number(a.Count)||0)||String(a.Tag).localeCompare(String(b.Tag),language.value,{numeric:true,sensitivity:'base'})||String(a.Tag).localeCompare(String(b.Tag)));return key?result:result.slice(0,10)})
+async function refreshTags(){try{const data=await request('/web/bootstrap');if(data.User?.UserId===boot.value.User?.UserId)boot.value.Tags=data.Tags||[]}catch(e){error.value=t('笔记已保存，但标签列表刷新失败：{error}',{error:String(e)})}}
 const movingBook=ref(''),bookDestination=ref(''),movingBookBusy=ref(false)
 function showBookMove(id:string){bookMenu.value='';movingBook.value=id;bookDestination.value=notebooks.value.find(n=>n.NotebookId===id)?.ParentNotebookId||''}
 async function moveBook(){if(movingBookBusy.value)return;movingBookBusy.value=true;try{await request('/notebook/moveNotebook',{notebookId:movingBook.value,parentNotebookId:bookDestination.value});movingBook.value='';await bootstrap()}catch(e){error.value=String(e)}finally{movingBookBusy.value=false}}
@@ -134,11 +139,12 @@ async function save():Promise<boolean>{
  if(savePromise)return savePromise
  if(!dirty.value||!current.value||!writable.value)return true
  const id=current.value.Note.NoteId,snapshot={title:title.value,content:content.value,tags:tags.value}
+ const tagsChanged=snapshot.tags!==(current.value.Note.Tags||[]).join(',')
  saving.value=true;error.value=''
- savePromise=(async()=>{try{const doc=await request('/web/save',{noteId:id,usn:current.value.Note.Usn,...snapshot});if(current.value?.Note.NoteId===id){current.value=doc;dirty.value=title.value!==snapshot.title||content.value!==snapshot.content||tags.value!==snapshot.tags}if(boot.value.Desktop)boot.value.PendingChanges=true;await load();return true}catch(e){const message=e instanceof Error?e.message:String(e);error.value=(message==='conflict'||message===t('conflict'))?t('此笔记已在其他端修改。请先导出本地内容，再重新加载笔记。'):message;return false}finally{saving.value=false;savePromise=undefined}})()
+ savePromise=(async()=>{try{const doc=await request('/web/save',{noteId:id,usn:current.value.Note.Usn,...snapshot});if(current.value?.Note.NoteId===id){current.value=doc;dirty.value=title.value!==snapshot.title||content.value!==snapshot.content||tags.value!==snapshot.tags}if(boot.value.Desktop)boot.value.PendingChanges=true;if(tagsChanged)await refreshTags();await load();return true}catch(e){const message=e instanceof Error?e.message:String(e);error.value=(message==='conflict'||message===t('conflict'))?t('此笔记已在其他端修改。请先导出本地内容，再重新加载笔记。'):message;return false}finally{saving.value=false;savePromise=undefined}})()
  return savePromise
 }
-async function flush(){clearTimeout(saveTimer);if(!await save())return false;return dirty.value?save():true}
+async function flush(){tagInput.value?.commit();clearTimeout(saveTimer);if(!await save())return false;return dirty.value?save():true}
 async function create(markdown:boolean){if(!await flush())return;let id=notebook.value||(!sharedOwner.value?notebooks.value[0]?.NotebookId:'');if(!id&&!sharedOwner.value){await addBook();id=notebooks.value[0]?.NotebookId}if(!id){error.value=t('请先选择一个可编辑的共享笔记本');return}try{const doc=await request('/web/save',{noteId:objectId(),notebookId:id,ownerId:sharedOwner.value,title:t('未命名笔记'),content:'',tags:'',isNew:true,isMarkdown:markdown});await bootstrap();await load();await open(doc.Note.NoteId)}catch(e){error.value=String(e)}}
 async function addBook(parentNotebookId=''){const name=await promptText(t(parentNotebookId?'子笔记本名称':'笔记本名称'));if(!name)return;bookMenu.value='';try{await request('/notebook/addNotebook',{notebookId:objectId(),title:name,parentNotebookId});await bootstrap()}catch(e){error.value=String(e)}}
 async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remove){if(!await confirmAction(t('删除此笔记本？请先移动其中的笔记。')))return;await request('/notebook/deleteNotebook',{notebookId:id});if(notebook.value===id)notebook.value=''}else{const name=await promptText(t('笔记本名称'),notebooks.value.find(n=>n.NotebookId===id)?.Title);if(!name)return;await request('/notebook/updateNotebookTitle',{notebookId:id,title:name})}await bootstrap();await load()}catch(e){error.value=String(e)}}
@@ -157,7 +163,7 @@ async function uploadAttach(event:Event){const input=event.target as HTMLInputEl
 async function deleteAttach(attachId:string){if(!await confirmAction(t('删除此附件？'))||!await flush())return;try{await request('/attach/deleteAttach',{attachId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}}
 function download(){const blob=new Blob([content.value],{type:current.value.Note.IsMarkdown?'text/markdown':'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=(title.value||'note')+(current.value.Note.IsMarkdown?'.md':'.html');a.click();URL.revokeObjectURL(url)}
 function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value){e.preventDefault();e.returnValue=''}}
-function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();save()}}
+function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();flush()}}
 function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
 function handleSyncResult(result:any){
  const value=result?.detail||result||{}
@@ -214,8 +220,11 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 </div>
 <p v-if="!Object.keys(boot.SharedNotebooks||{}).length" class="muted">{{t('暂无共享内容')}}</p>
 <h3>{{t('标签')}}</h3>
-<div class="tags">
-<button v-for="tag in boot.Tags" :key="tag.Tag" :title="`${tag.Tag} (${t('{count}篇笔记',{count:tag.Count||0})})`" @click="selectTag(tag.Tag)">#{{tag.Tag}} <small>{{tag.Count||0}}</small></button>
+<input class="tag-filter" v-model="tagSearch" type="search" :placeholder="t('过滤标签')" :aria-label="t('过滤标签')">
+<p v-if="!tagSearch.trim()&&(boot.Tags||[]).length>10" class="muted">{{t('显示笔记最多的 10 个标签，其他请过滤查找')}}</p>
+<div class="tags sidebar-tags">
+<button v-for="tag in filteredTags" :key="tag.Tag" :class="{selected:tagFilter===tag.Tag}" :title="`${tag.Tag} (${t('{count}篇笔记',{count:tag.Count||0})})`" @click="selectTag(tag.Tag)"><span>#{{tag.Tag}}</span><small>{{tag.Count||0}}</small></button>
+<p v-if="!filteredTags.length" class="muted">{{t(tagSearch.trim()?'没有匹配的标签':'暂无标签')}}</p>
 </div>
 <button @click="select('','',true)">{{t('回收站')}}</button>
 </div>
@@ -291,7 +300,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <RichEditor v-else-if="!current.Note.IsMarkdown" :key="`${current.Note.NoteId}:${language}`" v-model="content" @update:model-value="changed"/>
 <textarea v-else v-model="content" class="content-editor" @input="changed" :aria-label="t(current.Note.IsMarkdown?'Markdown 正文':'HTML 正文')" spellcheck="false">
 </textarea>
-<div class="note-tag-line"><span>{{t('标签')}}</span><input class="tag-input" v-model="tags" :readonly="!writable" @input="changed" :placeholder="t('标签，以逗号分隔')" :aria-label="t('笔记标签')"></div>
+<div class="note-tag-line"><span>{{t('标签')}}</span><TagInput :key="current.Note.NoteId" ref="tagInput" v-model="tags" :suggestions="(boot.Tags||[]).map((tag:any)=>tag.Tag)" :readonly="!writable" @update:model-value="changed"/></div>
 <section v-if="panel" class="dialog-backdrop" @click.self="panel=''">
 <div class="dialog" role="dialog" aria-modal="true">
 <button v-if="panel!=='move'" class="close" @click="panel=''">{{t('关闭')}}</button>

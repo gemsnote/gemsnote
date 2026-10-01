@@ -48,6 +48,11 @@ small,.muted{color:#7a867f;font-size:12px}
 .collapsed-brand:hover{background:#31554b}
 .tags{display:flex;flex-wrap:wrap;gap:4px}
 .tags button{font-size:12px}
+.tag-filter{width:100%;box-sizing:border-box;padding:7px 9px;font-size:12px}
+.sidebar-tags{max-height:240px;overflow:auto;display:block;margin-top:6px}
+.notebook-scroll .sidebar-tags>button{display:flex;align-items:center;gap:6px;width:100%;margin:2px 0;padding:6px 8px}
+.sidebar-tags button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.sidebar-tags button small{flex:none}
 .note-list{width:290px;flex-shrink:0;border-right:1px solid #dce2da;background:#fafbf8;display:flex;flex-direction:column}
 .note-search-row{margin:10px 12px 0}
 .list-items{overflow:auto;flex:1}

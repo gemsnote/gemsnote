@@ -7,6 +7,9 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+  '显示笔记最多的 10 个标签，其他请过滤查找': 'Showing the 10 most-used tags. Filter to find others.',
+  '过滤标签': 'Filter tags', '没有匹配的标签': 'No matching tags', '暂无标签': 'No tags yet', '笔记已保存，但标签列表刷新失败：{error}': 'Note saved, but tags could not be refreshed: {error}',
+  '输入标签，回车确认': 'Enter a tag and press Enter', '已有标签': 'Existing tags', '删除标签 {tag}': 'Remove tag {tag}',
   '移动笔记本': 'Move notebook', '根目录': 'Root', '展开或收起笔记本': 'Expand or collapse notebook', '没有匹配的笔记本': 'No matching notebooks',
   '珠玑笔记': 'Gemsnote', '页面不存在': 'Page not found', '返回笔记': 'Back to notes',
   '语言': 'Language', '返回': 'Back', '用户': 'User', '用户菜单': 'User menu', '全局导航': 'Main navigation',
