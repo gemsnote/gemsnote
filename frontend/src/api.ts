@@ -24,7 +24,8 @@ export async function request<T = any>(path: string, params?: Params): Promise<T
   }
   const target = api2Path(path)
   const core = target === '/api2/auth/session' || target === '/api2/auth/register' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
-  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(core ? {'Content-Type':'application/json'} : {}) }, body: params ? (core ? JSON.stringify(params) : body) : undefined })
+  const jsonBody = core || target === '/api2/notebook/moveNotebook'
+  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
   const data = await response.json().catch(() => null)
   if (data === null) throw new Error(response.ok ? t('响应不是有效 JSON [{path}]',{path:target}) : t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
   if (!response.ok || data === false || data?.Ok === false) {

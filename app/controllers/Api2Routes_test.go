@@ -35,6 +35,7 @@ func TestAPI2BrowserRoutesHaveExplicitMethods(t *testing.T) {
 		"POST /api2/note/copyNote",
 		"POST /api2/share/listShareNotes",
 		"POST /api2/notebook/addNotebook",
+		"POST /api2/notebook/moveNotebook",
 		"POST /api2/attachments",
 		"POST /api2/noteContentHistory/listHistories",
 		"POST /api2/avatar",

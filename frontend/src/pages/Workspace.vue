@@ -7,6 +7,7 @@ import {request,objectId,upload} from '../api'
 import Navigation from '../components/Navigation.vue'
 import brandMark from '../assets/gemsnote_s.png'
 import RichEditor from '../components/RichEditor.vue'
+import NotebookPicker from '../components/NotebookPicker.vue'
 import {language,t,formatDate} from '../i18n'
 import {confirmAction,promptText} from '../dialogs'
 const route=useRoute(),router=useRouter(),boot=ref<any>({}),notes=ref<any[]>([]),current=ref<any>(null),authenticated=ref(false)
@@ -15,6 +16,9 @@ const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(fal
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
 const mobileNotesVisible=ref(false)
+const movingBook=ref(''),bookDestination=ref(''),movingBookBusy=ref(false)
+function showBookMove(id:string){bookMenu.value='';movingBook.value=id;bookDestination.value=notebooks.value.find(n=>n.NotebookId===id)?.ParentNotebookId||''}
+async function moveBook(){if(movingBookBusy.value)return;movingBookBusy.value=true;try{await request('/notebook/moveNotebook',{notebookId:movingBook.value,parentNotebookId:bookDestination.value});movingBook.value='';await bootstrap()}catch(e){error.value=String(e)}finally{movingBookBusy.value=false}}
 const sortMenu=ref<HTMLDetailsElement>()
 let layoutReady=false
 function updateCompact(){compact.value=window.innerWidth<=1100}
@@ -109,7 +113,7 @@ function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(runSe
 async function setStar(n:any){if(sharedOwner.value)return;try{const next=!n.IsStar;await request('/web/star',{noteId:n.NoteId,starred:next});n.IsStar=next;boot.value.TotalStarred=Math.max(0,Number(boot.value.TotalStarred||0)+(next?1:-1));if(boot.value.Desktop)boot.value.PendingChanges=true;if(starred.value)await load()}catch(e){error.value=String(e)}}
 async function attachmentsFor(noteId:string){try{const r:any=await request('/attach/getAttachs',{noteId});if(current.value?.Note.NoteId===noteId)attachments.value=r.List||[]}catch(e){if(current.value?.Note.NoteId===noteId){attachments.value=[];error.value=String(e)}}}
 async function refreshDocument(){if(!current.value)return;current.value=await request('/web/document',{noteId:current.value.Note.NoteId})}
-async function open(id:string){if(!await flush())return;const token=++loadId;try{const doc=await request('/web/document',{noteId:id});if(token!==loadId)return;current.value=doc;mobileNotesVisible.value=false;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;panel.value='';await attachmentsFor(id);await router.replace(`/note/${id}`)}catch(e){error.value=String(e)}}
+async function open(id:string){if(!await flush())return;const token=++loadId;try{const doc=await request('/web/document',{noteId:id});if(token!==loadId)return;preview.value=true;current.value=doc;mobileNotesVisible.value=false;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;panel.value='';await attachmentsFor(id);await router.replace(`/note/${id}`)}catch(e){error.value=String(e)}}
 async function select(id='',owner='',isTrash=false,isStar=false){if(!await flush())return;clearTimeout(searchTimer);showNotes();notebook.value=id;sharedOwner.value=owner;trash.value=isTrash;starred.value=isStar;search.value='';tagFilter.value='';bookMenu.value='';await load();sidebar.value=false}
 async function selectTag(tag:string){if(!await flush())return;clearTimeout(searchTimer);showNotes();notebook.value='';sharedOwner.value='';trash.value=false;starred.value=false;search.value='';tagFilter.value=tag;await load();sidebar.value=false}
 function hasChildren(n:any){return Array.isArray(n.Subs)&&n.Subs.length>0}
@@ -201,7 +205,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div v-for="n in filteredBooks" :key="n.NotebookId" class="notebook-row" :class="{selected:notebook===n.NotebookId}" :style="{paddingLeft:4+n.depth*16+'px'}">
 <button class="notebook-select" @click="selectBook(n)"><span class="tree-toggle" :aria-hidden="true">{{hasChildren(n)?(expandedNotebooks.has(n.NotebookId)?'▾':'▸'):'▱'}}</span> <span :title="n.Title">{{n.Title}}</span><small>{{n.NumberNotes}}</small></button>
 <button class="notebook-more" aria-haspopup="menu" :aria-expanded="bookMenu===n.NotebookId" :aria-label="t('{name} 菜单',{name:n.Title})" @pointerdown.stop @click.stop="bookMenu=bookMenu===n.NotebookId?'':n.NotebookId">⋯</button>
-<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
+<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
 </div>
 <h3>{{t('共享给我')}}</h3>
 <p v-if="boot.SharedCache==='unsupported'" class="muted">{{t('服务端不支持共享离线缓存')}}</p>
@@ -293,13 +297,9 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <button class="close" @click="panel=''">{{t('关闭')}}</button>
 <template v-if="panel==='move'">
 <h2>{{t('移动或复制笔记')}}</h2>
-<input v-model="notebookSearch" :placeholder="t('搜索笔记本')">
-<select v-model="destination">
-<option value="">{{t('选择笔记本')}}</option>
-<option v-for="n in filteredBooks" :value="n.NotebookId">{{n.Title}}</option>
-</select>
-<button @click="move()">{{t('移动')}}</button>
-<button @click="move(true)">{{t('复制')}}</button>
+<NotebookPicker v-model="destination" :items="notebookTree"/>
+<button :disabled="!destination" @click="move()">{{t('移动')}}</button>
+<button :disabled="!destination" @click="move(true)">{{t('复制')}}</button>
 </template>
 <template v-if="panel==='share'">
 <h2>{{t('共享笔记')}}</h2>
@@ -348,6 +348,14 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <button class="primary" @click="create(true)">{{t('新建笔记')}}</button>
 </div>
 </main>
+<section v-if="movingBook" class="dialog-backdrop" @click.self="!movingBookBusy&&(movingBook='')">
+<div class="dialog" role="dialog" aria-modal="true" :aria-label="t('移动笔记本')">
+<h2>{{t('移动笔记本')}}</h2>
+<NotebookPicker v-model="bookDestination" :items="notebookTree" :exclude="movingBook" root/>
+<button :disabled="movingBookBusy" @click="movingBook=''">{{t('取消')}}</button>
+<button :disabled="movingBookBusy" @click="moveBook">{{t('移动')}}</button>
+<p v-if="error" role="alert">{{error}}</p>
+</div></section>
 </div>
 </template>
 <style scoped>.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.note-row{position:relative}.note-row .note-item{padding-left:40px}.star-button{position:absolute;z-index:1;left:8px;top:13px;padding:3px;border:0;background:transparent;color:#b17b18;font-size:18px;cursor:pointer}.star-button:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:2px}.attachments{padding:0;list-style:none}.attachments li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #edf0e9}.attachments li a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.attachments li small{margin-left:auto}.attachments li button{padding:4px 8px;font-size:12px}</style>

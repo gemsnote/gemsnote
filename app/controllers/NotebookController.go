@@ -13,6 +13,35 @@ type Notebook struct {
 	BaseController
 }
 
+// MoveNotebook changes only the parent; reject foreign or cyclic ancestry.
+func (c Notebook) MoveNotebook(notebookId, parentNotebookId string) revel.Result {
+	userID := c.GetUserId()
+	if !bson.IsObjectIdHex(notebookId) || !bson.IsObjectIdHex(userID) {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "notExists"})
+	}
+	nb := notebookService.GetNotebookById(notebookId)
+	if nb.UserId.Hex() != userID || nb.IsDeleted {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "notExists"})
+	}
+	seen := map[string]bool{notebookId: true}
+	for id := parentNotebookId; id != ""; {
+		if seen[id] || !bson.IsObjectIdHex(id) {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "invalidParentNotebook"})
+		}
+		seen[id] = true
+		parent := notebookService.GetNotebookById(id)
+		if parent.UserId.Hex() != userID || parent.IsDeleted {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "invalidParentNotebook"})
+		}
+		id = parent.ParentNotebookId.Hex()
+	}
+	var parent interface{} = ""
+	if parentNotebookId != "" {
+		parent = bson.ObjectIdHex(parentNotebookId)
+	}
+	return c.RenderJSON(info.Re{Ok: notebookService.UpdateNotebook(userID, notebookId, bson.M{"ParentNotebookId": parent})})
+}
+
 func (c Notebook) Index(notebook info.Notebook, i int, name string) revel.Result {
 	return c.RenderJSON(notebook)
 }

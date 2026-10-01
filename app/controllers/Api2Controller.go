@@ -123,6 +123,17 @@ func (c Api2) body(v interface{}) error {
 
 func (c Api2) Bootstrap() revel.Result { return (Web{c.BaseController}).Bootstrap() }
 
+func (c Api2) MoveNotebook() revel.Result {
+	var p struct {
+		NotebookID       string `json:"notebookId"`
+		ParentNotebookID string `json:"parentNotebookId"`
+	}
+	if err := c.body(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	return (Notebook{c.BaseController}).MoveNotebook(p.NotebookID, p.ParentNotebookID)
+}
+
 func (c Api2) Groups() revel.Result { return (Web{c.BaseController}).Groups() }
 
 func (c Api2) Attachments() revel.Result {

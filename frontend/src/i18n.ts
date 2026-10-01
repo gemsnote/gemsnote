@@ -7,6 +7,7 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+  '移动笔记本': 'Move notebook', '根目录': 'Root', '展开或收起笔记本': 'Expand or collapse notebook', '没有匹配的笔记本': 'No matching notebooks',
   '珠玑笔记': 'Gemsnote', '页面不存在': 'Page not found', '返回笔记': 'Back to notes',
   '语言': 'Language', '返回': 'Back', '用户': 'User', '用户菜单': 'User menu', '全局导航': 'Main navigation',
   '立即同步': 'Sync now', '有未同步的更改': 'Unsynced changes', '完全同步': 'Full sync',

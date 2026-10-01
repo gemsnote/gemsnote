@@ -1,5 +1,15 @@
 # Gemsnote API2
 
+## 笔记本移动
+
+`POST /api2/notebook/moveNotebook` 接受 JSON：
+`{"notebookId":"源笔记本ID","parentNotebookId":"目标父笔记本ID"}`。
+`parentNotebookId` 为空表示移到根目录。Web 使用已登录会话和
+`X-Requested-With: XMLHttpRequest`，返回 `{"Ok":true}` 或失败信息。
+只修改父级，保留子树及笔记归属；拒绝其他账号、已删除、自身或子孙目标。
+桌面同名 bridge 操作本地笔记本 ID，标记 dirty，后续同步转换成服务端 ID 上传。
+本接口为 API2 增量扩展，旧 `/api` 不变。
+
 API2 是新客户端使用的版本化接口空间，前缀为 `/api2`。第一阶段先完成 Web 迁移；旧的 `/api` 以及旧控制器路由继续保留，供 Leanote/Desktop 兼容客户端使用，暂不删除。
 
 ## 认证
