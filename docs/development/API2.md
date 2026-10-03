@@ -12,6 +12,14 @@
 
 API2 是新客户端使用的版本化接口空间，前缀为 `/api2`。第一阶段先完成 Web 迁移；旧的 `/api` 以及旧控制器路由继续保留，供 Leanote/Desktop 兼容客户端使用，暂不删除。
 
+## 笔记修改时间
+
+API2 笔记新增/更新时，省略可选的 `UpdatedTime` 表示使用服务端时间。新桌面客户端
+采用此方式，并将本机编辑时间单独保存在本地 SQLite，不参与 USN 冲突判断。
+服务端为同次请求的笔记元数据和正文使用同一个时间，更新响应不再用另一个
+“响应生成时间”覆盖实际写入时间。显式传入历史时间的既有客户端合同及旧 `/api`
+保持不变；无需新增必填字段或改变路径。`CreatedTime` 仍保留原始创建时间。
+
 ## 认证
 
 Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`email`、`pwd`、可选 `captcha`），成功后设置同源 session cookie。Desktop 与服务端之间使用 `POST /api2/auth/login`。该接口在一次响应中返回认证 token、用户资料和服务端协议版本，登录流程不需要再请求 `/api2/user/info` 或 `/api2/system/version`：

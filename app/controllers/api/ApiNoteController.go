@@ -8,8 +8,8 @@ import (
 	"gopkg.in/mgo.v2/bson"
 	"os"
 	"os/exec"
-	// "strings"
 	"regexp"
+	"strings"
 	"time"
 	//	"github.com/gemsnote/gemsnote/app/types"
 	//	"io/ioutil"
@@ -22,6 +22,29 @@ import (
 
 type ApiNote struct {
 	ApiBaseContrller
+}
+
+// Existing API2 clients may supply a historical time. Omission requests a
+// single server-assigned time shared by metadata, body and response.
+func api2ModificationTime(path string, supplied, now time.Time) time.Time {
+	if strings.HasPrefix(path, "/api2/") {
+		// Match the existing service's second-resolution, local-wall-time
+		// normalization so the response contains the exact persisted value.
+		if !supplied.IsZero() {
+			local := ToLocalTime(supplied)
+			if IsValidTime(local) {
+				return local
+			}
+		}
+		return now.In(time.Local).Truncate(time.Second)
+	}
+	return supplied
+}
+
+func (c ApiNote) normalizeModificationTime(note *info.ApiNote) {
+	if c.Request != nil {
+		note.UpdatedTime = api2ModificationTime(c.Request.URL.Path, note.UpdatedTime, time.Now())
+	}
 }
 
 // 获取同步的笔记
@@ -224,6 +247,7 @@ func (c ApiNote) GetNoteContent(noteId string) revel.Result {
 // 添加笔记
 // [OK]
 func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
+	c.normalizeModificationTime(&noteOrContent)
 	userId := bson.ObjectIdHex(c.getUserId())
 	re := info.NewRe()
 	myUserId := userId
@@ -380,6 +404,7 @@ func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
 // 更新笔记
 // [OK]
 func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
+	c.normalizeModificationTime(&noteOrContent)
 	re := info.NewReUpdate()
 
 	noteUpdate := bson.M{}
@@ -530,6 +555,11 @@ func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
 	}
 
 	noteUpdate["UpdatedTime"] = noteOrContent.UpdatedTime
+	// A body-only API2 write must advance the note's timestamp as well as
+	// the content row. Keep the legacy /api path unchanged.
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") && c.Has("Content") {
+		needUpdateNote = true
+	}
 
 	afterNoteUsn := 0
 	noteOk := false
@@ -582,7 +612,9 @@ func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
 
 	noteOrContent.Content = ""
 	noteOrContent.Usn = re.Usn
-	noteOrContent.UpdatedTime = time.Now()
+	if c.Request == nil || !strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		noteOrContent.UpdatedTime = time.Now()
+	}
 
 	//	Log("after upload")
 	//	LogJ(noteOrContent.Files)
