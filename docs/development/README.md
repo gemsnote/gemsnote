@@ -9,13 +9,13 @@
 
 ## 接口与客户端
 
-- [API2 新接口](API2.md)：新 Web 和后续客户端使用的 `/api2` 接口规范。
+- [API2 新接口](API2.md)：Web 和新客户端使用的 `/api2` 接口规范，首个定稿版本为 1.0.0。
 - [Legacy API 兼容说明](API.md)：旧 `/api` 接口、Leanote 客户端兼容范围及限制。
 
 ## Web 与 UI
 
-- [统一 UI 设计](UI.md)：Web 和 desktop 共享的界面结构与交互设计。
-- [Vue Web UI 重写与部署计划](WEB_UI_MIGRATION_PLAN.md)：Web 前后端分离实现记录和维护边界。
+- [统一 UI 设计](UI.md)：Web 界面结构与交互设计。
+- [桌面客户端文档](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/DEVELOPMENT.md)：客户端开发、缓存与同步；[桌面 UI](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/UI.md) 与 [Release 构建](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/RELEASE.md) 在客户端仓库维护。
 
 ## 构建与发布
 

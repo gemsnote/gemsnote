@@ -3,11 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to build and publish (vMAJOR.MINOR.PATCH)
+        description: Existing release tag to build and publish (MAJOR.MINOR.PATCH)
         required: true
         type: string
 
@@ -32,11 +32,11 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag must use vMAJOR.MINOR.PATCH" >&2
+          if [[ ! "$RELEASE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use MAJOR.MINOR.PATCH (without v)" >&2
             exit 1
           fi
-          tag_version=${RELEASE_TAG#v}
+          tag_version=$RELEASE_TAG
           app_version=$(sed -n 's/^const Current = "\([^"]*\)"/\1/p' app/version/version.go)
           if [[ "$tag_version" != "$app_version" ]]; then
             echo "Tag version $tag_version does not match app version $app_version" >&2
@@ -107,7 +107,6 @@ jobs:
         run: |
           chmod +x scripts/build-release.sh
           scripts/build-release.sh \
-            "${{ needs.validate.outputs.version }}" \
             "${{ matrix.goos }}" \
             "${{ matrix.goarch }}" \
             "$RUNNER_TEMP/release"

@@ -7,22 +7,22 @@
 `parentNotebookId` 为空表示移到根目录。Web 使用已登录会话和
 `X-Requested-With: XMLHttpRequest`，返回 `{"Ok":true}` 或失败信息。
 只修改父级，保留子树及笔记归属；拒绝其他账号、已删除、自身或子孙目标。
-桌面同名 bridge 操作本地笔记本 ID，标记 dirty，后续同步转换成服务端 ID 上传。
 本接口为 API2 增量扩展，旧 `/api` 不变。
 
-API2 是新客户端使用的版本化接口空间，前缀为 `/api2`。第一阶段先完成 Web 迁移；旧的 `/api` 以及旧控制器路由继续保留，供 Leanote/Desktop 兼容客户端使用，暂不删除。
+API2 是 Web 和新客户端使用的接口空间，前缀为 `/api2`，`1.0.0` 为首个定稿版本。
+旧 `/api` 作为 Leanote 客户端兼容层继续保留，已移除的旧 Web/博客功能不在此范围。
 
 ## 笔记修改时间
 
-API2 笔记新增/更新时，省略可选的 `UpdatedTime` 表示使用服务端时间。新桌面客户端
-采用此方式，并将本机编辑时间单独保存在本地 SQLite，不参与 USN 冲突判断。
+API2 客户端笔记新增/更新接口中，省略可选的 `UpdatedTime` 表示使用服务端时间。
+同步版本判断使用 USN；本地缓存实现见[客户端开发指南](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/DEVELOPMENT.md)。
 服务端为同次请求的笔记元数据和正文使用同一个时间，更新响应不再用另一个
 “响应生成时间”覆盖实际写入时间。显式传入历史时间的既有客户端合同及旧 `/api`
 保持不变；无需新增必填字段或改变路径。`CreatedTime` 仍保留原始创建时间。
 
 ## 认证
 
-Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`email`、`pwd`、可选 `captcha`），成功后设置同源 session cookie。Desktop 与服务端之间使用 `POST /api2/auth/login`。该接口在一次响应中返回认证 token、用户资料和服务端协议版本，登录流程不需要再请求 `/api2/user/info` 或 `/api2/system/version`：
+Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`email`、`pwd`、可选 `captcha`），成功后设置同源 session cookie。Token 客户端使用 `POST /api2/auth/login`。该接口在一次响应中返回认证 token、用户资料和服务端协议版本，登录流程不需要再请求 `/api2/user/info` 或 `/api2/system/version`：
 
 ```json
 {
@@ -33,7 +33,10 @@ Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`
 }
 ```
 
-API2 当前处于定稿前阶段，客户端应按上述结构实现，不提供对早期 Gemsnote API2 登录响应的兼容。旧版登录路径 `/api/doLogin` 仅供 Leanote 兼容客户端使用。
+两种登录均推荐 JSON，字段为 `email`、`pwd`（服务端也接受表单）。Web 后续请求
+携带同源 cookie，受保护的写操作还需 `X-Requested-With: XMLHttpRequest`；
+客户端同步请求携带 `token` 查询参数。不要将 token 认证和浏览器会话认证混用。
+`/api/doLogin` 仅供旧 Leanote 兼容客户端使用。
 
 ## Web 核心接口
 
@@ -47,16 +50,54 @@ API2 当前处于定稿前阶段，客户端应按上述结构实现，不提供
 | POST | `/api2/save` | 新建或保存笔记；字段 `noteId`、`notebookId`、`ownerId`、`title`、`content`、`tags`、`isNew`、`isMarkdown`、`usn` |
 | POST | `/api2/star` | 设置星标；字段 `noteId`、`starred` |
 | POST | `/api2/restore` | 从回收站恢复；字段 `noteId` |
-| GET | `/api2/note/getSyncNotesWithContent` | Desktop 重新同步专用的笔记元数据与正文分页快照；`maxEntry` 最大为 50 |
+| GET | `/api2/groups` | 当前用户分组 |
+| POST | `/api2/admin/data` | 管理数据查询（JSON） |
+| POST | `/api2/attachments` | 附件列表（JSON） |
+| POST | `/api2/attachments/delete` | 删除附件（JSON） |
 
-正文快照响应会根据 `Accept-Encoding` 协商 gzip 压缩，不依赖部署配置中的全局压缩开关；解压后的 JSON 结构不变。该优化仅应用于上述 API2 快照接口，旧 `/api` 响应不变。
+文件上传 `/api2/avatar`、`/api2/attachments/upload` 使用 `multipart/form-data`，
+文件字段为 `file`，不能把文件编码为普通 JSON 请求。文件读取使用
+`/api2/file/getImage`、`/api2/file/getAttach` 和 `/api2/attachments/download`。
 
-登录和上传等过渡接口仍使用表单或 multipart；上传、分组、共享和管理接口在第一阶段通过 `/api2/<旧控制器>/<动作>` 暴露，Web 已统一从 API2 命名空间访问；这些接口的 JSON 化和更严格的资源语义将在后续小版本中逐步补齐。文件读取使用 `/api2/file/getImage`、`/api2/file/getAttach`。
+API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
+`/api2/notebook/updateNotebookTitle` 和部分共享/管理动作仍使用
+`application/x-www-form-urlencoded`。客户端笔记写入 `/api2/note/addNote`、
+`/api2/note/updateNote` 及 `/api2/client/*` 动作也复用表单绑定。
+完整路由以 `conf/routes` 为准，请求编码可对照 `frontend/src/api.ts` 和对应控制器；
+不要仅根据路径前缀推断请求格式或将浏览器动作当成 token 同步接口。
+
+## 客户端正文同步合同
+
+以下读取接口使用 token 认证：
+
+| GET 路径 | 正文语义 |
+| --- | --- |
+| `/api2/note/getSyncNotes` | 增量元数据，不加载正文 |
+| `/api2/note/getNote` | 单篇元数据，不加载正文 |
+| `/api2/note/getNoteContent` | 通过 `noteId` 读取真实正文，空字符串是有效正文 |
+| `/api2/note/getSyncNotesWithContent` | 元数据与真实正文分页快照，`maxEntry` 最大为 50 |
+
+前两项响应中的 `Content:""` 是共享响应模型产生的占位值，**不表示正文为空或已下载**。
+客户端不能根据 `Content` 字段存在就覆盖本地正文或跳过正文下载。处理远端版本时，
+应在正文成功写入本地后才确认该版本已完整同步；修复历史缓存时不能仅凭 USN 相同跳过正文。
+正文快照返回的空正文则是真实值，不应当作缺失。
+
+正文快照根据 `Accept-Encoding` 协商 gzip 压缩，不依赖全局压缩开关，解压后 JSON
+结构不变。该优化只应用于 API2 快照接口，旧 `/api` 响应不变。
 
 ## 错误
 
-HTTP 状态码用于区分认证和请求错误；业务失败返回 `Ok:false`，并在 `Msg` 中提供稳定错误码。客户端不得依赖本地化后的错误文本。
+当前没有统一的 HTTP 状态码与错误包装合同。客户端必须同时检查 HTTP 状态和
+端点的 JSON 业务结果：部分认证/参数错误仍以 HTTP 200 返回 `{"Ok":false,"Msg":"..."}`，
+例如 token 校验的 `NOTLOGIN`；部分浏览器防护会返回 403/405，历史动作还可能返回
+布尔值。不能将 HTTP 200 一律视为成功。
+
+`Msg` 既可能是固定错误码，也可能是本地化文本（如登录密码错误）。仅对已明确约定的
+错误码进行逻辑分支，其余作为提示展示，不能假设所有 `Msg` 都是稳定、未翻译的机器码。
 
 ## 版本策略
 
-`/api` 是 legacy 接口，当前版本不会移除。新客户端应只使用 `/api2`，并通过 `/api2/system/version` 判断服务端版本；当未来版本设置 `min_version` 后，低于该版本的客户端必须提示升级。
+`/api` 是 legacy 接口，当前版本不会移除。API2 `1.0.0` 已定稿，后续合同变更须升级版本。
+新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.0.0","min_version":""}`，
+或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
+后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。

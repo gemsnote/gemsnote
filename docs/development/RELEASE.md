@@ -13,11 +13,11 @@
 
 ## 正式发布
 
-正式版本标签必须采用 `vMAJOR.MINOR.PATCH` 格式，并与 `app/version/version.go` 中的 `Current` 完全一致。例如当前版本的发布标签为：
+正式版本 Git 标签和 GHCR 镜像标签均采用不带 `v` 的 `MAJOR.MINOR.PATCH` 格式，并与 `app/version/version.go` 中的 `Current` 完全一致。例如：
 
 ```bash
-git tag -a v1.0.0 -m "Gemsnote 1.0.0"
-git push origin v1.0.0
+git tag -a 1.0.0 -m "Gemsnote 1.0.0"
+git push origin 1.0.0
 ```
 
 标签推送后，`.github/workflows/release.yml` 会：
@@ -31,7 +31,10 @@ git push origin v1.0.0
 
 镜像发布使用工作流自带的 `GITHUB_TOKEN`，无需配置 Docker Hub 凭据。首次发布的 GHCR 包默认可能为私有；如需公开拉取，请在 GitHub 的包设置中将其可见性改为 Public。公开后可用 `docker pull ghcr.io/gemsnote/gemsnote:1.0.0` 拉取，Docker 会自动选择匹配主机架构的镜像。本流程只发布明确的版本标签，不更新 `latest`。
 
-如果发布工作流本身修复后需要重试已有标签，不要删除或强推标签，也不要只点旧运行记录的“重新运行”（它仍使用原来的工作流版本）。将修复后的工作流合并到 GitHub 默认分支后，在 Actions → Release → Run workflow 中填写已有标签（如 `v1.0.0`）。手动运行会从该标签检出源码，重新测试、构建并发布；请先确认该标签尚未创建 GitHub Release，避免重复创建失败。
+如果发布工作流本身修复后需要重试已有标签，不要删除或强推标签，也不要只点旧运行记录的“重新运行”（它仍使用原来的工作流版本）。将修复后的工作流合并到 GitHub 默认分支后，在 Actions → Release → Run workflow 中填写已有标签（如 `1.0.0`）。手动运行会从该标签检出源码，重新测试、构建并发布；请先确认该标签尚未创建 GitHub Release，避免重复创建失败。
+
+新标签应指向包含此工作流的发布提交。旧 `v` 前缀标签不会触发当前发布流程，
+无需删除或移动它们。构建产物文件名仍保留 `-v<version>`，与 Git/GHCR 标签是两回事。
 
 每个发布包都包含服务端、Vue `frontend/dist`、MongoDB/PostgreSQL 迁移工具、配置、页面资源、数据库 Schema、初始数据和文档；运行发布包不需要安装 Node.js。
 
@@ -49,7 +52,7 @@ git push origin v1.0.0
 
 ## 权限
 
-CI 工作流只有仓库内容只读权限。Release 工作流只在正式标签触发，使用 GitHub 自动提供的 `GITHUB_TOKEN` 创建 Release 和发布 GHCR 镜像，无需配置个人访问令牌。仅镜像发布任务具有 `packages: write` 权限。
+CI 工作流只有仓库内容只读权限。Release 工作流由正式标签推送或手动指定已有标签触发，使用 GitHub 自动提供的 `GITHUB_TOKEN` 创建 Release 和发布 GHCR 镜像，无需配置个人访问令牌。仅镜像发布任务具有 `packages: write` 权限。
 
 ## 手工构建 Release
 
@@ -60,34 +63,26 @@ npm ci --prefix frontend
 npm test --prefix frontend
 npm run build --prefix frontend
 go test ./...
-version=$(sed -n 's/^const Current = "\([^"]*\)"/\1/p' app/version/version.go)
 chmod +x scripts/build-release.sh
-scripts/build-release.sh "$version" linux amd64 "$PWD/release"
+scripts/build-release.sh linux amd64 "$PWD/release"
 ```
 
 `scripts/build-release.sh` 的参数格式为：
 
 ```bash
-scripts/build-release.sh <version> <goos> <goarch> <绝对输出目录>
+scripts/build-release.sh <goos> <goarch> <绝对输出目录>
 ```
 
-可用目标包括 `linux amd64`、`linux arm64`、`windows amd64`、`darwin amd64` 和 `darwin arm64`。POSIX 目标生成 `.tar.gz`，Windows 目标生成 `.zip`。输出目录必须使用绝对路径，因为 Windows 打包阶段会切换到临时目录。脚本会构建 Vue、生成 Revel 生产入口，并编译服务端和 `gemsnote-migrate` 工具；脚本本身不执行测试，也不会校验版本参数与 `app/version/version.go` 中的 `Current` 是否一致。
+可用目标包括 `linux amd64`、`linux arm64`、`windows amd64`、`darwin amd64` 和 `darwin arm64`。POSIX 目标生成 `.tar.gz`，Windows 目标生成 `.zip`。输出目录必须使用绝对路径，因为 Windows 打包阶段会切换到临时目录。脚本会构建 Vue、生成 Revel 生产入口，并编译服务端和 `gemsnote-migrate` 工具；脚本直接读取 `app/version/version.go` 中的 `Current`，不接受版本参数；定义缺失、重复或不符合 `MAJOR.MINOR.PATCH` 时立即失败。脚本本身不执行测试，发布前仍需运行上述测试。GitHub Actions 保留 tag 与代码版本的一致性校验。
 
 发布包包含服务端、迁移工具、`frontend/dist`、配置、数据库 Schema、初始数据和文档，运行时不需要 Node.js。包内通过 `run.sh`（Linux/macOS）或 `run.bat`（Windows）启动。发布前应检查包内 `conf`，不要带入本地密码、`.env` 或运行时数据；`files/` 不会打包，`public/upload` 为空目录。
 
 启动前编辑 `conf/app.conf`，配置数据库连接并修改 `app.secret`。全新 PostgreSQL 数据库按部署方式执行 Schema 和 seed；MongoDB 不会自动导入 BSON，需要先按 [部署、测试与交付](../DEPLOYMENT.md) 恢复或连接数据库。已有数据库不会因重新构建 Release 而重置 seed 或密码。
 
-## 手工构建 Desktop
+## 相关文档
 
-Desktop 复用仓库根目录的 Vue 前端：
-
-```bash
-bash desktop-app/build-frontend.sh
-cd desktop-app
-wails build
-```
-
-需要 Go、Node.js/npm、Wails CLI 及当前操作系统的 WebKit/GTK 编译依赖。Desktop 输出通常位于 `desktop-app/build/bin/`，应用图标来自 `desktop-app/build/appicon.png`。Desktop 不使用服务端 Release 脚本的 CGO 交叉编译方式，跨平台时建议在对应系统原生构建。
+桌面客户端请参阅独立仓库的 [开发指南](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/DEVELOPMENT.md)
+和 [Release 构建说明](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/RELEASE.md)。
 
 ## 发布包校验和
 

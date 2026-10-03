@@ -1,0 +1,46 @@
+# Prebuilt release deployment; no Go, Node.js or local image build required.
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gemsnote
+      POSTGRES_PASSWORD: ${GEMSNOTE_POSTGRES_PASSWORD:?Set GEMSNOTE_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: gemsnote
+    volumes:
+      - ./data:/var/lib/postgresql
+      - type: bind
+        source: ./database/schema.sql
+        target: /docker-entrypoint-initdb.d/001-gemsnote-schema.sql
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./database/seed.sql
+        target: /docker-entrypoint-initdb.d/002-gemsnote-seed.sql
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gemsnote -d gemsnote"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  gemsnote:
+    image: ghcr.io/gemsnote/gemsnote:${GEMSNOTE_VERSION:-1.0.0}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:9000:9000
+    volumes:
+      - type: bind
+        source: ./conf/app.docker-postgres.conf
+        target: /opt/gemsnote/conf/app.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./files:/opt/gemsnote/files
+      - ./public/upload:/opt/gemsnote/public/upload

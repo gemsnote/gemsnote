@@ -15,7 +15,7 @@ Gemsnote 在保留 Leanote 核心功能和客户端兼容性的基础上，主�
 - 两种数据库统一使用 MongoDB ObjectId 兼容的 24 位十六进制 ID；
 - 抽象数据库访问层，可通过配置选择 MongoDB 或 PostgreSQL；
 - 项目名称、默认数据库、配置、界面和相关资源更名为 Gemsnote／珠玑笔记；
-- 保持原有 HTTP API 路径、请求参数、响应字段及 MongoDB BSON 字段稳定，以兼容旧版 Leanote 客户端和已有数据。
+- 保留旧 `/api` 兼容层及 MongoDB BSON 数据兼容性；新 Web 和客户端使用 API2。已移除的旧 Web/博客页面不属于兼容承诺。
 
 本项目继续遵循仓库中的开源许可证。使用、修改和分发时，请同时遵守原项目及本项目的许可证要求。
 
@@ -23,11 +23,8 @@ Gemsnote 在保留 Leanote 核心功能和客户端兼容性的基础上，主�
 
 - 笔记本、笔记和标签管理；
 - Markdown 编辑器与富文本编辑器；
-- Vim 和 Emacs 编辑模式；
 - 笔记分享与多人协作；
 - Vue Web、桌面客户端兼容访问；
-- PDF 导出；
-- 批量笔记操作；
 - MongoDB 和 PostgreSQL 双数据库后端；
 - MongoDB ↔ PostgreSQL 双向迁移。
 
@@ -43,7 +40,7 @@ Gemsnote 支持 PostgreSQL 和 MongoDB 两种数据库，数据库访问由抽�
 
 ## API 与客户端兼容性
 
-Gemsnote 保留了 Leanote 原有 HTTP API 路径、参数和响应字段。旧版 Leanote Electron 客户端可以在登录界面选择自建服务并填写 Gemsnote 服务端地址进行连接。
+Gemsnote 保留 Leanote `/api` 兼容层供旧版 Leanote Electron 客户端连接；在登录界面选择自建服务并填写 Gemsnote 服务端地址。兼容范围不包含已移除的旧 Web/博客页面，新功能以 [API2](docs/development/API2.md) 为准。
 
 旧客户端默认地址仍可能指向 `leanote.com`，因此连接私有部署时必须明确填写服务器地址。
 
