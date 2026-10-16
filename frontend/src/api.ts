@@ -8,7 +8,7 @@ function api2Path(path: string): string {
   if (path.startsWith('/api2/')) return path
   if (path.startsWith('/api/')) return `/api2/${path.slice('/api/'.length)}`
   const core: Record<string, string> = {
-    '/web/bootstrap': '/api2/bootstrap', '/web/logout': '/api2/logout', '/doLogin': '/api2/auth/session', '/doRegister': '/api2/auth/register', '/doFindPassword': '/api2/auth/password/request', '/findPasswordUpdate': '/api2/auth/password/reset', '/web/groups': '/api2/groups', '/web/adminData': '/api2/admin/data', '/file/uploadAvatar': '/api2/avatar', '/attach/getAttachs': '/api2/attachments', '/attach/uploadAttach': '/api2/attachments/upload', '/attach/deleteAttach': '/api2/attachments/delete', '/web/notes': '/api2/notes',
+    '/web/bootstrap': '/api2/bootstrap', '/web/logout': '/api2/logout', '/doLogin': '/api2/auth/session', '/doFindPassword': '/api2/auth/password/request', '/findPasswordUpdate': '/api2/auth/password/reset', '/web/groups': '/api2/groups', '/web/adminData': '/api2/admin/data', '/file/uploadAvatar': '/api2/avatar', '/attach/getAttachs': '/api2/attachments', '/attach/uploadAttach': '/api2/attachments/upload', '/attach/deleteAttach': '/api2/attachments/delete', '/web/notes': '/api2/notes',
     '/web/star': '/api2/star', '/web/document': '/api2/document',
     '/web/save': '/api2/save', '/web/restore': '/api2/restore'
   }
@@ -23,7 +23,7 @@ export async function request<T = any>(path: string, params?: Params): Promise<T
     else body.append(key, String(value))
   }
   const target = api2Path(path)
-  const core = target === '/api2/auth/session' || target === '/api2/auth/register' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
+  const core = target === '/api2/auth/session' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
   const jsonBody = core || target === '/api2/notebook/moveNotebook'
   const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
   const data = await response.json().catch(() => null)

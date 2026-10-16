@@ -44,9 +44,7 @@ const (
 
 // 拦截器
 // 不需要拦截的url
-var commonUrl = map[string]map[string]bool{"ApiAuth": map[string]bool{"Login": true,
-	"Register": true,
-},
+var commonUrl = map[string]map[string]bool{"ApiAuth": map[string]bool{"Login": true},
 	"ApiSystem": map[string]bool{"Version": true},
 	// 文件的操作也不用登录, userId会从session中获取
 	"ApiFile": map[string]bool{"GetImage": true,

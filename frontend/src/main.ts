@@ -11,7 +11,7 @@ import './styles.css'
 import {t} from './i18n'
 const router = createRouter({ history: createWebHistory(), routes: [
   { path: '/', redirect: '/note' }, { path: '/index', redirect: '/note' },
-  { path: '/login', component: Auth }, { path: '/register', component: Auth },
+  { path: '/login', component: Auth },
   { path: '/findPassword/:token?', component: Auth },
   { path: '/note/:noteId?', component: Workspace },
   { path: '/member/:pathMatch(.*)*', component: Account },

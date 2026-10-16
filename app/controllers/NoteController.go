@@ -37,8 +37,6 @@ func (c Note) Index(noteId, online string) revel.Result {
 		return c.Redirect("/login")
 	}
 
-	c.ViewArgs["openRegister"] = configService.IsOpenRegister()
-
 	// 已登录了, 那么得到所有信息
 	notebooks := notebookService.GetNotebooks(userId)
 	shareNotebooks, sharedUserInfos := shareService.GetShareNotebooks(userId)

@@ -72,3 +72,27 @@ func TestAPI2EmptyHistoriesAreArray(t *testing.T) {
 		t.Fatal("API2 history route must use the array-normalizing action")
 	}
 }
+
+func TestPublicRegistrationIsUnavailable(t *testing.T) {
+	routes, err := os.ReadFile("../../conf/routes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []string{"/register", "/doRegister", "/api2/auth/register"} {
+		if strings.Contains(string(routes), route) {
+			t.Errorf("public registration route must not exist: %s", route)
+		}
+	}
+	for _, file := range []string{"AuthController.go", "Api2Controller.go", "api/ApiAuthController.go"} {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if regexp.MustCompile(`func \(c \w+\) (Do)?Register\(`).Match(content) {
+			t.Errorf("public registration action must not exist in %s", file)
+		}
+	}
+	if !strings.Contains(string(routes), "/api2/web/adminRegister") || !strings.Contains(string(routes), "/web/adminRegister") {
+		t.Fatal("administrator user creation routes must remain available")
+	}
+}

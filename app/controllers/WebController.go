@@ -34,7 +34,7 @@ func (c Web) Page() revel.Result {
 func (c Web) Bootstrap() revel.Result {
 	userId := c.GetUserId()
 	if userId == "" || !sessionService.ValidateUserSession(c.Session.ID(), userId) {
-		return c.RenderJSON(map[string]interface{}{"Ok": true, "User": nil, "OpenRegister": configService.IsOpenRegister(), "NeedCaptcha": sessionService.LoginTimesIsOver(c.Session.ID())})
+		return c.RenderJSON(map[string]interface{}{"Ok": true, "User": nil, "NeedCaptcha": sessionService.LoginTimesIsOver(c.Session.ID())})
 	}
 	notebooks, users := shareService.GetShareNotebooks(userId)
 	// A user may share individual notes without sharing a notebook. Expose a
@@ -211,7 +211,7 @@ func (c Web) VerifyEmail(token string, change bool) revel.Result {
 func (c Web) isAdmin() bool { return c.GetUsername() == configService.GetAdminUsername() }
 
 var webSettingKeys = []string{
-	"siteUrl", "openRegister", "emailHost", "emailPort", "emailUsername", "emailPassword", "emailSSL",
+	"siteUrl", "emailHost", "emailPort", "emailUsername", "emailPassword", "emailSSL",
 	"uploadImageSize", "uploadAvatarSize", "uploadAttachSize", "exportPdfBinPath",
 }
 
@@ -275,7 +275,7 @@ func (c Web) AdminRegister(email, pwd string) revel.Result {
 	if ok, msg := lea.Vd("password", pwd); !ok {
 		return c.RenderJSON(info.Re{Ok: false, Msg: msg})
 	}
-	ok, msg := authService.Register(email, pwd, "")
+	ok, msg := authService.CreateUser(email, pwd)
 	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }
 

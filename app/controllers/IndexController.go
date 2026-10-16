@@ -24,7 +24,6 @@ func (c Index) Default() revel.Result {
 func (c Index) Index() revel.Result {
 	c.SetUserInfo()
 	c.ViewArgs["title"] = "gemsnote"
-	c.ViewArgs["openRegister"] = configService.GlobalStringConfigs["openRegister"]
 	c.SetLocale()
 
 	return c.RenderTemplate("home/index.html")

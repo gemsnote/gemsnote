@@ -39,8 +39,6 @@ var commonUrl = map[string]map[string]bool{"Index": map[string]bool{"Index": tru
 	"Login":              true,
 	"DoLogin":            true,
 	"Logout":             true,
-	"Register":           true,
-	"DoRegister":         true,
 	"FindPasswword":      true,
 	"DoFindPassword":     true,
 	"FindPassword2":      true,
@@ -116,7 +114,7 @@ var webMutationMethods = map[string]map[string]bool{
 	"Notebook": {"DeleteNotebook": true, "AddNotebook": true, "UpdateNotebookTitle": true, "MoveNotebook": true, "DragNotebooks": true, "SetNotebook2Blog": true},
 	"Note":     {"UpdateNoteOrContent": true, "DeleteNote": true, "DeleteTrash": true, "MoveNote": true, "CopyNote": true, "CopySharedNote": true, "SetNote2Blog": true},
 	"Share":    {"AddShareNote": true, "AddShareNotebook": true, "UpdateShareNotePerm": true, "UpdateShareNotebookPerm": true, "DeleteShareNote": true, "DeleteShareNotebook": true, "DeleteShareNoteBySharedUser": true, "DeleteShareNotebookBySharedUser": true, "DeleteUserShareNoteAndNotebook": true, "AddShareNoteGroup": true, "DeleteShareNoteGroup": true, "UpdateShareNoteGroupPerm": true, "AddShareNotebookGroup": true, "DeleteShareNotebookGroup": true, "UpdateShareNotebookGroupPerm": true},
-	"User":     {"UpdateUsername": true, "UpdatePwd": true, "UpdateTheme": true, "SendRegisterEmail": true, "ReSendActiveEmail": true, "UpdateColumnWidth": true, "UpdateLeftIsMin": true},
+	"User":     {"UpdateUsername": true, "UpdatePwd": true, "UpdateTheme": true, "ReSendActiveEmail": true, "UpdateColumnWidth": true, "UpdateLeftIsMin": true},
 	"File":     {"UploadBlogLogo": true, "PasteImage": true, "UploadAvatar": true, "UploadImageLeaui": true, "UpdateImageTitle": true, "DeleteImage": true, "CopyImage": true, "CopyHttpImage": true},
 	"Attach":   {"UploadAttach": true, "DeleteAttach": true},
 }

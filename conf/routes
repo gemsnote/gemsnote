@@ -14,9 +14,6 @@ GET     /login                                  Web.Page
 POST     /doLogin                                   Auth.DoLogin
 GET     /logout                                     Auth.Logout
 
-GET     /register                              Web.Page
-POST     /doRegister                                Auth.DoRegister
-
 GET 	/findPassword/:token						Web.Page
 GET 	/findPassword								Web.Page
 POST 	/doFindPassword								Auth.DoFindPassword
@@ -55,7 +52,6 @@ GET     /web/bootstrap                          Web.Bootstrap
 # remains unchanged for existing clients.
 POST    /api2/logout                            Api2.Logout
 POST    /api2/auth/session                      Api2.Login
-POST    /api2/auth/register                     Api2.Register
 POST    /api2/auth/password/request             Api2.RequestPasswordReset
 POST    /api2/auth/password/reset               Api2.ResetPassword
 GET     /api2/bootstrap                          Api2.Bootstrap

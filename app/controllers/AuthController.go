@@ -4,7 +4,6 @@ import (
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/revel/revel"
-	"strings"
 	//	"strconv"
 )
 
@@ -21,8 +20,6 @@ func (c Auth) Login(email, from string) revel.Result {
 	c.ViewArgs["subTitle"] = c.Message("login")
 	c.ViewArgs["email"] = email
 	c.ViewArgs["from"] = from
-	c.ViewArgs["openRegister"] = configService.IsOpenRegister()
-
 	sessionId := c.Session.ID()
 	if sessionService.LoginTimesIsOver(sessionId) {
 		c.ViewArgs["needCaptcha"] = true
@@ -79,47 +76,6 @@ func (c Auth) Logout() revel.Result {
 	sessionService.Clear(sessionId)
 	c.ClearSession()
 	return c.Redirect("/login")
-}
-
-// --------
-// 注册
-func (c Auth) Register(from, iu string) revel.Result {
-	if !configService.IsOpenRegister() {
-		return c.Redirect("/index")
-	}
-	c.SetLocale()
-	c.ViewArgs["from"] = from
-	c.ViewArgs["iu"] = iu
-
-	c.ViewArgs["title"] = c.Message("register")
-	c.ViewArgs["subTitle"] = c.Message("register")
-	return c.RenderTemplate("home/register.html")
-}
-func (c Auth) DoRegister(email, pwd, iu string) revel.Result {
-	if !configService.IsOpenRegister() {
-		return c.Redirect("/index")
-	}
-
-	re := info.NewRe()
-
-	if re.Ok, re.Msg = Vd("email", email); !re.Ok {
-		return c.RenderRe(re)
-	}
-	if re.Ok, re.Msg = Vd("password", pwd); !re.Ok {
-		return c.RenderRe(re)
-	}
-
-	email = strings.ToLower(email)
-
-	// 注册
-	re.Ok, re.Msg = authService.Register(email, pwd, iu)
-
-	// 注册成功, 则立即登录之
-	if re.Ok {
-		c.doLogin(email, pwd)
-	}
-
-	return c.RenderRe(re)
 }
 
 // --------

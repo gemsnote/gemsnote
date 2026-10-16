@@ -36,8 +36,6 @@ var commonUrl = map[string]map[string]bool{"Index": map[string]bool{"Index": tru
 	"Login":              true,
 	"DoLogin":            true,
 	"Logout":             true,
-	"Register":           true,
-	"DoRegister":         true,
 	"FindPasswword":      true,
 	"DoFindPassword":     true,
 	"FindPassword2":      true,

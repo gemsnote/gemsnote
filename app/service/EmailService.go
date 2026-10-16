@@ -233,29 +233,6 @@ func (this *EmailService) FindPwdSendEmail(token, email string) (ok bool, msg st
 	return
 }
 
-// 发送邀请链接
-func (this *EmailService) SendInviteEmail(userInfo info.User, email, content string) bool {
-	subject := configService.GetGlobalStringConfig("emailTemplateInviteSubject")
-	tpl := configService.GetGlobalStringConfig("emailTemplateInvite")
-
-	token2Value := map[string]interface{}{"siteUrl": configService.GetSiteUrl(),
-		"registerUrl": configService.GetSiteUrl() + "/register?from=" + userInfo.Username,
-		"content":     content,
-		"user": map[string]interface{}{
-			"username": userInfo.Username,
-			"email":    userInfo.Email,
-		},
-	}
-	var ok bool
-	ok, _, subject, tpl = this.renderEmail(subject, tpl, token2Value)
-	if !ok {
-		return false
-	}
-	// 发送邮件
-	ok, _ = this.SendEmail(email, subject, tpl)
-	return ok
-}
-
 // 发送评论
 func (this *EmailService) SendCommentEmail(note info.Note, comment info.BlogComment, userId, content string) bool {
 	subject := configService.GetGlobalStringConfig("emailTemplateCommentSubject")

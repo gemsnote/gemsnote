@@ -6,7 +6,6 @@ import (
 	"github.com/gemsnote/gemsnote/app/info"
 	//	"github.com/revel/revel"
 	"errors"
-	"fmt"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"strconv"
 	"strings"
@@ -40,7 +39,7 @@ func (this *AuthService) Login(emailOrUsername, pwd string) (info.User, error) {
 // 1. 添加用户
 // 2. 将gemsnote共享给我
 // [ok]
-func (this *AuthService) Register(email, pwd, fromUserId string) (bool, string) {
+func (this *AuthService) CreateUser(email, pwd string) (bool, string) {
 	// 用户是否已存在
 	if userService.IsExistsUser(email) {
 		return false, "userHasBeenRegistered-" + email
@@ -50,9 +49,6 @@ func (this *AuthService) Register(email, pwd, fromUserId string) (bool, string) 
 		return false, "GenerateHash error"
 	}
 	user := info.User{UserId: bson.NewObjectId(), Email: email, Username: email, Pwd: passwd}
-	if fromUserId != "" && IsObjectId(fromUserId) {
-		user.FromUserId = bson.ObjectIdHex(fromUserId)
-	}
 	return this.register(user)
 }
 
@@ -104,36 +100,4 @@ func (this *AuthService) register(user info.User) (bool, string) {
 	}
 
 	return true, ""
-}
-
-//--------------
-// 第三方注册
-
-// 第三方得到用户名, 可能需要多次判断
-func (this *AuthService) getUsername(thirdType, thirdUsername string) (username string) {
-	username = thirdType + "-" + thirdUsername
-	i := 1
-	for {
-		if !userService.IsExistsUserByUsername(username) {
-			return
-		}
-		username = fmt.Sprintf("%v%v", username, i)
-	}
-}
-
-func (this *AuthService) ThirdRegister(thirdType, thirdUserId, thirdUsername string) (exists bool, userInfo info.User) {
-	userInfo = userService.GetUserInfoByThirdUserId(thirdUserId)
-	if userInfo.UserId != "" {
-		exists = true
-		return
-	}
-
-	username := this.getUsername(thirdType, thirdUsername)
-	userInfo = info.User{UserId: bson.NewObjectId(),
-		Username:      username,
-		ThirdUserId:   thirdUserId,
-		ThirdUsername: thirdUsername,
-	}
-	_, _ = this.register(userInfo)
-	return
 }

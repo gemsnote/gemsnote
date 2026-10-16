@@ -8,7 +8,7 @@
 
 `/api/user/info?userId=xxxx&token=xxxx`
 
-除了/auth/login, /auth/register外其它的都需要另外带参数token=xxxx
+除了/auth/login外其它的都需要另外带参数token=xxxx
 
 ### 文件目录结构
 * 所有API的Controller都在app/api文件夹下
@@ -77,15 +77,6 @@ Method: GET
 ```
 参数: token
 Method: GET
-返回:
-错误: {Ok: false, Msg: ""}
-成功: {Ok: true, Msg: ""}
-```
-
-### /auth/register 注册
-```
-参数: email, pwd
-Method: POST
 返回:
 错误: {Ok: false, Msg: ""}
 成功: {Ok: true, Msg: ""}

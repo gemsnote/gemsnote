@@ -70,18 +70,6 @@ func (c Api2) Logout() revel.Result {
 	return c.RenderJSON(info.Re{Ok: true})
 }
 
-func (c Api2) Register() revel.Result {
-	var p struct {
-		Email string `json:"email"`
-		Pwd   string `json:"pwd"`
-		IU    string `json:"iu"`
-	}
-	if err := c.body(&p); err != nil {
-		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
-	}
-	return (Auth{c.BaseController}).DoRegister(p.Email, p.Pwd, p.IU)
-}
-
 func (c Api2) RequestPasswordReset() revel.Result {
 	var p struct {
 		Email string `json:"email"`

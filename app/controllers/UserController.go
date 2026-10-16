@@ -67,17 +67,6 @@ func (c User) UpdateTheme(theme string) revel.Result {
 	return c.RenderJSON(re)
 }
 
-// 发送邀请链接
-func (c User) SendRegisterEmail(content, toEmail string) revel.Result {
-	re := info.NewRe()
-	if content == "" || !IsEmail(toEmail) {
-		return c.RenderJSON(re)
-	}
-
-	re.Ok = emailService.SendInviteEmail(c.GetUserInfo(), toEmail, content)
-	return c.RenderJSON(re)
-}
-
 //---------------------------
 
 // 重新发送激活邮件

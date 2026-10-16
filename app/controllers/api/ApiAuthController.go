@@ -55,25 +55,3 @@ func (c ApiAuth) Logout() revel.Result {
 	re.Ok = true
 	return c.RenderJSON(re)
 }
-
-// 注册
-// [Ok]
-// 成功后并不返回用户ID, 需要用户重新登录
-func (c ApiAuth) Register(email, pwd string) revel.Result {
-	re := info.NewApiRe()
-	if !configService.IsOpenRegister() {
-		re.Msg = "notOpenRegister" // 未开放注册
-		return c.RenderJSON(re)
-	}
-
-	if re.Ok, re.Msg = Vd("email", email); !re.Ok {
-		return c.RenderJSON(re)
-	}
-	if re.Ok, re.Msg = Vd("password", pwd); !re.Ok {
-		return c.RenderJSON(re)
-	}
-
-	// 注册
-	re.Ok, re.Msg = authService.Register(email, pwd, "")
-	return c.RenderJSON(re)
-}

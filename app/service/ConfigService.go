@@ -188,10 +188,6 @@ func (this *ConfigService) GetGlobalArrMapConfig(key string) []map[string]string
 	return m
 }
 
-func (this *ConfigService) IsOpenRegister() bool {
-	return this.GetGlobalStringConfig("openRegister") != ""
-}
-
 // -------
 // 修改共享笔记的配置
 func (this *ConfigService) UpdateShareNoteConfig(registerSharedUserId string,
