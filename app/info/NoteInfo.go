@@ -80,14 +80,18 @@ type EachHistory struct {
 	UpdatedUserId bson.ObjectId `UpdatedUserId`
 	UpdatedTime   time.Time     `UpdatedTime`
 	Content       string        `Content`
+	IsMarkdown    bool          `IsMarkdown`
+	Files         []NoteFile    `Files,omitempty`
 }
 
 // 历史版本元数据(API用, 不含Content)
 type HistoryMeta struct {
-	Index         int       `json:"Index"`
-	HistoryId     string    `json:"HistoryId"`
-	UpdatedUserId string    `json:"UpdatedUserId"`
-	UpdatedTime   time.Time `json:"UpdatedTime"`
+	Index         int        `json:"Index"`
+	HistoryId     string     `json:"HistoryId"`
+	UpdatedUserId string     `json:"UpdatedUserId"`
+	UpdatedTime   time.Time  `json:"UpdatedTime"`
+	IsMarkdown    bool       `json:"IsMarkdown"`
+	Files         []NoteFile `json:"Files,omitempty"`
 }
 type NoteContentHistory struct {
 	NoteId    bson.ObjectId `bson:"_id,omitempty"`

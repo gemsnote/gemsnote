@@ -285,6 +285,13 @@ func (this *NotebookService) ToBlog(userId, notebookId string, isBlog bool) bool
 // 查看是否有子notebook
 // 先查看该notebookId下是否有notes, 没有则删除
 func (this *NotebookService) DeleteNotebook(userId, notebookId string) (bool, string) {
+	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(notebookId) {
+		return false, "notExists"
+	}
+	notebook := this.GetNotebookById(notebookId)
+	if notebook.NotebookId == "" || notebook.UserId.Hex() != userId || notebook.IsDeleted {
+		return false, "notExists"
+	}
 	if db.Count(db.Notebooks, bson.M{
 		"ParentNotebookId": bson.ObjectIdHex(notebookId),
 		"UserId":           bson.ObjectIdHex(userId),
@@ -295,7 +302,7 @@ func (this *NotebookService) DeleteNotebook(userId, notebookId string) (bool, st
 			"IsTrash":   false,
 			"IsDeleted": false}) == 0 { // 不包含trash
 			// 不是真删除 1/20, 为了同步笔记本
-			ok := db.UpdateByQMap(db.Notebooks, bson.M{"_id": bson.ObjectIdHex(notebookId)}, bson.M{"IsDeleted": true, "Usn": userService.IncrUsn(userId)})
+			ok := db.UpdateByQMap(db.Notebooks, bson.M{"_id": bson.ObjectIdHex(notebookId), "UserId": bson.ObjectIdHex(userId), "IsDeleted": false}, bson.M{"IsDeleted": true, "Usn": userService.IncrUsn(userId)})
 			return ok, ""
 			//			return db.DeleteByIdAndUserId(db.Notebooks, notebookId, userId), ""
 		}
@@ -311,10 +318,12 @@ func (this *NotebookService) DeleteNotebookForce(userId, notebookId string, usn 
 	// 不存在
 	if notebook.NotebookId == "" {
 		return false, "notExists"
+	} else if notebook.UserId.Hex() != userId || notebook.IsDeleted {
+		return false, "notExists"
 	} else if notebook.Usn != usn {
 		return false, "conflict"
 	}
-	return db.DeleteByIdAndUserId(db.Notebooks, notebookId, userId), ""
+	return this.DeleteNotebook(userId, notebookId)
 }
 
 // 排序

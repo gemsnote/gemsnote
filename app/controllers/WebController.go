@@ -109,7 +109,7 @@ func (c Web) Document(noteId string) revel.Result {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
 	}
-	return c.RenderJSON(map[string]interface{}{"Note": note, "Content": noteService.GetNoteContent(noteId, note.UserId.Hex()).Content, "Writable": !note.IsTrash && (note.UserId.Hex() == c.GetUserId() || shareService.HasUpdatePerm(note.UserId.Hex(), c.GetUserId(), noteId))})
+	return c.RenderJSON(map[string]interface{}{"Note": note, "Content": noteService.GetNoteContent(noteId, note.UserId.Hex()).Content, "Writable": !note.IsTrash && note.UserId.Hex() == c.GetUserId()})
 }
 
 var webSaveMutex sync.Mutex
@@ -120,17 +120,23 @@ func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNe
 	}
 	webSaveMutex.Lock()
 	defer webSaveMutex.Unlock()
+	tagList := []string{}
+	for _, tag := range strings.Split(tags, ",") {
+		if tag = strings.TrimSpace(tag); tag != "" {
+			tagList = append(tagList, tag)
+		}
+	}
 	if isNew {
 		if ownerId == "" {
 			ownerId = c.GetUserId()
 		}
-		if !bson.IsObjectIdHex(ownerId) || notebookService.GetNotebook(notebookId, ownerId).NotebookId == "" || (ownerId != c.GetUserId() && !shareService.HasUpdateNotebookPerm(ownerId, c.GetUserId(), notebookId)) {
+		if ownerId != c.GetUserId() || !bson.IsObjectIdHex(ownerId) || notebookService.GetNotebook(notebookId, ownerId).NotebookId == "" {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "invalidNotebook"})
 		}
 		if noteService.GetNoteById(noteId).NoteId != "" {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "conflict"})
 		}
-		note := info.Note{NoteId: bson.ObjectIdHex(noteId), NotebookId: bson.ObjectIdHex(notebookId), UserId: bson.ObjectIdHex(ownerId), Title: title, Tags: strings.Split(tags, ","), IsMarkdown: isMarkdown}
+		note := info.Note{NoteId: bson.ObjectIdHex(noteId), NotebookId: bson.ObjectIdHex(notebookId), UserId: bson.ObjectIdHex(ownerId), Title: title, Tags: tagList, IsMarkdown: isMarkdown}
 		created := noteService.AddNoteAndContentForController(note, info.NoteContent{NoteId: note.NoteId, UserId: note.UserId, Content: content}, c.GetUserId())
 		if created.NoteId == "" {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "saveFailed"})
@@ -143,7 +149,7 @@ func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNe
 		if note.Usn != usn {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "conflict"})
 		}
-		ok, msg, _ := noteService.UpdateNoteByUsn(c.GetUserId(), noteId, title, strings.Split(tags, ","), usn)
+		ok, msg, _ := noteService.UpdateNoteByUsn(c.GetUserId(), noteId, title, tagList, usn)
 		if !ok {
 			return c.RenderJSON(info.Re{Ok: false, Msg: msg})
 		}

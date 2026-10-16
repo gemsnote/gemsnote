@@ -315,6 +315,7 @@ func (this *ShareService) AddShareNotebook(notebookId string, perm int, userId, 
 
 // 第三方注册时没有email
 func (this *ShareService) AddShareNotebookToUserId(notebookId string, perm int, userId, toUserId string) (bool, string, string) {
+	perm = 0
 	// 添加一条记录说明两者存在关系
 	this.AddHasShareNote(userId, toUserId)
 
@@ -352,6 +353,7 @@ func (this *ShareService) AddShareNote(noteId string, perm int, userId, email st
 
 // 第三方测试没有userId
 func (this *ShareService) AddShareNoteToUserId(noteId string, perm int, userId, toUserId string) (bool, string, string) {
+	perm = 0
 	// 添加一条记录说明两者存在关系
 	this.AddHasShareNote(userId, toUserId)
 
@@ -399,44 +401,12 @@ func (this *ShareService) HasReadPerm(userId, updatedUserId, noteId string) bool
 
 // updatedUserId是否有修改userId noteId的权限?
 func (this *ShareService) HasUpdatePerm(userId, updatedUserId, noteId string) bool {
-	q := this.getOrQ(updatedUserId) // (toUserId == "xxx" || ToGroupId in (1, 2,3))
-	q["UserId"] = bson.ObjectIdHex(userId)
-	q["NoteId"] = bson.ObjectIdHex(noteId)
-
-	// note的权限
-	shares := []info.ShareNote{}
-	db.ListByQOptions(db.ShareNotes, q, &shares, db.QueryOptions{Sort: []string{"-ToUserId"}}) // 个人 > 组织
-	for _, share := range shares {
-		return share.Perm == 1 // 第1个权限最大
-	}
-
-	// notebook的权限
-	notebookId := noteService.GetNotebookId(noteId)
-	if notebookId.Hex() == "" {
-		return false
-	}
-
-	delete(q, "NoteId")
-	q["NotebookId"] = notebookId
-	shares2 := []info.ShareNotebook{}
-	db.ListByQOptions(db.ShareNotebooks, q, &shares2, db.QueryOptions{Sort: []string{"-ToUserId"}}) // 个人 > 组织
-	for _, share := range shares2 {
-		return share.Perm == 1 // 第1个权限最大
-	}
-	return false
+	return userId != "" && userId == updatedUserId
 }
 
 // updatedUserId是否有修改userId notebookId的权限?
 func (this *ShareService) HasUpdateNotebookPerm(userId, updatedUserId, notebookId string) bool {
-	q := this.getOrQ(updatedUserId) // (toUserId == "xxx" || ToGroupId in (1, 2,3))
-	q["UserId"] = bson.ObjectIdHex(userId)
-	q["NotebookId"] = bson.ObjectIdHex(notebookId)
-	shares2 := []info.ShareNotebook{}
-	db.ListByQOptions(db.ShareNotebooks, q, &shares2, db.QueryOptions{Sort: []string{"-ToUserId"}}) // 个人 > 组织
-	for _, share := range shares2 {
-		return share.Perm == 1 // 第1个权限最大
-	}
-	return false
+	return userId != "" && userId == updatedUserId
 }
 
 // HasReadNotebookPerm reports the current effective notebook permission for a
@@ -549,7 +519,7 @@ func (this *ShareService) ListNoteShareUserInfo(noteId, userId string) []info.Sh
 		_, hasNotebook := shareNotebooksMap[userInfo.UserId]
 		shareUserInfos[i] = info.ShareUserInfo{ToUserId: userInfo.UserId,
 			Email:             userInfo.Email,
-			Perm:              shareNotesMap[userInfo.UserId].Perm,
+			Perm:              0,
 			NotebookHasShared: hasNotebook,
 		}
 	}
@@ -595,7 +565,7 @@ func (this *ShareService) ListNotebookShareUserInfo(notebookId, userId string) [
 	for i, userInfo := range userInfos {
 		shareUserInfos[i] = info.ShareUserInfo{ToUserId: userInfo.UserId,
 			Email: userInfo.Email,
-			Perm:  shareNotebooksMap[userInfo.UserId].Perm,
+			Perm:  0,
 		}
 	}
 
@@ -608,7 +578,7 @@ func (this *ShareService) UpdateShareNotePerm(noteId string, perm int, userId, t
 	return db.UpdateByQField(db.ShareNotes,
 		bson.M{"NoteId": bson.ObjectIdHex(noteId), "UserId": bson.ObjectIdHex(userId), "ToUserId": bson.ObjectIdHex(toUserId)},
 		"Perm",
-		perm,
+		0,
 	)
 }
 
@@ -616,7 +586,7 @@ func (this *ShareService) UpdateShareNotebookPerm(notebookId string, perm int, u
 	return db.UpdateByQField(db.ShareNotebooks,
 		bson.M{"NotebookId": bson.ObjectIdHex(notebookId), "UserId": bson.ObjectIdHex(userId), "ToUserId": bson.ObjectIdHex(toUserId)},
 		"Perm",
-		perm,
+		0,
 	)
 }
 
@@ -728,6 +698,7 @@ func (this *ShareService) GetNoteShareGroups(noteId, userId string) []info.Share
 
 // 共享笔记给分组
 func (this *ShareService) AddShareNoteGroup(userId, noteId, groupId string, perm int) bool {
+	perm = 0
 	if !groupService.IsExistsGroupUser(userId, groupId) {
 		return false
 	}
@@ -786,6 +757,7 @@ func (this *ShareService) GetNotebookShareGroups(notebookId, userId string) []in
 
 // 共享笔记给分组
 func (this *ShareService) AddShareNotebookGroup(userId, notebookId, groupId string, perm int) bool {
+	perm = 0
 	if !groupService.IsExistsGroupUser(userId, groupId) {
 		return false
 	}

@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/gemsnote/gemsnote/app/info"
-	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/revel/revel"
 	"gopkg.in/mgo.v2/bson"
 	//	"strconv"

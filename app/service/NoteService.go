@@ -691,8 +691,11 @@ func (this *NoteService) UpdateNoteContent(updatedUserId, noteId, content, abstr
 
 	if db.UpdateByIdAndUserIdMap(db.NoteContents, noteId, userId, data) {
 		// 这里, 添加历史记录
+		files := this.getFiles([]bson.ObjectId{note.NoteId})[noteId]
 		noteContentHistoryService.AddHistory(noteId, userId, info.EachHistory{UpdatedUserId: bson.ObjectIdHex(updatedUserId),
 			Content:     content,
+			IsMarkdown:  note.IsMarkdown,
+			Files:       files,
 			UpdatedTime: time.Now(),
 		})
 

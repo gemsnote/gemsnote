@@ -161,7 +161,12 @@ func (this *TagService) DeleteTagApi(userId string, tag string, usn int) (ok boo
 		return false, "conflict", 0
 	}
 	toUsn = userService.IncrUsn(userId)
-	if db.UpdateByQMap(db.NoteTags, bson.M{"UserId": bson.ObjectIdHex(userId), "Tag": tag}, bson.M{"Usn": usn, "IsDeleted": true}) {
+	if db.UpdateByQMap(db.NoteTags, bson.M{"UserId": bson.ObjectIdHex(userId), "Tag": tag, "IsDeleted": false}, bson.M{"Usn": toUsn, "IsDeleted": true}) {
+		for _, noteUsn := range noteService.UpdateNoteToDeleteTag(userId, tag) {
+			if noteUsn > toUsn {
+				toUsn = noteUsn
+			}
+		}
 		return true, "", toUsn
 	}
 	return false, "", 0

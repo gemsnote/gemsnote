@@ -33,6 +33,7 @@ type ApiNote struct {
 	IsStar      bool // 星标笔记；旧客户端不传时服务端保持原值
 	IsTrash     bool
 	IsDeleted   bool
+	ClearTags   bool // explicit empty-tag update; empty form arrays have no Tags[0]
 	Usn         int
 	Files       []NoteFile
 	CreatedTime time.Time

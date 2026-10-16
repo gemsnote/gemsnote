@@ -148,23 +148,15 @@ func (this *ShareService) buildSharedSnapshotOnce(userId, basePath string) []Sha
 			if notebook.UserId.Hex() == userId || !this.HasReadNotebookPerm(notebook.UserId.Hex(), userId, notebook.NotebookId.Hex()) {
 				continue
 			}
-			perm := 0
-			if this.HasUpdateNotebookPerm(notebook.UserId.Hex(), userId, notebook.NotebookId.Hex()) {
-				perm = 1
-			}
-			entry := &SharedSnapshotNotebook{NotebookId: notebook.NotebookId.Hex(), OwnerUserId: notebook.UserId.Hex(), ParentNotebookId: notebook.ParentNotebookId.Hex(), Title: notebook.Title, Seq: notebook.Seq, Perm: perm, Version: sharedValueVersion(notebook)}
+			entry := &SharedSnapshotNotebook{NotebookId: notebook.NotebookId.Hex(), OwnerUserId: notebook.UserId.Hex(), ParentNotebookId: notebook.ParentNotebookId.Hex(), Title: notebook.Title, Seq: notebook.Seq, Perm: 0, Version: sharedValueVersion(notebook)}
 			items = append(items, SharedSnapshotItem{Kind: "notebook", Notebook: entry})
 		}
 	}
 
 	for _, note := range effectiveNotes {
-		perm := 0
-		if this.HasUpdatePerm(note.UserId.Hex(), userId, note.NoteId.Hex()) {
-			perm = 1
-		}
 		content := noteService.GetNoteContent(note.NoteId.Hex(), note.UserId.Hex())
 		contentSum := sha256.Sum256([]byte(content.Content))
-		entry := &SharedSnapshotNote{NoteId: note.NoteId.Hex(), NotebookId: note.NotebookId.Hex(), OwnerUserId: note.UserId.Hex(), Title: note.Title, Desc: note.Desc, Tags: note.Tags, IsMarkdown: note.IsMarkdown, Perm: perm, Version: hex.EncodeToString(contentSum[:]), CreatedTime: note.CreatedTime, UpdatedTime: note.UpdatedTime}
+		entry := &SharedSnapshotNote{NoteId: note.NoteId.Hex(), NotebookId: note.NotebookId.Hex(), OwnerUserId: note.UserId.Hex(), Title: note.Title, Desc: note.Desc, Tags: note.Tags, IsMarkdown: note.IsMarkdown, Perm: 0, Version: hex.EncodeToString(contentSum[:]), CreatedTime: note.CreatedTime, UpdatedTime: note.UpdatedTime}
 		items = append(items, SharedSnapshotItem{Kind: "note", Note: entry})
 	}
 

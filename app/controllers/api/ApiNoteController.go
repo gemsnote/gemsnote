@@ -529,9 +529,13 @@ func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
 		}
 	*/
 
-	if c.Has("Tags[0]") {
+	if c.Has("Tags[0]") || (c.Has("ClearTags") && noteOrContent.ClearTags) {
 		needUpdateNote = true
-		noteUpdate["Tags"] = noteOrContent.Tags
+		if noteOrContent.ClearTags {
+			noteUpdate["Tags"] = []string{}
+		} else {
+			noteUpdate["Tags"] = noteOrContent.Tags
+		}
 	}
 
 	if c.Has("NotebookId") {
@@ -652,6 +656,8 @@ func (c ApiNote) GetHistories(noteId string) revel.Result {
 			HistoryId:     each.HistoryId.Hex(),
 			UpdatedUserId: each.UpdatedUserId.Hex(),
 			UpdatedTime:   each.UpdatedTime,
+			IsMarkdown:    each.IsMarkdown,
+			Files:         each.Files,
 		}
 	}
 	re.Ok = true

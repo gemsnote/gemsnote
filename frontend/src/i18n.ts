@@ -118,6 +118,7 @@ const translations: Record<string, string> = {
   '笔记基本信息': 'Note details', '笔记标签': 'Note tags', '标签，以逗号分隔': 'Tags, separated by commas',
   '移动或复制笔记': 'Move or copy note', '选择笔记本': 'Select notebook',
   '移动': 'Move', '复制': 'Copy', '对方邮箱': 'Recipient email',
+  '复制到我的笔记本': 'Copy to my notebook',
   '只读': 'Read-only', '可编辑': 'Can edit', '添加共享': 'Share', '取消共享': 'Stop sharing',
   '暂无附件': 'No attachments', '下载供离线使用': 'Download for offline use',
   '历史版本': 'History', '暂无历史': 'No history yet', '恢复到编辑器': 'Restore in editor',

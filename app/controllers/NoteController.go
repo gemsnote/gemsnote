@@ -301,6 +301,9 @@ func (c Note) CopySharedNote(noteIds []string, notebookId, fromUserId string) re
 	userId := c.GetUserId()
 	for i, noteId := range noteIds {
 		copyNotes[i] = noteService.CopySharedNote(noteId, notebookId, fromUserId, userId)
+		if copyNotes[i].NoteId == "" {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
+		}
 	}
 	re := info.NewRe()
 	re.Ok = true
