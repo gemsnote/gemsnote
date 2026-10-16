@@ -21,11 +21,7 @@ var maxSize = 20
 
 // 新建一个note, 不需要添加历史记录
 // 添加历史
-func (this *NoteContentHistoryService) AddHistory(noteId, userId string, eachHistory info.EachHistory) {
-	// 检查是否是空
-	if eachHistory.Content == "" {
-		return
-	}
+func (this *NoteContentHistoryService) AddHistory(noteId, userId string, eachHistory info.EachHistory) bool {
 	if eachHistory.HistoryId == "" {
 		eachHistory.HistoryId = bson.NewObjectId()
 	}
@@ -34,9 +30,26 @@ func (this *NoteContentHistoryService) AddHistory(noteId, userId string, eachHis
 	history := info.NoteContentHistory{}
 	db.GetByIdAndUserId(db.NoteContentHistories, noteId, userId, &history)
 	if history.NoteId == "" {
-		this.newHistory(noteId, userId, eachHistory)
+		return this.newHistory(noteId, userId, eachHistory)
 	} else {
 		history = this.ensureHistoryIDs(noteId, userId, history)
+		// Keep a note-scoped archive directory in the newest stored snapshot.
+		// These internal records are never returned by history APIs. Retain
+		// originals until permanent note deletion, even when visible versions
+		// are trimmed, so restore/pruning cannot race a physical unlink.
+		seen := map[string]bool{}
+		for _, a := range eachHistory.AttachmentRecords {
+			seen[a.AttachId.Hex()] = true
+		}
+		for _, previous := range history.Histories {
+			for _, a := range previous.AttachmentRecords {
+				if a.NoteId.Hex() == noteId && !seen[a.AttachId.Hex()] {
+					eachHistory.AttachmentRecords = append(eachHistory.AttachmentRecords, a)
+					seen[a.AttachId.Hex()] = true
+				}
+			}
+		}
+
 		// 判断是否超出 maxSize, 如果超出则pop最后一个, 再push之, 不用那么麻烦, 直接update吧, 虽然影响性能
 		// TODO
 		l := len(history.Histories)
@@ -49,20 +62,19 @@ func (this *NoteContentHistoryService) AddHistory(noteId, userId string, eachHis
 		history.Histories = newHistory
 
 		// 更新之
-		db.UpdateByIdAndUserId(db.NoteContentHistories, noteId, userId, history)
+		return db.UpdateByIdAndUserId(db.NoteContentHistories, noteId, userId, history)
 	}
-	return
 }
 
 // 新建历史
-func (this *NoteContentHistoryService) newHistory(noteId, userId string, eachHistory info.EachHistory) {
+func (this *NoteContentHistoryService) newHistory(noteId, userId string, eachHistory info.EachHistory) bool {
 	history := info.NoteContentHistory{NoteId: bson.ObjectIdHex(noteId),
 		UserId:    bson.ObjectIdHex(userId),
 		Histories: []info.EachHistory{eachHistory},
 	}
 
 	// 保存之
-	db.Insert(db.NoteContentHistories, history)
+	return db.Insert(db.NoteContentHistories, history)
 }
 
 // 列表展示

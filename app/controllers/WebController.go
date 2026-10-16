@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gemsnote/gemsnote/app/info"
@@ -112,14 +111,12 @@ func (c Web) Document(noteId string) revel.Result {
 	return c.RenderJSON(map[string]interface{}{"Note": note, "Content": noteService.GetNoteContent(noteId, note.UserId.Hex()).Content, "Writable": !note.IsTrash && note.UserId.Hex() == c.GetUserId()})
 }
 
-var webSaveMutex sync.Mutex
-
 func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNew, isMarkdown bool, usn int) revel.Result {
 	if !bson.IsObjectIdHex(noteId) || (isNew && !bson.IsObjectIdHex(notebookId)) {
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidId"})
 	}
-	webSaveMutex.Lock()
-	defer webSaveMutex.Unlock()
+	service.HistoryMutationMutex.Lock()
+	defer service.HistoryMutationMutex.Unlock()
 	tagList := []string{}
 	for _, tag := range strings.Split(tags, ",") {
 		if tag = strings.TrimSpace(tag); tag != "" {
@@ -149,7 +146,10 @@ func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNe
 		if note.Usn != usn {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "conflict"})
 		}
-		ok, msg, _ := noteService.UpdateNoteByUsn(c.GetUserId(), noteId, title, tagList, usn)
+		if !noteContentHistoryService.SnapshotCurrent(noteId, c.GetUserId()) {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "historySaveFailed"})
+		}
+		ok, msg, _ := noteService.UpdateNoteByUsn(c.GetUserId(), noteId, title, tagList, usn, isMarkdown)
 		if !ok {
 			return c.RenderJSON(info.Re{Ok: false, Msg: msg})
 		}

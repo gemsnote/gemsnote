@@ -86,6 +86,22 @@ func (this *FileService) GetAllImageNamesMap(userId string) (m map[string]bool) 
 
 // delete image
 func (this *FileService) DeleteImage(userId, fileId string) (bool, string) {
+	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(fileId) {
+		return false, "invalidId"
+	}
+	// A file referenced by retained history must remain readable on restore.
+	histories := []info.NoteContentHistory{}
+	db.ListByQ(db.NoteContentHistories, bson.M{"UserId": bson.ObjectIdHex(userId)}, &histories)
+	for _, noteHistory := range histories {
+		for _, h := range noteHistory.Histories {
+			for _, f := range h.Files {
+				if f.FileId == fileId && !f.IsAttach {
+					return false, "fileUsedByHistory"
+				}
+			}
+		}
+	}
+
 	file := info.File{}
 	db.GetByIdAndUserId(db.Files, fileId, userId, &file)
 

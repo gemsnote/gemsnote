@@ -7,6 +7,15 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '恢复正文和附件':'Restore body and attachments',
+ '恢复此版本的正文、格式和附件？当前版本会保留在历史中。':'Restore this version’s body, format and attachments? The current version will remain in history.',
+ '此旧版本没有完整附件快照，仅支持恢复正文。':'This old version has no complete attachment snapshot. Only body restoration is available.',
+ 'historyFileMissing':'A historical file is missing. The version cannot be restored.',
+ 'historyFilesUnknown':'This version has no complete file manifest.',
+ 'historyPendingChanges':'Sync pending note changes before restoring this version.',
+ 'historySaveFailed':'Could not preserve the current version. Nothing was restored.',
+ 'historyRestoreFailed':'Restoration failed. Reload the note and check version history before retrying.',
+
   '显示笔记最多的 10 个标签，其他请过滤查找': 'Showing the 10 most-used tags. Filter to find others.',
   '过滤标签': 'Filter tags', '没有匹配的标签': 'No matching tags', '暂无标签': 'No tags yet', '笔记已保存，但标签列表刷新失败：{error}': 'Note saved, but tags could not be refreshed: {error}',
   '输入标签，回车确认': 'Enter a tag and press Enter', '已有标签': 'Existing tags', '删除标签 {tag}': 'Remove tag {tag}',
@@ -151,8 +160,17 @@ export function setLanguage(next: Language) {
   try { localStorage.setItem('gemsnote:language', next) } catch { /* Private browsing. */ }
 }
 
+const historyErrorsZh: Record<string,string> = {
+ historyFileMissing:'历史文件已丢失，无法完整恢复此版本',
+ historyFilesUnknown:'此历史版本缺少完整附件清单，仅支持恢复正文',
+ historyFilesInvalid:'历史附件清单无效，无法恢复',
+ historyPendingChanges:'请先同步待处理的笔记修改，再恢复此版本',
+ historySaveFailed:'无法保存当前版本，已取消恢复',
+ historyRestoreFailed:'恢复失败，请重新加载笔记并检查历史记录后重试',
+ historyNotFound:'此历史版本已不存在，请刷新列表',
+}
 export function t(key: string, variables: Record<string, string | number> = {}): string {
-  const text = language.value === 'en-US' ? translations[key] || key : key
+  const text = language.value === 'en-US' ? translations[key] || key : historyErrorsZh[key] || key
   return text.replace(/\{(\w+)\}/g, (_, name: string) => String(variables[name] ?? `{${name}}`))
 }
 

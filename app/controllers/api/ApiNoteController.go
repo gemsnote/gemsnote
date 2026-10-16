@@ -5,6 +5,7 @@ import (
 	//	"encoding/json"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
+	"github.com/gemsnote/gemsnote/app/service"
 	"gopkg.in/mgo.v2/bson"
 	"os"
 	"os/exec"
@@ -404,6 +405,8 @@ func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
 // 更新笔记
 // [OK]
 func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
+	service.HistoryMutationMutex.Lock()
+	defer service.HistoryMutationMutex.Unlock()
 	c.normalizeModificationTime(&noteOrContent)
 	re := info.NewReUpdate()
 
@@ -440,6 +443,10 @@ func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
 	if note.Usn != noteOrContent.Usn {
 		re.Msg = "conflict"
 		Log("conflict")
+		return c.RenderJSON(re)
+	}
+	if !noteContentHistoryService.SnapshotCurrent(noteId, userId) {
+		re.Msg = "historySaveFailed"
 		return c.RenderJSON(re)
 	}
 	Log("没有冲突")
@@ -536,6 +543,11 @@ func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
 		} else {
 			noteUpdate["Tags"] = noteOrContent.Tags
 		}
+	}
+
+	if c.Has("IsMarkdown") {
+		needUpdateNote = true
+		noteUpdate["IsMarkdown"] = noteOrContent.IsMarkdown
 	}
 
 	if c.Has("NotebookId") {
@@ -658,6 +670,7 @@ func (c ApiNote) GetHistories(noteId string) revel.Result {
 			UpdatedTime:   each.UpdatedTime,
 			IsMarkdown:    each.IsMarkdown,
 			Files:         each.Files,
+			FilesComplete: each.FilesComplete,
 		}
 	}
 	re.Ok = true
@@ -692,6 +705,7 @@ func (c ApiNote) GetHistoryContent(noteId, historyId string, index int) revel.Re
 		return c.RenderJSON(re)
 	}
 	re.Ok = true
+	history.AttachmentRecords = nil
 	re.Item = history
 	return c.RenderJSON(re)
 }
@@ -777,4 +791,9 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 		filenameReturn += ".pdf"
 	}
 	return c.RenderBinary(file, filenameReturn, revel.Attachment, time.Now()) // revel.Attachment
+}
+
+func (c ApiNote) RestoreHistory(noteId, historyId string, usn int) revel.Result {
+	ok, msg := noteContentHistoryService.Restore(noteId, c.getUserId(), historyId, usn)
+	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }

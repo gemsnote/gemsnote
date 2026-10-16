@@ -101,3 +101,6 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.0.0","min_version":""}`，
 或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
 后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。
+
+
+历史附件保留、完整快照标记与恢复接口见 [HISTORY_RESTORE.md](HISTORY_RESTORE.md)。

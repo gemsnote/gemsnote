@@ -11,6 +11,7 @@ import NotebookPicker from '../components/NotebookPicker.vue'
 import TagInput from '../components/TagInput.vue'
 import {language,t,formatDate} from '../i18n'
 import {confirmAction,promptText} from '../dialogs'
+const restoringHistory=ref(false)
 const route=useRoute(),router=useRouter(),boot=ref<any>({}),notes=ref<any[]>([]),current=ref<any>(null),authenticated=ref(false)
 const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),trash=ref(false),starred=ref(false),sharedOwner=ref('')
 const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
@@ -72,7 +73,7 @@ const sorted=computed(()=>[...notes.value].sort((a,b)=>{
 }))
 function setSort(field:'UpdatedTime'|'Title',ascending:boolean){sort.value=field;sortAsc.value=ascending;if(sortMenu.value)sortMenu.value.open=false}
 const html=computed(()=>DOMPurify.sanitize(current.value?.Note.IsMarkdown?String(marked.parse(content.value,{async:false})):content.value))
-const writable=computed(()=>!!current.value?.Writable)
+const writable=computed(()=>!!current.value?.Writable&&!restoringHistory.value)
 const own=computed(()=>current.value?.Note.UserId===boot.value.User?.UserId)
 const syncPending=computed(()=>dirty.value||!!boot.value.PendingChanges)
 function layoutKey(){return `gemsnote:workspace:${boot.value.User?.UserId||'guest'}`}
@@ -155,6 +156,21 @@ async function share(){try{const result=await request('/share/addShareNote',{not
 async function showShare(){panel.value='share';try{const r=await request('/web/shareMembers',{noteId:current.value.Note.NoteId});members.value=r.Users||[]}catch(e){error.value=String(e)}}
 async function revoke(id:string){try{await request('/share/deleteShareNote',{noteId:current.value.Note.NoteId,toUserId:id});await showShare()}catch(e){error.value=String(e)}}
 async function history(){panel.value='history';try{histories.value=await request('/noteContentHistory/listHistories',{noteId:current.value.Note.NoteId})||[]}catch(e){error.value=String(e)}}
+async function restoreFullHistory(h:any){
+ if(restoringHistory.value||!writable.value||!h.FilesComplete)return
+ if(!await confirmAction(t('恢复此版本的正文、格式和附件？当前版本会保留在历史中。')))return
+ if(!await flush())return
+ const noteId=current.value.Note.NoteId
+ restoringHistory.value=true
+ try{
+  await request('/noteContentHistory/restore',{noteId,historyId:h.HistoryId||h.Id,usn:current.value.Note.Usn})
+  if(current.value?.Note.NoteId===noteId){
+   const doc=await request('/web/document',{noteId})
+   if(current.value?.Note.NoteId===noteId){current.value=doc;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;await attachmentsFor(noteId);panel.value=''}
+  }
+  await load()
+ }catch(e){error.value=String(e)}finally{restoringHistory.value=false}
+}
 function chooseImage(){imageInput.value?.click()}
 function chooseAttach(){attachInput.value?.click()}
 function appendUpload(value:string){content.value+=(content.value&& !content.value.endsWith('\n')?'\n':'')+value;changed()}
@@ -344,7 +360,9 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <details v-for="h in histories" :key="h.UpdatedTime">
 <summary>{{formatDate(h.UpdatedTime)}}</summary>
 <pre>{{h.Content}}</pre>
-<button :disabled="!writable" @click="content=h.Content;current.Note.IsMarkdown=!!h.IsMarkdown;changed();panel=''">{{t('恢复到编辑器')}}</button>
+<button v-if="h.FilesComplete" :disabled="!writable||restoringHistory" @click="restoreFullHistory(h)">{{t('恢复正文和附件')}}</button>
+<p v-else>{{t('此旧版本没有完整附件快照，仅支持恢复正文。')}}</p>
+<button :disabled="!writable" @click="content=h.Content;current.Note.IsMarkdown=typeof h.IsMarkdown==='boolean'?h.IsMarkdown:current.Note.IsMarkdown;changed();panel=''">{{t('恢复到编辑器')}}</button>
 </details>
 </template>
 </div>

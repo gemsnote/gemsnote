@@ -270,6 +270,9 @@ func api2HistoryArray(histories []info.EachHistory) []info.EachHistory {
 	if histories == nil {
 		return []info.EachHistory{}
 	}
+	for i := range histories {
+		histories[i].AttachmentRecords = nil
+	}
 	return histories
 }
 
@@ -302,4 +305,9 @@ func intString(v int) string {
 		return ""
 	}
 	return fmt.Sprintf("%d", v)
+}
+
+func (c Api2) RestoreHistory(noteId, historyId string, usn int) revel.Result {
+	ok, msg := noteContentHistoryService.Restore(noteId, c.GetUserId(), historyId, usn)
+	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }

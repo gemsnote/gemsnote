@@ -27,6 +27,20 @@ describe('interface language',()=>{
 })
 describe('API2 adapter',()=>{
  beforeEach(()=>setLanguage('zh-CN'))
+ it('restores a stable history version with an expected USN through API2',async()=>{
+  const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({Ok:true})});vi.stubGlobal('fetch',fetch)
+  await request('/noteContentHistory/restore',{noteId:'note',historyId:'stable',usn:12})
+  expect(fetch.mock.calls[0][0]).toBe('/api2/noteContentHistory/restore')
+  const options=fetch.mock.calls[0][1]
+  expect(options.method).toBe('POST')
+  expect(Object.fromEntries(options.body)).toEqual({noteId:'note',historyId:'stable',usn:'12'})
+  expect(options.headers['X-Requested-With']).toBe('XMLHttpRequest')
+ })
+ it('surfaces missing historical files instead of accepting a partial restore',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({Ok:false,Msg:'historyFileMissing'})}))
+  await expect(request('/noteContentHistory/restore',{noteId:'n',historyId:'h',usn:1})).rejects.toThrow('历史文件已丢失')
+ })
+
  it('uses cookie sessions for browser login, not the token login endpoint',async()=>{
   const fetch=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({Ok:true})});vi.stubGlobal('fetch',fetch)
   await request('/doLogin',{email:'admin',pwd:'secret'})

@@ -76,12 +76,14 @@ type NoteAndContent struct {
 type EachHistory struct {
 	// HistoryId is a stable identifier for this version. Older Mongo/JSON
 	// snapshots may omit it; the history service derives a deterministic ID.
-	HistoryId     bson.ObjectId `bson:"HistoryId,omitempty" json:"HistoryId"`
-	UpdatedUserId bson.ObjectId `UpdatedUserId`
-	UpdatedTime   time.Time     `UpdatedTime`
-	Content       string        `Content`
-	IsMarkdown    bool          `IsMarkdown`
-	Files         []NoteFile    `Files,omitempty`
+	HistoryId         bson.ObjectId `bson:"HistoryId,omitempty" json:"HistoryId"`
+	UpdatedUserId     bson.ObjectId `UpdatedUserId`
+	UpdatedTime       time.Time     `UpdatedTime`
+	Content           string        `Content`
+	IsMarkdown        bool          `IsMarkdown`
+	Files             []NoteFile    `Files`
+	FilesComplete     bool          `FilesComplete`
+	AttachmentRecords []Attach      `json:"AttachmentRecords,omitempty" bson:"AttachmentRecords,omitempty"`
 }
 
 // 历史版本元数据(API用, 不含Content)
@@ -91,7 +93,8 @@ type HistoryMeta struct {
 	UpdatedUserId string     `json:"UpdatedUserId"`
 	UpdatedTime   time.Time  `json:"UpdatedTime"`
 	IsMarkdown    bool       `json:"IsMarkdown"`
-	Files         []NoteFile `json:"Files,omitempty"`
+	Files         []NoteFile `json:"Files"`
+	FilesComplete bool       `json:"FilesComplete"`
 }
 type NoteContentHistory struct {
 	NoteId    bson.ObjectId `bson:"_id,omitempty"`

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"github.com/gemsnote/gemsnote/app/info"
 	"os"
 	"regexp"
 	"strings"
@@ -94,5 +95,18 @@ func TestPublicRegistrationIsUnavailable(t *testing.T) {
 	}
 	if !strings.Contains(string(routes), "/api2/web/adminRegister") || !strings.Contains(string(routes), "/web/adminRegister") {
 		t.Fatal("administrator user creation routes must remain available")
+	}
+}
+
+func TestHistoryResponsesNeverExposeArchivePaths(t *testing.T) {
+	payload, err := json.Marshal(api2HistoryArray([]info.EachHistory{{FilesComplete: true, Files: []info.NoteFile{}, AttachmentRecords: []info.Attach{{Path: "private-original-path"}}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload), "AttachmentRecords") || strings.Contains(string(payload), "private-original-path") {
+		t.Fatal(string(payload))
+	}
+	if !strings.Contains(string(payload), `"FilesComplete":true`) {
+		t.Fatal(string(payload))
 	}
 }

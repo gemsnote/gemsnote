@@ -18,6 +18,12 @@ type AttachService struct {
 // api调用时, 添加attach之前是没有note的
 // fromApi表示是api添加的, updateNote传过来的, 此时不要incNote's usn, 因为updateNote会inc的
 func (this *AttachService) AddAttach(attach info.Attach, fromApi bool) (ok bool, msg string) {
+	if !fromApi && noteService.GetNoteById(attach.NoteId.Hex()).NoteId != "" {
+		n := noteService.GetNoteById(attach.NoteId.Hex())
+		if !noteContentHistoryService.SnapshotCurrent(attach.NoteId.Hex(), n.UserId.Hex()) {
+			return false, "historySaveFailed"
+		}
+	}
 	attach.CreatedTime = time.Now()
 	ok = db.Insert(db.Attachs, attach)
 
@@ -110,6 +116,14 @@ func (this *AttachService) DeleteAllAttachs(noteId, userId string) bool {
 	if note.UserId.Hex() == userId {
 		attachs := []info.Attach{}
 		db.ListByQ(db.Attachs, bson.M{"NoteId": bson.ObjectIdHex(noteId)}, &attachs)
+		for _, h := range noteContentHistoryService.ListHistories(noteId, userId) {
+			for _, a := range h.AttachmentRecords {
+				if a.NoteId.Hex() == noteId {
+					attachs = append(attachs, a)
+				}
+			}
+		}
+
 		for _, attach := range attachs {
 			attach.Path = strings.TrimLeft(attach.Path, "/")
 			os.Remove(revel.BasePath + "/" + attach.Path)
@@ -132,18 +146,15 @@ func (this *AttachService) DeleteAttach(attachId, userId string) (bool, string) 
 			return false, "No Perm"
 		}
 
+		if !noteContentHistoryService.SnapshotCurrent(attach.NoteId.Hex(), userId) {
+			return false, "historySaveFailed"
+		}
 		if db.Delete(db.Attachs, bson.M{"_id": bson.ObjectIdHex(attachId)}) {
+			// Retain the original for the snapshot; ordinary attachment reads
+			// no longer find this record, including readers of shared notes.
 			this.updateNoteAttachNum(attach.NoteId, -1)
-			attach.Path = strings.TrimLeft(attach.Path, "/")
-			err := os.Remove(revel.BasePath + "/" + attach.Path)
-			if err == nil {
-				// userService.UpdateAttachSize(note.UserId.Hex(), -attach.Size)
-				// 修改note Usn
-				noteService.IncrNoteUsn(attach.NoteId.Hex(), userId)
-
-				return true, "delete file success"
-			}
-			return false, "delete file error"
+			noteService.IncrNoteUsn(attach.NoteId.Hex(), userId)
+			return true, ""
 		}
 		return false, "db error"
 	}

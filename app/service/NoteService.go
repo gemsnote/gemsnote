@@ -16,7 +16,7 @@ type NoteService struct {
 // UpdateNoteByUsn performs the Web editor's metadata update as a compare-and-
 // swap. This prevents a concurrent desktop client or another server instance
 // from silently overwriting a note after the caller read an older USN.
-func (this *NoteService) UpdateNoteByUsn(updatedUserId, noteId, title string, tags []string, expectedUsn int) (bool, string, int) {
+func (this *NoteService) UpdateNoteByUsn(updatedUserId, noteId, title string, tags []string, expectedUsn int, editorFormat ...bool) (bool, string, int) {
 	note := this.GetNoteById(noteId)
 	if note.NoteId == "" {
 		return false, "notExists", 0
@@ -32,6 +32,9 @@ func (this *NoteService) UpdateNoteByUsn(updatedUserId, noteId, title string, ta
 	update := bson.M{
 		"Title": title, "Tags": tags, "UpdatedTime": time.Now(),
 		"UpdatedUserId": bson.ObjectIdHex(updatedUserId), "Usn": afterUsn,
+	}
+	if len(editorFormat) > 0 {
+		update["IsMarkdown"] = editorFormat[0]
 	}
 	query := bson.M{
 		"_id": note.NoteId, "UserId": note.UserId, "Usn": expectedUsn,
@@ -690,13 +693,16 @@ func (this *NoteService) UpdateNoteContent(updatedUserId, noteId, content, abstr
 	}
 
 	if db.UpdateByIdAndUserIdMap(db.NoteContents, noteId, userId, data) {
-		// 这里, 添加历史记录
+		// Record image membership from the same body as the history snapshot.
+		noteImageService.UpdateNoteImages(userId, noteId, note.ImgSrc, content)
 		files := this.getFiles([]bson.ObjectId{note.NoteId})[noteId]
 		noteContentHistoryService.AddHistory(noteId, userId, info.EachHistory{UpdatedUserId: bson.ObjectIdHex(updatedUserId),
-			Content:     content,
-			IsMarkdown:  note.IsMarkdown,
-			Files:       files,
-			UpdatedTime: time.Now(),
+			Content:           content,
+			IsMarkdown:        note.IsMarkdown,
+			Files:             files,
+			FilesComplete:     true,
+			AttachmentRecords: attachService.ListAttachs(noteId, userId),
+			UpdatedTime:       time.Now(),
 		})
 
 		// 更新笔记图片

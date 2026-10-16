@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
+	"github.com/gemsnote/gemsnote/app/service"
 	"gopkg.in/mgo.v2/bson"
 	"io"
 	"io/ioutil"
@@ -27,6 +28,8 @@ func (c Attach) UploadAttach(noteId string) revel.Result {
 	return c.RenderJSON(re)
 }
 func (c Attach) uploadAttach(noteId string) (re info.Re) {
+	service.HistoryMutationMutex.Lock()
+	defer service.HistoryMutationMutex.Unlock()
 	var fileId = ""
 	var resultMsg = "error" // 错误信息
 	var Ok = false
@@ -133,6 +136,8 @@ func (c Attach) uploadAttach(noteId string) (re info.Re) {
 
 // 删除附件
 func (c Attach) DeleteAttach(attachId string) revel.Result {
+	service.HistoryMutationMutex.Lock()
+	defer service.HistoryMutationMutex.Unlock()
 	re := info.NewRe()
 	re.Ok, re.Msg = attachService.DeleteAttach(attachId, c.GetUserId())
 	return c.RenderJSON(re)

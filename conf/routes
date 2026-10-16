@@ -207,3 +207,6 @@ GET     /upload/*filepath                       Static.Serve("public/upload")
 *       /:controller/:action                    :controller.:action
 *       /api/:controller/:action                :controller.:action
 *       /member/:controller/:action             :controller.:action
+
+POST /api2/note/restoreHistory ApiNote.RestoreHistory
+POST /api2/noteContentHistory/restore Api2.RestoreHistory
