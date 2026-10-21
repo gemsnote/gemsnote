@@ -41,11 +41,15 @@ describe('API2 adapter',()=>{
   await expect(request('/noteContentHistory/restore',{noteId:'n',historyId:'h',usn:1})).rejects.toThrow('历史文件已丢失')
  })
 
- it('uses cookie sessions for browser login, not the token login endpoint',async()=>{
-  const fetch=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({Ok:true})});vi.stubGlobal('fetch',fetch)
+ it('stores the API2 token and sends it as a bearer credential',async()=>{
+  const storage=new Map<string,string>()
+  vi.stubGlobal('sessionStorage',{getItem:(key:string)=>storage.get(key)||null,setItem:(key:string,value:string)=>storage.set(key,value),removeItem:(key:string)=>storage.delete(key)})
+  const fetch=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({Ok:true,Token:'jwt-token'})});vi.stubGlobal('fetch',fetch)
   await request('/doLogin',{email:'admin',pwd:'secret'})
-  expect(fetch.mock.calls[0][0]).toBe('/api2/auth/session')
-  expect(fetch.mock.calls[0][1].credentials).toBe('same-origin')
+  expect(fetch.mock.calls[0][0]).toBe('/api2/auth/login')
+  expect(storage.get('gemsnote:api2-token')).toBe('jwt-token')
+  await request('/web/bootstrap')
+  expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer jwt-token')
   expect(fetch.mock.calls[0][1].headers['Content-Type']).toBe('application/json')
  })
  it('encodes indexed arrays and leaves password text unchanged',async()=>{

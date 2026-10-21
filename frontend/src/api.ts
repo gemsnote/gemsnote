@@ -8,13 +8,16 @@ function api2Path(path: string): string {
   if (path.startsWith('/api2/')) return path
   if (path.startsWith('/api/')) return `/api2/${path.slice('/api/'.length)}`
   const core: Record<string, string> = {
-    '/web/bootstrap': '/api2/bootstrap', '/web/logout': '/api2/logout', '/doLogin': '/api2/auth/session', '/doFindPassword': '/api2/auth/password/request', '/findPasswordUpdate': '/api2/auth/password/reset', '/web/groups': '/api2/groups', '/web/adminData': '/api2/admin/data', '/file/uploadAvatar': '/api2/avatar', '/attach/getAttachs': '/api2/attachments', '/attach/uploadAttach': '/api2/attachments/upload', '/attach/deleteAttach': '/api2/attachments/delete', '/web/notes': '/api2/notes',
+    '/web/bootstrap': '/api2/bootstrap', '/web/logout': '/api2/logout', '/doLogin': '/api2/auth/login', '/doFindPassword': '/api2/auth/password/request', '/findPasswordUpdate': '/api2/auth/password/reset', '/web/groups': '/api2/groups', '/web/adminData': '/api2/admin/data', '/file/uploadAvatar': '/api2/avatar', '/attach/getAttachs': '/api2/attachments', '/attach/uploadAttach': '/api2/attachments/upload', '/attach/deleteAttach': '/api2/attachments/delete', '/web/notes': '/api2/notes',
     '/web/star': '/api2/star', '/web/document': '/api2/document',
     '/web/save': '/api2/save', '/web/restore': '/api2/restore'
   }
   if (core[path]) return core[path]
   return `/api2${path}`
 }
+const tokenKey='gemsnote:api2-token'
+function getToken():string { try{return sessionStorage.getItem(tokenKey)||''}catch{return ''} }
+function setToken(token:string){ try{if(token)sessionStorage.setItem(tokenKey,token);else sessionStorage.removeItem(tokenKey)}catch{} }
 export async function request<T = any>(path: string, params?: Params): Promise<T> {
   const body = new URLSearchParams()
   for (const [key, value] of Object.entries(params || {})) {
@@ -23,15 +26,18 @@ export async function request<T = any>(path: string, params?: Params): Promise<T
     else body.append(key, String(value))
   }
   const target = api2Path(path)
-  const core = target === '/api2/auth/session' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
+  const core = target === '/api2/auth/login' || target === '/api2/auth/session' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
   const jsonBody = core || target === '/api2/notebook/moveNotebook'
-  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
+  const token=getToken()
+  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }), ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
   const data = await response.json().catch(() => null)
   if (data === null) throw new Error(response.ok ? t('响应不是有效 JSON [{path}]',{path:target}) : t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
   if (!response.ok || data === false || data?.Ok === false) {
-    if (data?.Msg === 'NOTLOGIN') window.dispatchEvent(new Event('session-expired'))
+    if (data?.Msg === 'NOTLOGIN') {setToken('');window.dispatchEvent(new Event('session-expired'))}
     throw new Error(data?.Msg ? t(data.Msg) : t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
   }
+  if(target==='/api2/auth/login'&&typeof data?.Token==='string')setToken(data.Token)
+  if(target==='/api2/logout'||target==='/api2/auth/logout')setToken('')
   return data
 }
 export function objectId(): string {
@@ -49,7 +55,8 @@ export async function upload(path: string, file: File, params: Record<string, st
   body.append('file', file)
   Object.entries(params).forEach(([key, value]) => body.append(key, value))
   const target = api2Path(path)
-  const response = await fetch(target, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value }, body })
+  const token=getToken()
+  const response = await fetch(target, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }) }, body })
   const data = await response.json().catch(() => null)
   if (!response.ok || !data || data.Ok === false) throw new Error(data?.Msg ? t(data.Msg) : t('上传失败 ({status}) [{path}]',{status:response.status,path:target}))
   return data
