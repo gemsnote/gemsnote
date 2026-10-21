@@ -1,8 +1,10 @@
 package admin
 
 import (
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/service"
+	"strings"
 	//	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/revel/revel"
 	//	"strings"
@@ -70,6 +72,16 @@ func needValidate(controller, method string) bool {
 	}
 }
 func AuthInterceptor(c *revel.Controller) revel.Result {
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		if userID, _ := controllers.AuthenticateAPI2(c, sessionService); userID != "" {
+			user := userService.GetUserInfo(userID)
+			if user.Username == configService.GetAdminUsername() {
+				return nil
+			}
+		}
+		c.Response.Status = 401
+		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
+	}
 	// 全部变成首字大写
 	/*
 		var controller = strings.Title(c.Name)

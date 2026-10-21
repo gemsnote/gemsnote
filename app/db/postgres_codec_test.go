@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gemsnote/gemsnote/app/info"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -16,6 +17,15 @@ func TestPostgresNilTagsBecomeEmptyArray(t *testing.T) {
 	encoded, err := value.Value()
 	if err != nil || encoded != "{}" {
 		t.Fatalf("nil tags encoded as %v, err %v", encoded, err)
+	}
+}
+
+func TestPostgresStructUpdateHonorsHistoryIDTag(t *testing.T) {
+	history := info.NoteContentHistory{NoteId: bson.NewObjectId()}
+	parts, _ := buildPostgresSet(history, 1)
+	joined := strings.Join(parts, " ")
+	if !strings.Contains(joined, "id =") || strings.Contains(joined, "note_id =") {
+		t.Fatalf("history update columns = %q, want id and no note_id", joined)
 	}
 }
 

@@ -23,18 +23,24 @@ type ApiBaseContrller struct {
 
 // 得到token, 这个token是在AuthInterceptor设到Session中的
 func (c ApiBaseContrller) getToken() string {
+	if token := c.GetApi2Token(); token != "" {
+		return token
+	}
 	return c.GetSession("_token")
 }
 
 // userId
 // _userId是在AuthInterceptor设置的
 func (c ApiBaseContrller) getUserId() string {
+	if userID := c.GetUserId(); userID != "" {
+		return userID
+	}
 	return c.GetSession("_userId")
 }
 
 // 得到用户信息
 func (c ApiBaseContrller) getUserInfo() info.User {
-	userId := c.GetSession("_userId")
+	userId := c.getUserId()
 	if userId == "" {
 		return info.User{}
 	}

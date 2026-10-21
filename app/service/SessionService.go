@@ -106,6 +106,21 @@ func (this *SessionService) GetUserId(sessionId string) string {
 	return session.UserId
 }
 
+// FindUserId validates an existing API token without creating a session row
+// for missing or invalid credentials.
+func (this *SessionService) FindUserId(sessionId string) string {
+	if sessionId == "" {
+		return ""
+	}
+	session := info.Session{}
+	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId}, &session)
+	if session.Id == "" || session.UserId == "" {
+		return ""
+	}
+	this.Update(sessionId, "UpdatedTime", time.Now())
+	return session.UserId
+}
+
 // 登录成功后设置userId
 func (this *SessionService) SetUserId(sessionId, userId string) bool {
 	this.Get(sessionId)

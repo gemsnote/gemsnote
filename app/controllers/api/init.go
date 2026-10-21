@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/service"
 	//		. "github.com/gemsnote/gemsnote/app/lea"
@@ -69,6 +70,18 @@ func needValidate(controller, method string) bool {
 
 // 这里得到token, 若不是login, logout等公用操作, 必须验证是否已登录
 func AuthInterceptor(c *revel.Controller) revel.Result {
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		userID, token := controllers.AuthenticateAPI2(c, sessionService)
+		c.ViewArgs["Api2Token"] = token
+		c.ViewArgs["Api2UserId"] = userID
+		var controller = strings.Title(c.Name)
+		var method = strings.Title(c.MethodName)
+		if !needValidate(controller, method) || userID != "" {
+			return nil
+		}
+		c.Response.Status = 401
+		return c.RenderJSON(info.ApiRe{Ok: false, Msg: "NOTLOGIN"})
+	}
 	// 得到token /api/user/info?userId=xxx&token=xxxxx
 	token := c.Params.Values.Get("token")
 	noToken := false

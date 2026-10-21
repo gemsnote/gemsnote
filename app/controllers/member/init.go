@@ -1,8 +1,10 @@
 package member
 
 import (
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/service"
+	"strings"
 	//	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/revel/revel"
 	//	"strings"
@@ -72,6 +74,13 @@ func needValidate(controller, method string) bool {
 	}
 }
 func AuthInterceptor(c *revel.Controller) revel.Result {
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		if userID, _ := controllers.AuthenticateAPI2(c, sessionService); userID != "" {
+			return nil
+		}
+		c.Response.Status = 401
+		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
+	}
 	// 全部变成首字大写
 	/*
 		var controller = strings.Title(c.Name)
@@ -109,7 +118,7 @@ func MutationInterceptor(c *revel.Controller) revel.Result {
 		c.Response.Status = 405
 		return c.RenderJSON(info.Re{Ok: false, Msg: "methodNotAllowed"})
 	}
-	if c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
+	if !strings.HasPrefix(c.Request.URL.Path, "/api2/") && c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidRequest"})
 	}

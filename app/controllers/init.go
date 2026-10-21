@@ -8,6 +8,35 @@ import (
 	"strings"
 )
 
+func isAPI2Request(c *revel.Controller) bool {
+	return c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/")
+}
+
+// AuthenticateAPI2 resolves the single API2 credential contract. Bearer is
+// preferred; the token parameter remains accepted for older released clients.
+func AuthenticateAPI2(c *revel.Controller, sessions *service.SessionService) (string, string) {
+	if !isAPI2Request(c) {
+		return "", ""
+	}
+	token := ""
+	authorization := strings.TrimSpace(c.Request.Header.Get("Authorization"))
+	if len(authorization) > 7 && strings.EqualFold(authorization[:7], "Bearer ") {
+		token = strings.TrimSpace(authorization[7:])
+	}
+	parameterToken := c.Params.Values.Get("token")
+	if token == "" {
+		token = parameterToken
+	} else if parameterToken != "" && parameterToken != token {
+		return "", ""
+	}
+	userID := sessions.FindUserId(token)
+	if userID != "" {
+		c.ViewArgs["Api2Token"] = token
+		c.ViewArgs["Api2UserId"] = userID
+	}
+	return userID, token
+}
+
 var userService *service.UserService
 var noteService *service.NoteService
 var trashService *service.TrashService
@@ -90,6 +119,13 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 	if !needValidate(controller, method) {
 		return nil
 	}
+	if isAPI2Request(c) {
+		if userID, _ := AuthenticateAPI2(c, sessionService); userID != "" {
+			return nil
+		}
+		c.Response.Status = 401
+		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
+	}
 
 	// 验证是否已登录
 	if userId, ok := c.Session["UserId"]; ok {
@@ -131,7 +167,7 @@ func WebMutationInterceptor(c *revel.Controller) revel.Result {
 		c.Response.Status = 405
 		return c.RenderJSON(info.Re{Ok: false, Msg: "methodNotAllowed"})
 	}
-	if c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
+	if !isAPI2Request(c) && c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidRequest"})
 	}

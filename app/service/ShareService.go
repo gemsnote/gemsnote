@@ -628,16 +628,9 @@ func (this *ShareService) HasUpdateNotePerm(noteId, userId string) bool {
 	LogJ(note)
 	if note.UserId != "" {
 		noteUserId := note.UserId.Hex()
-		if noteUserId != userId {
-			// 是否是有权限协作的
-			if this.HasUpdatePerm(noteUserId, userId, noteId) {
-				return true
-			} else {
-				return false
-			}
-		} else {
-			return true
-		}
+		// Shared notes are uniformly read-only. A recipient must copy a note
+		// into their own account before editing it.
+		return noteUserId == userId
 	} else {
 		return false
 	}

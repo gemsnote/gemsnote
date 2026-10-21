@@ -32,7 +32,7 @@ func (c Web) Page() revel.Result {
 
 func (c Web) Bootstrap() revel.Result {
 	userId := c.GetUserId()
-	if userId == "" || !sessionService.ValidateUserSession(c.Session.ID(), userId) {
+	if userId == "" || (c.GetApi2Token() == "" && !sessionService.ValidateUserSession(c.Session.ID(), userId)) {
 		return c.RenderJSON(map[string]interface{}{"Ok": true, "User": nil, "NeedCaptcha": sessionService.LoginTimesIsOver(c.Session.ID())})
 	}
 	notebooks, users := shareService.GetShareNotebooks(userId)
@@ -56,7 +56,7 @@ func (c Web) RequireSession() revel.Result {
 	if c.MethodName == "Page" || c.MethodName == "Bootstrap" || c.MethodName == "VerifyEmail" {
 		return nil
 	}
-	if c.GetUserId() == "" || !sessionService.ValidateUserSession(c.Session.ID(), c.GetUserId()) {
+	if c.GetUserId() == "" || (c.GetApi2Token() == "" && !sessionService.ValidateUserSession(c.Session.ID(), c.GetUserId())) {
 		c.Response.Status = 401
 		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
 	}

@@ -64,7 +64,11 @@ func (c Api2) Login() revel.Result {
 }
 
 func (c Api2) Logout() revel.Result {
-	sessionID := c.Session.ID()
+	AuthenticateAPI2(c.Controller, sessionService)
+	sessionID := c.GetApi2Token()
+	if sessionID == "" {
+		sessionID = c.Session.ID()
+	}
 	sessionService.Clear(sessionID)
 	c.ClearSession()
 	return c.RenderJSON(info.Re{Ok: true})
@@ -283,13 +287,9 @@ func (c Api2) RequireSession() revel.Result {
 	if c.MethodName == "Bootstrap" || c.MethodName == "Login" || c.MethodName == "TokenLogin" || c.MethodName == "Logout" || c.MethodName == "Register" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
 		return nil
 	}
-	if c.GetUserId() == "" || !sessionService.ValidateUserSession(c.Session.ID(), c.GetUserId()) {
+	if userID, _ := AuthenticateAPI2(c.Controller, sessionService); userID == "" {
 		c.Response.Status = 401
 		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
-	}
-	if c.Request.Method != "GET" && c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
-		c.Response.Status = 403
-		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidRequest"})
 	}
 	return nil
 }

@@ -26,10 +26,19 @@ func (c *BaseController) Message(message string, args ...interface{}) (value str
 }
 
 func (c BaseController) GetUserId() string {
+	if userId, ok := c.ViewArgs["Api2UserId"].(string); ok {
+		return userId
+	}
 	if userId, ok := c.Session["UserId"]; ok {
-		return userId.(string)
+		value, _ := userId.(string)
+		return value
 	}
 	return ""
+}
+
+func (c BaseController) GetApi2Token() string {
+	token, _ := c.ViewArgs["Api2Token"].(string)
+	return token
 }
 
 // 是否已登录

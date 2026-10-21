@@ -114,7 +114,7 @@ func postgresUpdateMap(value interface{}) bson.M {
 		if fieldType.Anonymous || getDBTag(fieldType) == "-" {
 			continue
 		}
-		result[fieldType.Name] = rv.Field(i).Interface()
+		result[getDBTag(fieldType)] = rv.Field(i).Interface()
 	}
 	return result
 }
