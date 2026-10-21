@@ -13,6 +13,7 @@ import (
 	"net/url"
 
 	"github.com/gemsnote/gemsnote/app/info"
+	"github.com/gemsnote/gemsnote/app/service"
 	appversion "github.com/gemsnote/gemsnote/app/version"
 	"github.com/revel/revel"
 	"gopkg.in/mgo.v2/bson"
@@ -36,7 +37,12 @@ func (c Api2) TokenLogin() revel.Result {
 	if err != nil {
 		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("wrongUsernameOrPassword")})
 	}
-	token := bson.NewObjectId().Hex()
+	token, tokenErr := service.NewAPIToken()
+	if tokenErr != nil {
+		revel.AppLog.Error("API token generation failed", "error", tokenErr)
+		c.Response.Status = 500
+		return c.RenderJSON(info.Re{Ok: false, Msg: "tokenGenerationFailed"})
+	}
 	sessionService.SetUserId(token, user.UserId.Hex())
 	return c.RenderJSON(map[string]interface{}{
 		"Ok":     true,

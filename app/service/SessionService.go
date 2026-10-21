@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	// . "github.com/gemsnote/gemsnote/app/lea"
@@ -8,6 +10,19 @@ import (
 	"time"
 	//	"strings"
 )
+
+const apiTokenBytes = 32
+
+// NewAPIToken returns a 256-bit opaque credential. API tokens intentionally
+// remain server-side sessions so they can be revoked immediately; their value
+// must not encode timestamps, user IDs, machine IDs or counters.
+func NewAPIToken() (string, error) {
+	raw := make([]byte, apiTokenBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
 
 // Session存储到mongodb中
 type SessionService struct {
