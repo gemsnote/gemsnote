@@ -202,9 +202,11 @@ func (this *AttachService) CopyAttachs(noteId, toNoteId, toUserId string) bool {
 
 	// 复制之
 	toNoteIdO := bson.ObjectIdHex(toNoteId)
+	toUserIdO := bson.ObjectIdHex(toUserId)
 	for _, attach := range attachs {
-		attach.AttachId = ""
+		attach.AttachId = bson.NewObjectId()
 		attach.NoteId = toNoteIdO
+		attach.UploadUserId = toUserIdO
 
 		// 文件复制一份
 		_, ext := SplitFilename(attach.Name)

@@ -53,6 +53,11 @@ func (c Web) Bootstrap() revel.Result {
 }
 
 func (c Web) RequireSession() revel.Result {
+	// API2 routes may reuse Web actions, but they authenticate exclusively with
+	// the API token contract rather than the browser cookie session.
+	if isAPI2Request(c.Controller) {
+		AuthenticateAPI2(c.Controller, sessionService)
+	}
 	if c.MethodName == "Page" || c.MethodName == "Bootstrap" || c.MethodName == "VerifyEmail" {
 		return nil
 	}
@@ -60,7 +65,7 @@ func (c Web) RequireSession() revel.Result {
 		c.Response.Status = 401
 		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
 	}
-	if c.Request.Method != "GET" && c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
+	if !isAPI2Request(c.Controller) && c.Request.Method != "GET" && c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidRequest"})
 	}

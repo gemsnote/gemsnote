@@ -55,6 +55,9 @@ func (c BaseController) GetObjectUserId() bson.ObjectId {
 }
 
 func (c BaseController) GetEmail() string {
+	if userId, ok := c.ViewArgs["Api2UserId"].(string); ok && userId != "" {
+		return userService.GetUserInfo(userId).Email
+	}
 	if email, ok := c.Session["Email"]; ok {
 		return email.(string)
 	}
@@ -62,6 +65,9 @@ func (c BaseController) GetEmail() string {
 }
 
 func (c BaseController) GetUsername() string {
+	if userId, ok := c.ViewArgs["Api2UserId"].(string); ok && userId != "" {
+		return userService.GetUserInfo(userId).Username
+	}
 	if email, ok := c.Session["Username"]; ok {
 		return email.(string)
 	}
