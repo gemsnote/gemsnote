@@ -18,4 +18,11 @@ type File struct {
 	CreatedTime    time.Time     `CreatedTime`
 
 	FromFileId bson.ObjectId `bson:"FromFileId,omitempty"` // copy from fileId, for collaboration
+
+	// Only API2 1.1 note uploads participate in orphan cleanup. Empty state
+	// means an existing/legacy resource, which must never be cleaned this way.
+	UploadState  string        `bson:"UploadState,omitempty" json:"-"`
+	UploadNoteId bson.ObjectId `bson:"UploadNoteId,omitempty" json:"-"`
+	UploadDigest string        `bson:"UploadDigest,omitempty" json:"-"`
+	UploadKey    string        `bson:"UploadKey,omitempty" json:"-"`
 }

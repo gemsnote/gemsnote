@@ -90,7 +90,7 @@ func (c File) UploadImageLeaui(albumId string) revel.Result {
 
 // 上传图片, 公用方法
 // upload image common func
-func (c File) uploadImage(from, albumId string) (re info.Re) {
+func (c File) uploadImage(from, albumId string, managed ...info.File) (re info.Re) {
 	var fileUrlPath = ""
 	var fileId = ""
 	var resultCode = 0      // 1表示正常
@@ -214,6 +214,13 @@ func (c File) uploadImage(from, albumId string) (re info.Re) {
 		Size:  filesize}
 
 	id := bson.NewObjectId()
+	if len(managed) == 1 {
+		id = managed[0].FileId
+		fileInfo.UploadState = managed[0].UploadState
+		fileInfo.UploadNoteId = managed[0].UploadNoteId
+		fileInfo.UploadDigest = managed[0].UploadDigest
+		fileInfo.UploadKey = managed[0].UploadKey
+	}
 	fileInfo.FileId = id
 	fileId = id.Hex()
 
@@ -222,6 +229,9 @@ func (c File) uploadImage(from, albumId string) (re info.Re) {
 	}
 
 	Ok, resultMsg = fileService.AddImage(fileInfo, albumId, c.GetUserId(), from == "" || from == "pasteImage")
+	if !Ok && len(managed) == 1 {
+		os.Remove(toPathGif)
+	}
 	resultMsg = c.Message(resultMsg)
 
 	fileInfo.Path = "" // 不要返回

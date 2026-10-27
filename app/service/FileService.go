@@ -190,6 +190,9 @@ func (this *FileService) GetFile(userId, fileId string) string {
 	file := info.File{}
 	db.Get(db.Files, fileId, &file)
 	path := file.Path
+	if file.UploadState == "deleted" || file.UploadState == "deleting" {
+		return ""
+	}
 	if path == "" {
 		return ""
 	}

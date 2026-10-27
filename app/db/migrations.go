@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	appversion "github.com/gemsnote/gemsnote/app/version"
+	"gopkg.in/mgo.v2"
 )
 
 type migration struct {
@@ -19,6 +20,24 @@ type migration struct {
 // Gemsnote databases; it intentionally makes no changes to business data.
 var migrations = []migration{
 	{version: "1.0.0", up: func(Database) error { return nil }},
+	{version: "1.1.0", up: func(database Database) error {
+		if postgres, ok := database.(*PostgresDatabase); ok {
+			_, err := postgres.db.Exec(`ALTER TABLE files
+				ADD COLUMN IF NOT EXISTS upload_state TEXT NOT NULL DEFAULT '',
+				ADD COLUMN IF NOT EXISTS upload_note_id CHAR(24),
+				ADD COLUMN IF NOT EXISTS upload_digest TEXT NOT NULL DEFAULT '',
+				ADD COLUMN IF NOT EXISTS upload_key TEXT NOT NULL DEFAULT ''`)
+			if err != nil {
+				return err
+			}
+			_, err = postgres.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_files_upload_key ON files(upload_key) WHERE upload_key <> ''`)
+			return err
+		}
+		if mongo, ok := database.(*MongoDatabase); ok {
+			return mongo.db.C("files").EnsureIndex(mgo.Index{Key: []string{"UploadKey"}, Unique: true, Sparse: true})
+		}
+		return nil // MongoDB documents need no backfill; absent state is protected.
+	}},
 }
 
 func migrate(database Database) error {

@@ -180,6 +180,36 @@ func (this *NotebookService) AddNotebook(notebook info.Notebook) (bool, info.Not
 }
 
 // 更新笔记, api
+// Retries return the existing notebook without changing its title, parent,
+// timestamps or USN. A tombstone is never resurrected. A collision with another
+// owner is reported without returning that owner's data.
+func (this *NotebookService) AddNotebookIdempotent(notebook info.Notebook) (bool, string, info.Notebook) {
+	existing := this.GetNotebookById(notebook.NotebookId.Hex())
+	check := func(existing info.Notebook) (bool, string, info.Notebook) {
+		if existing.UserId != notebook.UserId {
+			return false, "creationKeyUnavailable", info.Notebook{}
+		}
+		if existing.IsDeleted {
+			return false, "creationKeyDeleted", info.Notebook{}
+		}
+		return true, "", existing
+	}
+	if existing.NotebookId != "" {
+		return check(existing)
+	}
+	if notebook.NotebookId == notebook.ParentNotebookId {
+		return false, "invalidParentNotebook", info.Notebook{}
+	}
+	if ok, created := this.AddNotebook(notebook); ok {
+		return true, "", created
+	}
+	// A concurrent request may have won the primary-key insert.
+	if existing = this.GetNotebookById(notebook.NotebookId.Hex()); existing.NotebookId != "" {
+		return check(existing)
+	}
+	return false, "createNotebookFailed", info.Notebook{}
+}
+
 func (this *NotebookService) UpdateNotebookApi(userId, notebookId, title, parentNotebookId string, seq, usn int) (bool, string, info.Notebook) {
 	if notebookId == "" {
 		return false, "notebookIdNotExists", info.Notebook{}

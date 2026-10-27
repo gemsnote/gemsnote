@@ -256,6 +256,9 @@ func (m *MongoDatabase) getColl(collection interface{}) *mgo.Collection {
 }
 
 func (m *MongoDatabase) Insert(collection interface{}, data interface{}) bool {
+	if !protectImageReferences(m, collection, data) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false
@@ -265,6 +268,9 @@ func (m *MongoDatabase) Insert(collection interface{}, data interface{}) bool {
 }
 
 func (m *MongoDatabase) Update(collection interface{}, query interface{}, data interface{}) bool {
+	if !protectImageReferences(m, collection, data) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false
@@ -274,6 +280,9 @@ func (m *MongoDatabase) Update(collection interface{}, query interface{}, data i
 }
 
 func (m *MongoDatabase) UpdateAll(collection interface{}, query interface{}, data interface{}) bool {
+	if !protectImageReferences(m, collection, data) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false
@@ -283,6 +292,9 @@ func (m *MongoDatabase) UpdateAll(collection interface{}, query interface{}, dat
 }
 
 func (m *MongoDatabase) Upsert(collection interface{}, query interface{}, data interface{}) bool {
+	if !protectImageReferences(m, collection, data) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false
@@ -421,6 +433,9 @@ func (m *MongoDatabase) GetByIdAndUserId(collection interface{}, id, userId stri
 }
 
 func (m *MongoDatabase) UpdateByIdAndUserId(collection interface{}, id, userId string, data interface{}) bool {
+	if !protectImageReferences(m, collection, data) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false
@@ -448,6 +463,9 @@ func (m *MongoDatabase) DeleteAllByIdAndUserId(collection interface{}, id, userI
 }
 
 func (m *MongoDatabase) UpdateByQField(collection interface{}, q interface{}, field string, value interface{}) bool {
+	if !protectImageReferences(m, collection, bson.M{field: value}) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false
@@ -457,6 +475,9 @@ func (m *MongoDatabase) UpdateByQField(collection interface{}, q interface{}, fi
 }
 
 func (m *MongoDatabase) UpdateByQMap(collection interface{}, q interface{}, v interface{}) bool {
+	if !protectImageReferences(m, collection, v) {
+		return false
+	}
 	coll := m.getColl(collection)
 	if coll == nil {
 		return false

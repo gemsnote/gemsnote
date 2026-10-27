@@ -126,7 +126,8 @@ CREATE TABLE IF NOT EXISTS files (
  id CHAR(24) PRIMARY KEY, user_id CHAR(24) NOT NULL, album_id CHAR(24), name TEXT NOT NULL DEFAULT '',
  title TEXT NOT NULL DEFAULT '', size BIGINT NOT NULL DEFAULT 0, type TEXT NOT NULL DEFAULT '', path TEXT NOT NULL DEFAULT '',
  is_default_album BOOLEAN NOT NULL DEFAULT FALSE, created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
- from_file_id CHAR(24)
+ from_file_id CHAR(24), upload_state TEXT NOT NULL DEFAULT '', upload_note_id CHAR(24),
+ upload_digest TEXT NOT NULL DEFAULT '', upload_key TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS attachs (
  id CHAR(24) PRIMARY KEY, note_id CHAR(24) NOT NULL, upload_user_id CHAR(24) NOT NULL,
@@ -174,6 +175,7 @@ CREATE INDEX IF NOT EXISTS idx_note_contents_user ON note_contents(user_id);
 CREATE INDEX IF NOT EXISTS idx_share_notes_target ON share_notes(to_user_id, note_id);
 CREATE INDEX IF NOT EXISTS idx_share_notebooks_target ON share_notebooks(to_user_id, notebook_id);
 CREATE INDEX IF NOT EXISTS idx_files_user_album ON files(user_id, album_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_files_upload_key ON files(upload_key) WHERE upload_key <> '';
 CREATE INDEX IF NOT EXISTS idx_blog_comments_note ON blog_comments(note_id, created_time);
 
 COMMIT;

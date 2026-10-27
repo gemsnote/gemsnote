@@ -9,8 +9,61 @@
 只修改父级，保留子树及笔记归属；拒绝其他账号、已删除、自身或子孙目标。
 本接口为 API2 增量扩展，旧 `/api` 不变。
 
-API2 是 Web 和新客户端使用的接口空间，前缀为 `/api2`，`1.0.0` 为首个定稿版本。
+API2 是 Web 和新客户端使用的接口空间，前缀为 `/api2`，`1.0.0` 为首个定稿版本，当前为 `1.1.0`。
 旧 `/api` 作为 Leanote 客户端兼容层继续保留，已移除的旧 Web/博客功能不在此范围。
+
+## 1.1.0：创建回执与图片清理
+
+`app/version/version.go` 是服务端、协议响应与数据库迁移的版本来源。1.1.0 保留
+1.0.0 的既有调用方式及全部 Legacy `/api` 路由，`min_version` 仍为空。
+
+### 笔记本创建
+
+`POST /api2/client/notebook/add` 接受表单或 JSON：
+
+```json
+{"title":"随记","parentNotebookId":"","seq":0,"clientNotebookId":"0123456789abcdef01234567"}
+```
+
+`clientNotebookId` 是可选的 24 位十六进制 ObjectId 创建键，同时成为服务端
+`NotebookId`。客户端须在第一次发送前持久保存键和请求内容。重复请求返回同一
+笔记本的当前状态，不修改标题、父级、时间或 USN；遇到已删除记录返回
+`creationKeyDeleted`，遇到其他所有者的同 ID 返回 `creationKeyUnavailable`，不返回其数据。
+主键唯一约束处理并发重复请求。省略键沿用随机 ID 创建，不保证重试幂等。
+
+### 图片上传回执
+
+`POST /api2/file/pasteImage` 使用 multipart，字段为 `noteId`、`file` 和可选的
+`uploadId`。目标笔记必须存在且属于当前用户。`uploadId` 使用 16–128 位 ASCII
+字母、数字、下划线或短横线，建议使用持久化的随机任务 ID；同一账号内唯一。
+同键、同笔记、同 SHA-256 重试返回同一文件 ID，不重复写入；不同载荷返回
+`uploadKeyConflict`，清理后的键返回 `uploadAlreadyCleaned`。文件 ID 由服务端安全
+随机生成，与客户端上传键独立；不能在上传记录提交前推算其 ID 并提前写入引用。
+既有 Web 在新笔记保存前省略 `noteId`、`uploadId` 的上传仍可用，但不产生可清理回执。
+
+`GET /api2/file/imageUpload?uploadId=...` 或 `?fileId=...` 仅查询当前所有者的新式上传：
+
+```json
+{"Ok":true,"Id":"0123456789abcdef01234567","Item":{"FileId":"0123456789abcdef01234567","NoteId":"abcdef0123456789abcdef01","Digest":"<64位SHA-256>","State":"pending","CanCleanup":true}}
+```
+
+摘要对应上传原始字节。`pending` 表示尚未被任何已保存引用采用；`retained` 表示
+已经永久保留；`deleting` 表示清理进行中，可重试；`deleted` 表示已清理。未知、
+旧式或其他账号的文件统一返回 `uploadNotFound`。数据库读取失败不会冒充“不存在”。
+
+### 显式清理
+
+`POST /api2/file/cleanupImageUpload` 接受 `{"fileId":"..."}` 或等价表单，成功返回
+`{"Ok":true}`。仅允许清理本人新式、从未被保存引用采用的图片，不处理既有图片、
+头像或附件。正文、封面、图片关系、用户资料和历史写入前先原子标记保留，清理
+通过相同状态的 CAS 竞争；不使用单进程锁证明安全。已保留返回
+`imageAlreadyReferenced`，即使当前正文已移除或历史已裁剪，也不自动解除保留。
+清理保留数据库 tombstone，阻止后来引用及同键重传，重复清理可安全重试。
+物理删除限制在应用 `files/` 下，拒绝路径穿越及符号链接。
+
+PostgreSQL 1.1.0 迁移新增上传状态、目标笔记、摘要、上传键和部分唯一索引；
+MongoDB 使用稀疏唯一上传键索引，旧文档不回填、不纳入清理。部署时先停掉旧
+服务端进程，再升级并恢复写入；不得让缺少引用保护的旧进程同时写入同一数据库。
 
 ## 笔记修改时间
 
@@ -29,13 +82,14 @@ Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`
   "Ok": true,
   "Token": "...",
   "User": {"UserId": "...", "Username": "admin", "Email": "...", "Verified": true, "Logo": "..."},
-  "Server": {"Name": "gemsnote", "Version": "1.0.0", "MinVersion": ""}
+  "Server": {"Name": "gemsnote", "Version": "1.1.0", "MinVersion": ""}
 }
 ```
 
 两种登录均推荐 JSON，字段为 `email`、`pwd`（服务端也接受表单）。Web 后续请求
 携带同源 cookie，受保护的写操作还需 `X-Requested-With: XMLHttpRequest`；
-客户端同步请求携带 `token` 查询参数。不要将 token 认证和浏览器会话认证混用。
+客户端请求使用 `Authorization: Bearer <token>`，不需要浏览器会话或重复登录。
+服务端暂保留 `token` 参数供已有客户端使用，新代码不要将凭据放入 URL。
 `/api/doLogin` 仅供旧 Leanote 兼容客户端使用。
 
 ## Web 核心接口
@@ -98,7 +152,7 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 ## 版本策略
 
 `/api` 是 legacy 接口，当前版本不会移除。API2 `1.0.0` 已定稿，后续合同变更须升级版本。
-新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.0.0","min_version":""}`，
+新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.1.0","min_version":""}`，
 或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
 后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。
 

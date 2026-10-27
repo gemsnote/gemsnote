@@ -95,6 +95,26 @@ func (c ApiNotebook) AddNotebook(title, parentNotebookId string, seq int) revel.
 	return c.RenderJSON(c.fixNotebook(&notebook))
 }
 
+// AddNotebookIdempotent is exclusive to API2. The ObjectId primary key is
+// the creation key, so uniqueness also holds across server processes.
+func (c ApiNotebook) AddNotebookIdempotent(title, parentNotebookId, clientNotebookId string, seq int) revel.Result {
+	if clientNotebookId == "" {
+		return c.AddNotebook(title, parentNotebookId, seq)
+	}
+	if !bson.IsObjectIdHex(clientNotebookId) || (parentNotebookId != "" && !bson.IsObjectIdHex(parentNotebookId)) {
+		return c.RenderJSON(info.Re{Msg: "invalidRequest"})
+	}
+	notebook := info.Notebook{NotebookId: bson.ObjectIdHex(clientNotebookId), UserId: bson.ObjectIdHex(c.getUserId()), Title: title, Seq: seq}
+	if parentNotebookId != "" {
+		notebook.ParentNotebookId = bson.ObjectIdHex(parentNotebookId)
+	}
+	ok, msg, notebook := notebookService.AddNotebookIdempotent(notebook)
+	if !ok {
+		return c.RenderJSON(info.Re{Msg: msg})
+	}
+	return c.RenderJSON(c.fixNotebook(&notebook))
+}
+
 // 修改笔记
 // [OK]
 func (c ApiNotebook) UpdateNotebook(notebookId, title, parentNotebookId string, seq, usn int) revel.Result {

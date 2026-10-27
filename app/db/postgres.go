@@ -432,6 +432,9 @@ func getDBColumns(typ reflect.Type) []string {
 }
 
 func (p *PostgresDatabase) Insert(collection interface{}, data interface{}) bool {
+	if !protectImageReferences(p, collection, data) {
+		return false
+	}
 	table := p.getColl(collection)
 	if dataMap, ok := data.(bson.M); ok {
 		keys := make([]string, 0, len(dataMap))
@@ -506,6 +509,9 @@ func (p *PostgresDatabase) UpdateAll(collection interface{}, query interface{}, 
 }
 
 func (p *PostgresDatabase) updateWithFilter(collection interface{}, query interface{}, data interface{}, all bool) bool {
+	if !protectImageReferences(p, collection, data) {
+		return false
+	}
 	table := p.getColl(collection)
 	setParts, setValues := buildPostgresSet(data, 1)
 	if len(setParts) == 0 {
@@ -528,6 +534,9 @@ func (p *PostgresDatabase) updateWithFilter(collection interface{}, query interf
 }
 
 func (p *PostgresDatabase) Upsert(collection interface{}, query interface{}, data interface{}) bool {
+	if !protectImageReferences(p, collection, data) {
+		return false
+	}
 	table := p.getColl(collection)
 	setParts, setValues := buildPostgresSet(data, 1)
 	if len(setParts) == 0 {
