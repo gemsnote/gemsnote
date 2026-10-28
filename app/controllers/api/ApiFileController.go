@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/revel/revel"
 	//	"encoding/json"
 	//	. "github.com/gemsnote/gemsnote/app/lea"
@@ -65,9 +66,7 @@ func (c ApiFile) GetImage(fileId string) revel.Result {
 	if path == "" {
 		return c.RenderText("")
 	}
-	fn := revel.BasePath + "/" + strings.TrimLeft(path, "/")
-	file, _ := os.Open(fn)
-	return c.RenderFile(file, revel.Inline) // revel.Attachment
+	return controllers.RenderStoredFile(c.Controller, path, "", revel.Inline)
 }
 
 // 下载附件
@@ -78,9 +77,7 @@ func (c ApiFile) GetAttach(fileId string) revel.Result {
 	if path == "" {
 		return c.RenderText("No Such File")
 	}
-	fn := revel.BasePath + "/" + strings.TrimLeft(path, "/")
-	file, _ := os.Open(fn)
-	return c.RenderBinary(file, attach.Title, revel.Attachment, time.Now()) // revel.Attachment
+	return controllers.RenderStoredFile(c.Controller, path, attach.Title, revel.Attachment)
 }
 
 // 下载所有附件

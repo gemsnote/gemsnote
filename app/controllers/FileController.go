@@ -267,9 +267,7 @@ func (c File) OutputImage(noteId, fileId string) revel.Result {
 	if path == "" {
 		return c.RenderText("")
 	}
-	fn := revel.BasePath + "/" + strings.TrimLeft(path, "/")
-	file, _ := os.Open(fn)
-	return c.RenderFile(file, revel.Inline) // revel.Attachment
+	return RenderStoredFile(c.Controller, path, "", revel.Inline)
 }
 
 // 协作时复制图片到owner

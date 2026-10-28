@@ -159,9 +159,7 @@ func (c Attach) Download(attachId string) revel.Result {
 	if path == "" {
 		return c.RenderText("")
 	}
-	fn := revel.BasePath + "/" + strings.TrimLeft(path, "/")
-	file, _ := os.Open(fn)
-	return c.RenderBinary(file, attach.Title, revel.Attachment, time.Now()) // revel.Attachment
+	return RenderStoredFile(c.Controller, path, attach.Title, revel.Attachment)
 	// return c.RenderFile(file, revel.Attachment) // revel.Attachment
 }
 
