@@ -18,7 +18,7 @@ function api2Path(path: string): string {
 const tokenKey='gemsnote:api2-token'
 function getToken():string { try{return sessionStorage.getItem(tokenKey)||''}catch{return ''} }
 function setToken(token:string){ try{if(token)sessionStorage.setItem(tokenKey,token);else sessionStorage.removeItem(tokenKey)}catch{} }
-export async function request<T = any>(path: string, params?: Params): Promise<T> {
+export async function request<T = any>(path: string, params?: Params, options?: {signal?:AbortSignal}): Promise<T> {
   const body = new URLSearchParams()
   for (const [key, value] of Object.entries(params || {})) {
     if (value === undefined) continue
@@ -29,7 +29,7 @@ export async function request<T = any>(path: string, params?: Params): Promise<T
   const core = target === '/api2/auth/login' || target === '/api2/auth/session' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
   const jsonBody = core || target === '/api2/notebook/moveNotebook'
   const token=getToken()
-  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }), ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
+  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', signal:options?.signal, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }), ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
   const data = await response.json().catch(() => null)
   if (data === null) throw new Error(response.ok ? t('响应不是有效 JSON [{path}]',{path:target}) : t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
   if (!response.ok || data === false || data?.Ok === false) {

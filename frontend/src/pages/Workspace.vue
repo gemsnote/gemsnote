@@ -9,6 +9,8 @@ import brandMark from '../assets/gemsnote_s.png'
 import RichEditor from '../components/RichEditor.vue'
 import NotebookPicker from '../components/NotebookPicker.vue'
 import TagInput from '../components/TagInput.vue'
+import ImportDialog from '../components/ImportDialog.vue'
+import type {ImportJob} from '../importJob'
 import {language,t,formatDate} from '../i18n'
 import {confirmAction,promptText} from '../dialogs'
 const restoringHistory=ref(false)
@@ -17,6 +19,16 @@ const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),t
 const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
+const importing=ref(false)
+const importDialog=ref<InstanceType<typeof ImportDialog>>()
+async function showImport(){if(await flush())importing.value=true}
+async function imported(job:ImportJob,complete:boolean){
+ try{
+  if(!await bootstrap())return
+  expandedNotebooks.value=new Set([...expandedNotebooks.value,...job.bookIds])
+  if(complete){await select(job.rootId);if(job.noteId)await open(job.noteId)}else await load()
+ }catch(e){error.value=String(e)}
+}
 const mobileNotesVisible=ref(false)
 const tagInput=ref<InstanceType<typeof TagInput>>()
 const tagSearch=ref('')
@@ -178,7 +190,7 @@ async function uploadImage(event:Event){const input=event.target as HTMLInputEle
 async function uploadAttach(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value||!await flush())return;try{await upload('/attach/uploadAttach',file,{noteId:current.value.Note.NoteId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId);panel.value='attachments'}catch(e){error.value=String(e)}}
 async function deleteAttach(attachId:string){if(!await confirmAction(t('删除此附件？'))||!await flush())return;try{await request('/attach/deleteAttach',{attachId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}}
 function download(){const blob=new Blob([content.value],{type:current.value.Note.IsMarkdown?'text/markdown':'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=(title.value||'note')+(current.value.Note.IsMarkdown?'.md':'.html');a.click();URL.revokeObjectURL(url)}
-function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value){e.preventDefault();e.returnValue=''}}
+function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value||importDialog.value?.pending){e.preventDefault();e.returnValue=''}}
 function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();flush()}}
 function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
 function handleSyncResult(result:any){
@@ -208,7 +220,7 @@ onMounted(()=>{mediaTimer=setTimeout(pollMedia,1000)})
 onBeforeUnmount(()=>{mediaUnmounted=true;clearTimeout(mediaTimer)})
 onMounted(async()=>{(window as any).__gemsnoteBeforeLogout=flush;(window as any).__gemsnoteBeforeReset=flush;(window as any).__gemsnoteAfterReset=()=>{dirty.value=false;current.value=null;loadId++;notesLoadId++};(window as any).__gemsnoteSyncNow=async()=>{if(!await flush())return false;if(!await bootstrap())return false;await load();return true};window.addEventListener('sync-result',handleSyncResult as EventListener);updateCompact();window.addEventListener('resize',updateCompact);window.addEventListener('beforeunload',leave);window.addEventListener('keydown',shortcut);window.addEventListener('pointerdown',closeBookMenu);const wails=(window as any).runtime;if(wails?.EventsOn){const offRevoked=wails.EventsOn('shared-notes-revoked',(ids:string[])=>{if(ids?.includes(current.value?.Note?.NoteId)){error.value=t('该共享笔记已被撤销访问权限');current.value=null;attachments.value=[]}});const offSync=wails.EventsOn('sync-finished',async(result:any)=>{handleSyncResult(result);if(result?.Reset){if(result?.Ok===false){dirty.value=false;current.value=null;try{if(await bootstrap())await load()}catch(e){error.value=String(e)}}return}try{if(!await bootstrap())return;await load();if(current.value&&!dirty.value){const noteId=current.value.Note.NoteId;const doc=await request('/web/document',{noteId});if(current.value?.Note.NoteId===noteId&&!dirty.value){current.value=doc;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',')}}}catch(e){error.value=String(e)}});if(typeof offRevoked==='function')runtimeUnsubscribers.push(offRevoked);if(typeof offSync==='function')runtimeUnsubscribers.push(offSync)}try{if(await bootstrap()){await load();if(route.params.noteId)await open(String(route.params.noteId))}}catch(e){error.value=String(e)}})
 onBeforeUnmount(()=>{delete (window as any).__gemsnoteBeforeLogout;delete (window as any).__gemsnoteBeforeReset;delete (window as any).__gemsnoteAfterReset;delete (window as any).__gemsnoteSyncNow;clearTimeout(saveTimer);clearTimeout(searchTimer);stopResize?.();runtimeUnsubscribers.splice(0).forEach(unsubscribe=>unsubscribe());document.body.classList.remove('panel-resizing');window.removeEventListener('sync-result',handleSyncResult as EventListener);window.removeEventListener('resize',updateCompact);window.removeEventListener('beforeunload',leave);window.removeEventListener('keydown',shortcut);window.removeEventListener('pointerdown',closeBookMenu)})
-onBeforeRouteLeave(async()=>await flush())
+onBeforeRouteLeave(async(to)=>{if(to.path!=='/login'&&importDialog.value?.pending&&!await confirmAction(t('关闭后将无法继续本次导入，已导入内容会保留。确认关闭？')))return false;return await flush()})
 watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(String(id));else if(!id)flush().then(ok=>{if(ok)current.value=null})})
 </script>
 <template>
@@ -218,7 +230,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <header class="panel-header">
 <button v-if="!notebooksVisible" class="space-brand collapsed-brand" :title="t('展开我的空间')" :aria-label="t('展开我的空间')" @click="showNotebooks"><img :src="brandMark" alt=""></button>
 <RouterLink v-else to="/note" class="space-brand" :title="t('珠玑笔记')"><img :src="brandMark" :alt="t('珠玑笔记')"><span>{{t('珠玑笔记')}}</span></RouterLink>
-<div v-if="notebooksVisible" class="panel-actions"><button class="icon-button" @click="addBook()" :title="t('新建笔记本')" :aria-label="t('新建笔记本')">＋</button><button class="icon-button desktop-only" @click="hideNotebooks" :title="t('收起我的空间')" :aria-label="t('收起我的空间')">‹</button></div>
+<div v-if="notebooksVisible" class="panel-actions"><button class="icon-button" @click="showImport" :title="t('导入 Markdown')" :aria-label="t('导入 Markdown')">↥</button><button class="icon-button" @click="addBook()" :title="t('新建笔记本')" :aria-label="t('新建笔记本')">＋</button><button class="icon-button desktop-only" @click="hideNotebooks" :title="t('收起我的空间')" :aria-label="t('收起我的空间')">‹</button></div>
 </header>
 <div v-if="notebooksVisible" class="notebook-scroll">
 <input class="notebook-search" v-model="notebookSearch" :placeholder="t('搜索笔记本')" :aria-label="t('搜索笔记本')">
@@ -375,6 +387,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <button class="primary" @click="create(true)">{{t('新建笔记')}}</button>
 </div>
 </main>
+<ImportDialog v-if="importing" ref="importDialog" :items="notebookTree" :selected="sharedOwner?'':notebook" :user-id="boot.User.UserId" :desktop="!!boot.Desktop" @close="importing=false" @changed="imported"/>
 <section v-if="movingBook" class="dialog-backdrop" @click.self="!movingBookBusy&&(movingBook='')">
 <div class="dialog" role="dialog" aria-modal="true" :aria-label="t('移动笔记本')">
 <h2>{{t('移动笔记本')}}</h2>
