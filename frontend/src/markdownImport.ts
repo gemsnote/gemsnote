@@ -10,6 +10,9 @@ export class ImportError extends Error {
 }
 function fail(key:string):never {throw new ImportError(key)}
 const markdown=/\.(md|markdown)$/i
+// Import planning is independent of the UI/system language. Preserve a stable
+// path order across builds, with parent folders created before their children.
+function comparePath(a:string,b:string){return a<b?-1:a>b?1:0}
 function title(name:string){return name.replace(/\.(md|markdown|zip)$/i,'').trim()||'Untitled'}
 function decode(bytes:Uint8Array){
  try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes)}catch{return fail('Markdown 文件必须使用 UTF-8 编码')}
@@ -86,5 +89,5 @@ export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
  }
  if(!notes.length)fail('ZIP 中没有 Markdown 文件')
  if(folders.size>importLimits.notebooks-1)fail('ZIP 文件数量超出导入限制')
- return {zip:true,title:title(name),folders:[...folders].sort((a,b)=>a.split('/').length-b.split('/').length||a.localeCompare(b)),notes:notes.sort((a,b)=>a.path.localeCompare(b.path)),ignored:entries.filter(e=>!e.directory&&!e.keep).length}
+ return {zip:true,title:title(name),folders:[...folders].sort((a,b)=>a.split('/').length-b.split('/').length||comparePath(a,b)),notes:notes.sort((a,b)=>comparePath(a.path,b.path)),ignored:entries.filter(e=>!e.directory&&!e.keep).length}
 }

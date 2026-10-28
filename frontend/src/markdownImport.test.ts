@@ -19,6 +19,17 @@ describe('Markdown import validation',()=>{
   expect(source.notes.map(n=>n.folder)).toEqual(['学习/Go',''])
   expect(source.ignored).toBe(2)
  })
+ it('plans mixed-language paths in a stable order, with parent folders first',()=>{
+  const entries:Zippable={'空/子/两.md':md('two'),'Go/子/一.md':md('one'),'é.md':md('accent'),'E.md':md('latin'),'笔记.md':md('Chinese')}
+  const source=parseMarkdownImport('notes.zip',zip(entries))
+  const reversed=parseMarkdownImport('notes.zip',zip(Object.fromEntries(Object.entries(entries).reverse())))
+  expect(source.folders).toEqual(['Go','空','Go/子','空/子'])
+  expect(source.notes.map(n=>n.path)).toEqual(['E.md','Go/子/一.md','é.md','空/子/两.md','笔记.md'])
+  expect(reversed.folders).toEqual(source.folders)
+  expect(reversed.notes).toEqual(source.notes)
+  const job=(input:typeof source)=>{let id=0;return createImportJob(input,'user','','notes',()=>String(++id))}
+  expect(job(reversed).steps).toEqual(job(source).steps)
+ })
  it('rejects invalid UTF-8 before any mutation',()=>{
   expect(()=>parseMarkdownImport('bad.md',new Uint8Array([255]))).toThrow('UTF-8')
   expect(()=>parseMarkdownImport('bad.zip',zip({'bad.md':new Uint8Array([255])}))).toThrow('UTF-8')
