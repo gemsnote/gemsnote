@@ -1,23 +1,32 @@
 # Gemsnote API2
 
-## 笔记本移动
+## 文档基本信息
 
-`POST /api2/notebook/moveNotebook` 接受 JSON：
-`{"notebookId":"源笔记本ID","parentNotebookId":"目标父笔记本ID"}`。
-`parentNotebookId` 为空表示移到根目录。Web 使用已登录会话和
-`X-Requested-With: XMLHttpRequest`，返回 `{"Ok":true}` 或失败信息。
-只修改父级，保留子树及笔记归属；拒绝其他账号、已删除、自身或子孙目标。
-本接口为 API2 增量扩展，旧 `/api` 不变。
+| 项目 | 说明 |
+| --- | --- |
+| 接口前缀 | `/api2` |
+| 使用方 | Web、新桌面客户端和 Flutter 移动客户端 |
+| 当前版本 | `1.1.0`；`1.0.0` 为首个定稿版本 |
+| 版本来源 | [app/version/version.go](../../app/version/version.go)，同时用于服务端版本响应和数据库迁移 |
+| 路由与编码 | [conf/routes](../../conf/routes)、[Web 请求实现](../../frontend/src/api.ts)及对应控制器 |
+| Legacy 接口 | 旧 `/api` 继续保留，详见 [LEGACY_API.md](LEGACY_API.md) |
 
-API2 是 Web 和新客户端使用的接口空间，前缀为 `/api2`，`1.0.0` 为首个定稿版本，当前为 `1.1.0`。
-旧 `/api` 作为 Leanote 客户端兼容层继续保留，已移除的旧 Web/博客功能不在此范围。
+本文先列出 1.1.0 新增合同，再列出 1.0.0 已有且继续提供的接口。
+1.1.0 保留 1.0.0 的既有调用方式，`min_version` 仍为空。
+接口前缀不代表统一的编码格式：JSON、表单和 multipart 必须按各端点要求使用。
 
-## 1.1.0：创建回执与图片清理
+## 1.1.0 增加的部分
 
-`app/version/version.go` 是服务端、协议响应与数据库迁移的版本来源。1.1.0 保留
-1.0.0 的既有调用方式及全部 Legacy `/api` 路由，`min_version` 仍为空。
+本版本增加笔记本创建幂等、图片上传回执和安全清理：
 
-### 笔记本创建
+| 方法 | 路径 | 相比 1.0.0 的变化 |
+| --- | --- | --- |
+| POST | `/api2/client/notebook/add` | 增加可选创建键 `clientNotebookId` |
+| POST | `/api2/file/pasteImage` | 增加可选上传键 `uploadId` 和可查询的上传记录 |
+| GET | `/api2/file/imageUpload` | 新增上传回执查询 |
+| POST | `/api2/file/cleanupImageUpload` | 新增未引用上传的显式清理 |
+
+### 笔记本创建幂等
 
 `POST /api2/client/notebook/add` 接受表单或 JSON：
 
@@ -61,11 +70,18 @@ API2 是 Web 和新客户端使用的接口空间，前缀为 `/api2`，`1.0.0` 
 清理保留数据库 tombstone，阻止后来引用及同键重传，重复清理可安全重试。
 物理删除限制在应用 `files/` 下，拒绝路径穿越及符号链接。
 
+### 数据库升级与部署
+
 PostgreSQL 1.1.0 迁移新增上传状态、目标笔记、摘要、上传键和部分唯一索引；
 MongoDB 使用稀疏唯一上传键索引，旧文档不回填、不纳入清理。部署时先停掉旧
 服务端进程，再升级并恢复写入；不得让缺少引用保护的旧进程同时写入同一数据库。
 
-## 笔记修改时间
+## 1.0.0 原来的部分
+
+以下接口和规则在 1.0.0 已有，1.1.0 继续提供。响应示例中的 `Version` 取当前
+服务端版本，不表示这些字段是 1.1.0 新增的。
+
+### 笔记修改时间
 
 API2 客户端笔记新增/更新接口中，省略可选的 `UpdatedTime` 表示使用服务端时间。
 同步版本判断使用 USN；本地缓存实现见[客户端开发指南](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/DEVELOPMENT.md)。
@@ -73,9 +89,11 @@ API2 客户端笔记新增/更新接口中，省略可选的 `UpdatedTime` 表�
 “响应生成时间”覆盖实际写入时间。显式传入历史时间的既有客户端合同及旧 `/api`
 保持不变；无需新增必填字段或改变路径。`CreatedTime` 仍保留原始创建时间。
 
-## 认证
+### 认证
 
-Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`email`、`pwd`、可选 `captcha`），成功后设置同源 session cookie。Token 客户端使用 `POST /api2/auth/login`。该接口在一次响应中返回认证 token、用户资料和服务端协议版本，登录流程不需要再请求 `/api2/user/info` 或 `/api2/system/version`：
+Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json` 请求体
+（`email`、`pwd`），也接受等价表单。该接口在一次响应中返回 token、用户资料和
+服务端协议版本，登录流程不需要再请求 `/api2/user/info` 或 `/api2/system/version`：
 
 ```json
 {
@@ -86,13 +104,17 @@ Web 登录使用 `POST /api2/auth/session`，请求体为 `application/json`（`
 }
 ```
 
-两种登录均推荐 JSON，字段为 `email`、`pwd`（服务端也接受表单）。Web 后续请求
-携带同源 cookie，受保护的写操作还需 `X-Requested-With: XMLHttpRequest`；
-客户端请求使用 `Authorization: Bearer <token>`，不需要浏览器会话或重复登录。
+受保护的 API2 请求统一使用 `Authorization: Bearer <token>`，包括 Web 的 JSON、
+表单和文件上传，不依赖浏览器 Cookie 或重复登录。token 由 `crypto/rand` 生成
+32 字节安全随机数并以 Base64URL 编码，不要求 JWT 格式；退出及密码变更会撤销
+相应凭据。不要将 token 写入正文、日志或错误信息。
 服务端暂保留 `token` 参数供已有客户端使用，新代码不要将凭据放入 URL。
+`POST /api2/auth/session` 仍保留浏览器会话登录动作（`email`、`pwd`、可选 `captcha`），
+但它不能代替受保护 API2 所需的 Bearer 认证。Web 实现仍发送
+`X-Requested-With: XMLHttpRequest`，该请求头也不能代替身份凭据。
 `/api/doLogin` 仅供旧 Leanote 兼容客户端使用。
 
-## Web 核心接口
+### Web 核心接口
 
 以下写接口使用 `application/json`，成功响应沿用当前数据结构，以便 Web 平滑切换：
 
@@ -120,7 +142,15 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 完整路由以 `conf/routes` 为准，请求编码可对照 `frontend/src/api.ts` 和对应控制器；
 不要仅根据路径前缀推断请求格式或将浏览器动作当成 token 同步接口。
 
-## 客户端正文同步合同
+### 笔记本移动
+
+`POST /api2/notebook/moveNotebook` 接受 JSON：
+`{"notebookId":"源笔记本ID","parentNotebookId":"目标父笔记本ID"}`。
+`parentNotebookId` 为空表示移到根目录。请求携带 Bearer token，返回
+`{"Ok":true}` 或失败信息。只修改父级，保留子树及笔记归属；拒绝其他账号、
+已删除、自身或子孙目标。旧 `/api` 不变。
+
+### 客户端正文同步合同
 
 以下读取接口使用 token 认证：
 
@@ -139,22 +169,26 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 正文快照根据 `Accept-Encoding` 协商 gzip 压缩，不依赖全局压缩开关，解压后 JSON
 结构不变。该优化只应用于 API2 快照接口，旧 `/api` 响应不变。
 
-## 错误
+### 共享与历史恢复
+
+共享原文只读，只有原作者可以修改；接收者通过复制到自己的笔记本生成独立副本。
+副本使用新的笔记和资源 ID，并归复制者所有，修改副本不影响原文。
+历史附件保留、完整快照标记与恢复接口见 [HISTORY_RESTORE.md](HISTORY_RESTORE.md)。
+
+### 错误
 
 当前没有统一的 HTTP 状态码与错误包装合同。客户端必须同时检查 HTTP 状态和
-端点的 JSON 业务结果：部分认证/参数错误仍以 HTTP 200 返回 `{"Ok":false,"Msg":"..."}`，
-例如 token 校验的 `NOTLOGIN`；部分浏览器防护会返回 403/405，历史动作还可能返回
-布尔值。不能将 HTTP 200 一律视为成功。
+端点的 JSON 业务结果：受保护 API2 缺失或失效凭据返回 HTTP 401 和
+`{"Ok":false,"Msg":"NOTLOGIN"}`，不会重定向登录页；登录失败、参数或业务错误
+仍可能以 HTTP 200 返回 `{"Ok":false,"Msg":"..."}`。部分防护会返回 403/405，
+历史动作还可能返回布尔值。不能将 HTTP 200 一律视为成功。
 
 `Msg` 既可能是固定错误码，也可能是本地化文本（如登录密码错误）。仅对已明确约定的
 错误码进行逻辑分支，其余作为提示展示，不能假设所有 `Msg` 都是稳定、未翻译的机器码。
 
-## 版本策略
+### 版本策略
 
 `/api` 是 legacy 接口，当前版本不会移除。API2 `1.0.0` 已定稿，后续合同变更须升级版本。
 新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.1.0","min_version":""}`，
 或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
 后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。
-
-
-历史附件保留、完整快照标记与恢复接口见 [HISTORY_RESTORE.md](HISTORY_RESTORE.md)。
