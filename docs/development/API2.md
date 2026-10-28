@@ -131,6 +131,9 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
 | POST | `/api2/attachments` | 附件列表（JSON） |
 | POST | `/api2/attachments/delete` | 删除附件（JSON） |
 
+保存现有笔记时应显式发送 `isMarkdown`。省略该字段时保留现有格式；显式传 `false`
+仍表示富文本，可用于恢复富文本历史版本。新建笔记省略该字段时默认富文本。
+
 `GET /api2/bootstrap` 保持公开：缺失、失效或冲突的 API2 凭据返回 `User:null`，
 携带有效 Bearer token 时返回该 token 对应的用户及数据。初始化接口和受保护接口
 使用相同的身份来源，不会用旧浏览器 Cookie 把匿名 API2 请求判为“已登录”。

@@ -238,14 +238,22 @@ func (c Api2) Document() revel.Result {
 func (c Api2) Save() revel.Result {
 	var p struct {
 		NoteID, NotebookID, OwnerID, Title, Content, Tags string
-		IsNew                                             bool `json:"isNew"`
-		IsMarkdown                                        bool `json:"isMarkdown"`
-		Usn                                               int  `json:"usn"`
+		IsNew                                             bool  `json:"isNew"`
+		IsMarkdown                                        *bool `json:"isMarkdown"`
+		Usn                                               int   `json:"usn"`
 	}
 	if err := c.body(&p); err != nil {
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
 	}
-	return (Web{c.BaseController}).Save(p.NoteID, p.NotebookID, p.OwnerID, p.Title, p.Content, p.Tags, p.IsNew, p.IsMarkdown, p.Usn)
+	isMarkdown := false
+	if p.IsMarkdown != nil {
+		isMarkdown = *p.IsMarkdown
+	} else if !p.IsNew && bson.IsObjectIdHex(p.NoteID) {
+		// An omitted format must not convert an existing Markdown note to HTML.
+		// Explicit false still allows restoring a rich-text history version.
+		isMarkdown = noteService.GetNote(p.NoteID, c.GetUserId()).IsMarkdown
+	}
+	return (Web{c.BaseController}).Save(p.NoteID, p.NotebookID, p.OwnerID, p.Title, p.Content, p.Tags, p.IsNew, isMarkdown, p.Usn)
 }
 
 func (c Api2) Restore() revel.Result {

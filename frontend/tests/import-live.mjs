@@ -28,6 +28,29 @@ try{
  await dialog.getByRole('button',{name:'关闭',exact:true}).click()
  await expect(page.locator('.editor')).toContainText('完整正文')
 
+ // Saving and switching views must retain the imported Markdown format.
+ const noteId=new URL(page.url()).pathname.split('/').pop()
+ await page.getByRole('button',{name:'编辑',exact:true}).click()
+ const edited='# 单篇修改\n\n**仍是 Markdown**'
+ await page.locator('textarea.content-editor').fill(edited)
+ await page.getByRole('button',{name:'预览',exact:true}).click()
+ const read=async()=>await (await context.request.post(`${baseURL}/api2/document`,{headers,data:{noteId}})).json()
+ await expect.poll(async()=> (await read()).Content).toBe(edited)
+ expect((await read()).Note.IsMarkdown).toBe(true)
+ await page.getByRole('button',{name:'编辑',exact:true}).click()
+ await expect(page.locator('textarea.content-editor')).toHaveValue(edited)
+ // The API also protects cached clients that omit the format. Explicit false
+ // remains meaningful for restoring a historical rich-text version.
+ for(const format of [undefined,false,true]){
+  const current=await read()
+  const saved=await (await context.request.post(`${baseURL}/api2/save`,{headers,data:{noteId,title:current.Note.Title,content:edited,tags:'',usn:current.Note.Usn,...(format===undefined?{}:{isMarkdown:format})}})).json()
+  expect(saved.Note.IsMarkdown).toBe(format!==false)
+  expect(saved.Content).toBe(edited)
+ }
+ await page.reload()
+ await page.getByRole('button',{name:'编辑',exact:true}).click()
+ await expect(page.locator('textarea.content-editor')).toHaveValue(edited)
+
  await page.getByRole('button',{name:'导入 Markdown',exact:true}).click()
  dialog=page.getByRole('dialog',{name:'导入 Markdown',exact:true})
  await dialog.locator('input[type=file]').setInputFiles({name:'批量导入测试.zip',mimeType:'application/zip',buffer:Buffer.from(zipSync({'root.md':strToU8('root body'),'一级/二级/child.md':strToU8('# 子目录正文'),'ignore.png':new Uint8Array([255])}))})
@@ -46,6 +69,6 @@ try{
  const doc=await (await context.request.post(`${baseURL}/api2/document`,{headers,data:{noteId:list[0].NoteId}})).json()
  expect(doc.Content).toBe('# 子目录正文');expect(doc.Note.IsMarkdown).toBe(true)
  await expect(page.locator('.notebook-row').filter({hasText:'二级'})).toBeVisible()
- console.log('Disposable PostgreSQL: real Web MD/ZIP import, persisted bodies, hierarchy and counts passed')
+ console.log('Disposable PostgreSQL: MD/ZIP import, persistence, hierarchy, counts and format-preserving save passed')
  await context.close()
 }finally{await browser?.close();await server.close()}

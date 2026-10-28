@@ -151,7 +151,7 @@ function changed(){dirty.value=true;clearTimeout(saveTimer);saveTimer=setTimeout
 async function save():Promise<boolean>{
  if(savePromise)return savePromise
  if(!dirty.value||!current.value||!writable.value)return true
- const id=current.value.Note.NoteId,snapshot={title:title.value,content:content.value,tags:tags.value}
+ const id=current.value.Note.NoteId,snapshot={title:title.value,content:content.value,tags:tags.value,isMarkdown:!!current.value.Note.IsMarkdown}
  const tagsChanged=snapshot.tags!==(current.value.Note.Tags||[]).join(',')
  saving.value=true;error.value=''
  savePromise=(async()=>{try{const doc=await request('/web/save',{noteId:id,usn:current.value.Note.Usn,...snapshot});if(current.value?.Note.NoteId===id){current.value=doc;dirty.value=title.value!==snapshot.title||content.value!==snapshot.content||tags.value!==snapshot.tags}if(boot.value.Desktop)boot.value.PendingChanges=true;if(tagsChanged)await refreshTags();await load();return true}catch(e){const message=e instanceof Error?e.message:String(e);error.value=(message==='conflict'||message===t('conflict'))?t('此笔记已在其他端修改。请先导出本地内容，再重新加载笔记。'):message;return false}finally{saving.value=false;savePromise=undefined}})()
