@@ -290,10 +290,16 @@ func (c Api2) RequireSession() revel.Result {
 	// Login must remain public; Logout is idempotent and may be called after a
 	// session has already expired. Bootstrap is also public so the login page
 	// can discover registration/captcha state.
-	if c.MethodName == "Bootstrap" || c.MethodName == "Login" || c.MethodName == "TokenLogin" || c.MethodName == "Logout" || c.MethodName == "Register" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
+	if c.MethodName == "Login" || c.MethodName == "TokenLogin" || c.MethodName == "Logout" || c.MethodName == "Register" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
 		return nil
 	}
-	if userID, _ := AuthenticateAPI2(c.Controller, sessionService); userID == "" {
+	userID, _ := AuthenticateAPI2(c.Controller, sessionService)
+	// Public does not mean unauthenticated: resolve a valid Bearer token for
+	// bootstrap, and explicitly shadow any cookie when it is absent/invalid.
+	if c.MethodName == "Bootstrap" {
+		return nil
+	}
+	if userID == "" {
 		c.Response.Status = 401
 		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
 	}

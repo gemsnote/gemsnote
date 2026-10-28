@@ -12,6 +12,17 @@
 - [API2 新接口](API2.md)：Web 和新客户端使用的 `/api2` 接口规范，分别列出 1.1.0 新增合同与 1.0.0 原有接口。
 - [Legacy API 兼容说明](LEGACY_API.md)：旧 `/api` 接口、Leanote 客户端兼容范围及限制。
 
+Web 认证回归使用 `frontend/tests/web-auth.mjs`，连接带内置种子的独立临时
+PostgreSQL/API2 实例（仅限 `127.0.0.1:19090`），验证旧 Cookie、过期/撤销 token、
+Bearer 登录和页面刷新。显式确认目标是一次性环境后运行：
+
+```sh
+GEMSNOTE_DISPOSABLE_API2=1 GEMSNOTE_API2_URL=http://127.0.0.1:19090 \
+  npm run test:web-auth --prefix frontend
+```
+
+不要将该用例指向实际使用的服务；测试会创建和撤销该临时实例的登录会话。
+
 ## Web 与 UI
 
 - [统一 UI 设计](UI.md)：Web 界面结构与交互设计。

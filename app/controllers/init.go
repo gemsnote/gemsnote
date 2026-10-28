@@ -18,6 +18,11 @@ func AuthenticateAPI2(c *revel.Controller, sessions *service.SessionService) (st
 	if !isAPI2Request(c) {
 		return "", ""
 	}
+	// Even public API2 actions must distinguish an anonymous token identity
+	// from a legacy cookie. Otherwise bootstrap can advertise a login that
+	// subsequent protected API2 calls will reject, causing a redirect loop.
+	c.ViewArgs["Api2UserId"] = ""
+	c.ViewArgs["Api2Token"] = ""
 	token := ""
 	authorization := strings.TrimSpace(c.Request.Header.Get("Authorization"))
 	if len(authorization) > 7 && strings.EqualFold(authorization[:7], "Bearer ") {
@@ -30,10 +35,11 @@ func AuthenticateAPI2(c *revel.Controller, sessions *service.SessionService) (st
 		return "", ""
 	}
 	userID := sessions.FindUserId(token)
-	if userID != "" {
-		c.ViewArgs["Api2Token"] = token
-		c.ViewArgs["Api2UserId"] = userID
+	if userID == "" {
+		return "", ""
 	}
+	c.ViewArgs["Api2Token"] = token
+	c.ViewArgs["Api2UserId"] = userID
 	return userID, token
 }
 

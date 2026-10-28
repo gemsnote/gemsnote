@@ -131,6 +131,11 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
 | POST | `/api2/attachments` | 附件列表（JSON） |
 | POST | `/api2/attachments/delete` | 删除附件（JSON） |
 
+`GET /api2/bootstrap` 保持公开：缺失、失效或冲突的 API2 凭据返回 `User:null`，
+携带有效 Bearer token 时返回该 token 对应的用户及数据。初始化接口和受保护接口
+使用相同的身份来源，不会用旧浏览器 Cookie 把匿名 API2 请求判为“已登录”。
+因此升级前留下的 Cookie 不会让页面在 `/note` 与 `/login` 之间反复跳转。
+
 文件上传 `/api2/avatar`、`/api2/attachments/upload` 使用 `multipart/form-data`，
 文件字段为 `file`，不能把文件编码为普通 JSON 请求。文件读取使用
 `/api2/file/getImage`、`/api2/file/getAttach` 和 `/api2/attachments/download`。
