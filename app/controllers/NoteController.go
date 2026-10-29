@@ -3,9 +3,11 @@ package controllers
 import (
 	"github.com/revel/revel"
 	//	"encoding/json"
+	"context"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"gopkg.in/mgo.v2/bson"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -329,7 +331,7 @@ func (c Note) SearchNoteByTags(tags []string) revel.Result {
 func (c Note) ToPdf(noteId, appKey string) revel.Result {
 	// 虽然传了cookie但是这里还是不能得到userId, 所以还是通过appKey来验证之
 	appKeyTrue, _ := revel.Config.String("app.secret")
-	if appKeyTrue != appKey {
+	if !bson.IsObjectIdHex(noteId) || !ValidPDFToken(appKeyTrue, noteId, appKey, time.Now()) {
 		return c.RenderText("auth error")
 	}
 	note := noteService.GetNoteById(noteId)
@@ -423,7 +425,7 @@ func (c Note) ExportPdf(noteId string) revel.Result {
 	// 是否有权限
 	if noteUserId != userId {
 		// 是否是有权限协作的
-		if !note.IsBlog && !shareService.HasReadPerm(noteUserId, userId, noteId) {
+		if !shareService.HasReadPerm(noteUserId, userId, noteId) {
 			re.Msg = "No Perm"
 			return c.RenderText("No Perm")
 		}
@@ -440,13 +442,10 @@ func (c Note) ExportPdf(noteId string) revel.Result {
 	path := dir + "/" + filename
 
 	// gemsnote.com的secret
-	appKey, _ := revel.Config.String("app.secretGemsnote")
+	secret, _ := revel.Config.String("app.secret")
+	appKey := PDFToken(secret, noteId, time.Now())
 	if appKey == "" {
-		// Keep existing deployments compatible with the pre-rename setting.
-		appKey, _ = revel.Config.String("app.secretLeanote")
-	}
-	if appKey == "" {
-		appKey, _ = revel.Config.String("app.secret")
+		return c.RenderText("exportUnavailable")
 	}
 
 	// 生成之
@@ -460,36 +459,16 @@ func (c Note) ExportPdf(noteId string) revel.Result {
 		}
 	}
 
-	url := configService.GetSiteUrl() + "/note/toPdf?noteId=" + noteId + "&appKey=" + appKey
-	//	cc := binPath + " --no-stop-slow-scripts --javascript-delay 10000 \"" + url + "\"  \"" + path + "\"" //  \"" + cookieDomain + "\" \"" + cookieName + "\" \"" + cookieValue + "\""
-	//	cc := binPath + " \"" + url + "\"  \"" + path + "\"" //  \"" + cookieDomain + "\" \"" + cookieName + "\" \"" + cookieValue + "\""
-	// 等待--window-status为done的状态
-	// http://madalgo.au.dk/~jakobt/wkhtmltoxdoc/wkhtmltopdf_0.10.0_rc2-doc.html
-	// wkhtmltopdf参数大全
-	var cc string
-	// var cc []string
-	var ccWindows []string
+	renderURL := configService.GetSiteUrl() + "/note/toPdf?" + url.Values{"noteId": {noteId}, "appKey": {appKey}}.Encode()
+	args := []string{"--lowquality", "--disable-local-file-access"}
 	if note.IsMarkdown {
-		cc = binPath + " --lowquality --window-status done \"" + url + "\"  \"" + path + "\"" //  \"" + cookieDomain + "\" \"" + cookieName + "\" \"" + cookieValue + "\""
-		// cc = []string{binPath, "--lowquality", "--window-status", "done", "\"" + url + "\"", "\"" + path + "\""}
-		ccWindows = []string{"/C", binPath, "--lowquality", "--window-status", "done", url, path}
-	} else {
-		cc = binPath + " --lowquality \"" + url + "\"  \"" + path + "\"" //  \"" + cookieDomain + "\" \"" + cookieName + "\" \"" + cookieValue + "\""
-		// cc = []string{binPath, "--lowquality", "\"" + url + "\"", "\"" + path + "\""}
-		ccWindows = []string{"/C", binPath, "--lowquality", url, path}
+		args = append(args, "--window-status", "done")
 	}
+	args = append(args, renderURL, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, binPath, args...)
 
-	var cmd *exec.Cmd
-
-	// fmt.Println("-------1", runtime.GOOS, ccWindows)
-	if runtime.GOOS == "windows" {
-		fmt.Println(ccWindows)
-		// cmd = exec.Command("cmd", ccWindows...)
-		cmd = exec.Command(ccWindows[1], ccWindows[2:]...)
-	} else {
-		fmt.Println(cc)
-		cmd = exec.Command("/bin/sh", "-c", cc)
-	}
 	_, err := cmd.Output()
 	if err != nil {
 		return c.RenderText("export pdf error. " + fmt.Sprintf("%v", err))

@@ -4,6 +4,7 @@ import (
 	"github.com/revel/revel"
 	//	"encoding/json"
 	"fmt"
+	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/gemsnote/gemsnote/app/lea/netutil"
@@ -155,16 +156,13 @@ func (c File) uploadImage(from, albumId string, managed ...info.File) (re info.R
 	// 生成新的文件名
 	filename := handel.Filename
 
-	var ext string
+	ext, validImage := RasterImageExtension(data)
+	if !validImage {
+		resultMsg = "notImage"
+		return re
+	}
 	if from == "pasteImage" {
 		handel.Filename = c.Message("unTitled")
-		ext = ".png" // TODO 可能不是png类型
-	} else {
-		_, ext = SplitFilename(filename)
-		if ext != ".gif" && ext != ".jpg" && ext != ".png" && ext != ".bmp" && ext != ".jpeg" {
-			resultMsg = "Please upload image"
-			return re
-		}
 	}
 
 	filename = newGuid + ext
@@ -274,7 +272,15 @@ func (c File) OutputImage(noteId, fileId string) revel.Result {
 // 需要计算对方大小
 func (c File) CopyImage(userId, fileId, toUserId string) revel.Result {
 	re := info.NewRe()
-	re.Ok, re.Id = fileService.CopyImage(userId, fileId, toUserId)
+	// The source owner and destination are not caller-controlled identities.
+	me := c.GetUserId()
+	if toUserId != me || !bson.IsObjectIdHex(fileId) || fileService.GetFile(me, fileId) == "" {
+		re.Msg = "noPermission"
+		return c.RenderJSON(re)
+	}
+	var source info.File
+	db.Get(db.Files, fileId, &source)
+	re.Ok, re.Id = fileService.CopyImage(source.UserId.Hex(), fileId, me)
 	return c.RenderJSON(re)
 }
 

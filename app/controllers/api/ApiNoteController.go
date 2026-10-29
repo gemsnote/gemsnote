@@ -3,10 +3,12 @@ package api
 import (
 	"github.com/revel/revel"
 	//	"encoding/json"
+	"context"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/gemsnote/gemsnote/app/service"
 	"gopkg.in/mgo.v2/bson"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -730,7 +732,7 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 	// 是否有权限
 	if noteUserId != userId {
 		// 是否是有权限协作的
-		if !note.IsBlog && !shareService.HasReadPerm(noteUserId, userId, noteId) {
+		if !shareService.HasReadPerm(noteUserId, userId, noteId) {
 			re.Msg = "noteNotExists"
 			return c.RenderJSON(re)
 		}
@@ -747,13 +749,10 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 	filename := guid + ".pdf"
 	path := dir + "/" + filename
 
-	appKey, _ := revel.Config.String("app.secretGemsnote")
+	secret, _ := revel.Config.String("app.secret")
+	appKey := PDFToken(secret, noteId, time.Now())
 	if appKey == "" {
-		// Keep existing deployments compatible with the pre-rename setting.
-		appKey, _ = revel.Config.String("app.secretLeanote")
-	}
-	if appKey == "" {
-		appKey, _ = revel.Config.String("app.secret")
+		return c.RenderText("exportUnavailable")
 	}
 
 	// 生成之
@@ -763,15 +762,16 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 		binPath = "/usr/local/bin/wkhtmltopdf"
 	}
 
-	url := configService.GetSiteUrl() + "/note/toPdf?noteId=" + noteId + "&appKey=" + appKey
-	var cc string
+	renderURL := configService.GetSiteUrl() + "/note/toPdf?" + url.Values{"noteId": {noteId}, "appKey": {appKey}}.Encode()
+	args := []string{"--lowquality", "--disable-local-file-access"}
 	if note.IsMarkdown {
-		cc = binPath + " --lowquality --window-status done \"" + url + "\"  \"" + path + "\"" //  \"" + cookieDomain + "\" \"" + cookieName + "\" \"" + cookieValue + "\""
-	} else {
-		cc = binPath + " --lowquality \"" + url + "\"  \"" + path + "\"" //  \"" + cookieDomain + "\" \"" + cookieName + "\" \"" + cookieValue + "\""
+		args = append(args, "--window-status", "done")
 	}
+	args = append(args, renderURL, path)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, binPath, args...)
 
-	cmd := exec.Command("/bin/sh", "-c", cc)
 	_, err := cmd.Output()
 	if err != nil {
 		re.Msg = "sysError"

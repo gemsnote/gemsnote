@@ -32,6 +32,7 @@ try{
  await expect(page.locator('.editor')).toContainText('完整正文')
 
  // Saving and switching views must retain the imported Markdown format.
+ await expect(page).toHaveURL(/\/note\/[0-9a-f]{24}$/)
  const noteId=new URL(page.url()).pathname.split('/').pop()
  await page.getByRole('button',{name:'编辑',exact:true}).click()
  const edited='# 单篇修改\n\n**仍是 Markdown**'

@@ -72,6 +72,9 @@ func needValidate(controller, method string) bool {
 	}
 }
 func AuthInterceptor(c *revel.Controller) revel.Result {
+	if result := MutationInterceptor(c); result != nil {
+		return result
+	}
 	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
 		if userID, _ := controllers.AuthenticateAPI2(c, sessionService); userID != "" {
 			user := userService.GetUserInfo(userID)
@@ -146,4 +149,22 @@ func init() {
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &AdminEmail{})
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &AdminUpgrade{})
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &AdminData{})
+}
+
+// Wildcard legacy controller routes must not expose admin mutations via GET
+// or cross-site forms even when the browser holds a valid admin cookie.
+func MutationInterceptor(c *revel.Controller) revel.Result {
+	reads := map[string]bool{"Index": true, "Add": true, "ResetPwd": true, "Email": true, "Blog": true, "SubDomain": true, "ToImage": true, "Template": true, "SendEmailDialog": true, "List": true, "Download": true, "T": true, "GetView": true}
+	if reads[c.MethodName] {
+		return nil
+	}
+	if c.Request.Method != "POST" {
+		c.Response.Status = 405
+		return c.RenderJSON(info.Re{Ok: false, Msg: "methodNotAllowed"})
+	}
+	if !strings.HasPrefix(c.Request.URL.Path, "/api2/") && c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
+		c.Response.Status = 403
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidRequest"})
+	}
+	return nil
 }

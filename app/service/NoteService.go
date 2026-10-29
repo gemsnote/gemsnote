@@ -58,7 +58,7 @@ func (this *NoteService) GetNote(noteId, userId string) (note info.Note) {
 // 不能是已经删除了的, life bug, 客户端删除后, 竟然还能在web上打开
 func (this *NoteService) GetNoteById(noteId string) (note info.Note) {
 	note = info.Note{}
-	if noteId == "" {
+	if !bson.IsObjectIdHex(noteId) {
 		return
 	}
 	db.GetByQ(db.Notes, bson.M{"_id": bson.ObjectIdHex(noteId), "IsDeleted": false}, &note)
@@ -66,7 +66,7 @@ func (this *NoteService) GetNoteById(noteId string) (note info.Note) {
 }
 func (this *NoteService) GetNoteByIdAndUserId(noteId, userId string) (note info.Note) {
 	note = info.Note{}
-	if noteId == "" || userId == "" {
+	if !bson.IsObjectIdHex(noteId) || !bson.IsObjectIdHex(userId) {
 		return
 	}
 	db.GetByQ(db.Notes, bson.M{"_id": bson.ObjectIdHex(noteId), "UserId": bson.ObjectIdHex(userId), "IsDeleted": false}, &note)

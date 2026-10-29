@@ -98,7 +98,7 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 
 	// 验证是否已登录
 	// 通过sessionService判断该token下是否有userId, 并返回userId
-	userId := sessionService.GetUserId(token)
+	userId := sessionService.FindUserId(token)
 	if noToken && userId == "" {
 		// 从session中获取, api/file/getImage, api/file/getAttach, api/file/getAllAttach
 		// 客户端
@@ -118,7 +118,19 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 	}
 
 	if userId != "" {
-		return nil // 已登录
+		// Legacy token clients keep their existing methods. Cookie-only calls
+		// must not let a cross-site GET/form mutate the authenticated account.
+		if noToken && !legacyCookieReadAction(controller, method) {
+			if c.Request.Method != "POST" {
+				c.Response.Status = 405
+				return c.RenderJSON(info.ApiRe{Ok: false, Msg: "methodNotAllowed"})
+			}
+			if c.Request.Header.Get("X-Requested-With") != "XMLHttpRequest" {
+				c.Response.Status = 403
+				return c.RenderJSON(info.ApiRe{Ok: false, Msg: "invalidRequest"})
+			}
+		}
+		return nil
 	}
 
 	// 没有登录, 返回错误的信息, 需要登录
@@ -161,4 +173,15 @@ func InitService() {
 	configService = service.ConfigS
 	emailService = service.EmailS
 	sessionService = service.SessionS
+}
+
+func legacyCookieReadAction(controller, method string) bool {
+	reads := map[string]map[string]bool{
+		"ApiUser":     {"Info": true, "GetSyncState": true},
+		"ApiNote":     {"GetSyncNotes": true, "GetSyncNotesWithContent": true, "GetNotes": true, "GetTrashNotes": true, "GetNote": true, "GetNoteAndContent": true, "GetNoteContent": true, "GetHistories": true, "GetHistoryContent": true, "ExportPdf": true},
+		"ApiNotebook": {"GetSyncNotebooks": true, "GetNotebooks": true},
+		"ApiTag":      {"GetSyncTags": true},
+		"ApiShared":   {"Capabilities": true, "SnapshotItems": true, "NoteContent": true, "NoteFile": true},
+	}
+	return reads[controller][method]
 }

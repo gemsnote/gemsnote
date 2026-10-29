@@ -128,10 +128,8 @@ func (c ApiUser) uploadImage() (ok bool, msg, url string) {
 	// 生成新的文件名
 	filename := handel.Filename
 
-	var ext string
-
-	_, ext = SplitFilename(filename)
-	if ext != ".gif" && ext != ".jpg" && ext != ".png" && ext != ".bmp" && ext != ".jpeg" {
+	ext, validImage := RasterImageExtension(data)
+	if !validImage {
 		msg = "notImage"
 		return
 	}

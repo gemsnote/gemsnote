@@ -165,7 +165,7 @@ func (this *AttachService) DeleteAttach(attachId, userId string) (bool, string) 
 // 要判断是否具有权限
 // userId是否具有attach的访问权限
 func (this *AttachService) GetAttach(attachId, userId string) (attach info.Attach) {
-	if attachId == "" {
+	if !bson.IsObjectIdHex(attachId) || !bson.IsObjectIdHex(userId) {
 		return
 	}
 
@@ -177,6 +177,9 @@ func (this *AttachService) GetAttach(attachId, userId string) (attach info.Attac
 	}
 
 	note := noteService.GetNoteById(attach.NoteId.Hex())
+	if note.NoteId == "" {
+		return info.Attach{}
+	}
 
 	// 判断权限
 

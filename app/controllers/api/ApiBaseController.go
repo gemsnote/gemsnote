@@ -23,7 +23,7 @@ type ApiBaseContrller struct {
 
 // 得到token, 这个token是在AuthInterceptor设到Session中的
 func (c ApiBaseContrller) getToken() string {
-	if token := c.GetApi2Token(); token != "" {
+	if token, ok := c.ViewArgs["Api2Token"].(string); ok {
 		return token
 	}
 	return c.GetSession("_token")
@@ -32,7 +32,7 @@ func (c ApiBaseContrller) getToken() string {
 // userId
 // _userId是在AuthInterceptor设置的
 func (c ApiBaseContrller) getUserId() string {
-	if userID := c.GetUserId(); userID != "" {
+	if userID, ok := c.ViewArgs["Api2UserId"].(string); ok {
 		return userID
 	}
 	return c.GetSession("_userId")
@@ -186,11 +186,11 @@ func (c ApiBaseContrller) upload(name string, noteId string, isAttach bool) (ok 
 	}
 	// 生成新的文件名
 	filename := handel.Filename
-	_, ext := SplitFilename(filename)
-	// if ext != ".gif" && ext != ".jpg" && ext != ".png" && ext != ".bmp" && ext != ".jpeg" {
-	// 	msg = "notImage"
-	// 	return
-	// }
+	ext, validImage := RasterImageExtension(data)
+	if !validImage {
+		msg = "notImage"
+		return
+	}
 
 	filename = newGuid + ext
 	// data, err := ioutil.ReadAll(file)

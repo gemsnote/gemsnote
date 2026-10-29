@@ -9,13 +9,7 @@ import (
 	//	"github.com/gemsnote/gemsnote/app/lea/netutil"
 	//	"github.com/gemsnote/gemsnote/app/info"
 	//	"io/ioutil"
-	"os"
 	//	"strconv"
-	"archive/tar"
-	"compress/gzip"
-	"io"
-	"strings"
-	"time"
 )
 
 // 文件操作, 图片, 头像上传, 输出
@@ -93,68 +87,5 @@ func (c ApiFile) GetAllAttachs(noteId string) revel.Result {
 		return c.RenderText("")
 	}
 
-	/*
-		dir := revel.BasePath + "/files/tmp"
-		err := os.MkdirAll(dir, 0755)
-		if err != nil {
-			return c.RenderText("")
-		}
-	*/
-
-	filename := note.Title + ".tar.gz"
-	if note.Title == "" {
-		filename = "all.tar.gz"
-	}
-
-	// file write
-	fw, err := os.Create(revel.BasePath + "/files/" + filename)
-	if err != nil {
-		return c.RenderText("")
-	}
-	// defer fw.Close() // 不需要关闭, 还要读取给用户下载
-
-	// gzip write
-	gw := gzip.NewWriter(fw)
-	defer gw.Close()
-
-	// tar write
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	// 遍历文件列表
-	for _, attach := range attachs {
-		fn := revel.BasePath + "/" + strings.TrimLeft(attach.Path, "/")
-		fr, err := os.Open(fn)
-		fileInfo, _ := fr.Stat()
-		if err != nil {
-			return c.RenderText("")
-		}
-		defer fr.Close()
-
-		// 信息头
-		h := new(tar.Header)
-		h.Name = attach.Title
-		h.Size = fileInfo.Size()
-		h.Mode = int64(fileInfo.Mode())
-		h.ModTime = fileInfo.ModTime()
-
-		// 写信息头
-		err = tw.WriteHeader(h)
-		if err != nil {
-			panic(err)
-		}
-
-		// 写文件
-		_, err = io.Copy(tw, fr)
-		if err != nil {
-			panic(err)
-		}
-	} // for
-
-	//    tw.Close()
-	//    gw.Close()
-	//    fw.Close()
-	//    file, _ := os.Open(dir + "/" + filename)
-	// fw.Seek(0, 0)
-	return c.RenderBinary(fw, filename, revel.Attachment, time.Now()) // revel.Attachment
+	return controllers.RenderAttachmentArchive(c.Controller, note.Title, attachs)
 }

@@ -9,7 +9,6 @@ import (
 
 // 找回密码
 // 修改密码
-var overHours = 2.0 // 小时后过期
 
 type PwdService struct {
 }

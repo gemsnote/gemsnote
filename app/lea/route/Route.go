@@ -32,6 +32,13 @@ func RouterFilter(c *revel.Controller, fc []revel.Filter) {
 		return
 	}
 
+	// /api2 is an explicit contract. Do not let /:controller/:action
+	// resurrect a wrong-method endpoint or an unlisted exported action.
+	if strings.HasPrefix(strings.ToLower(path), "/api2/") && len(route.Params["controller"]) != 0 {
+		c.Result = c.NotFound("No matching API2 route")
+		return
+	}
+
 	// Log("---------" + route.Action + "  " + path)
 
 	// The route may want to explicitly return a 404.

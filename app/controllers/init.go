@@ -121,25 +121,25 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 	var controller = strings.Title(c.Name)
 	var method = strings.Title(c.MethodName)
 
-	// 是否需要验证?
-	if !needValidate(controller, method) {
-		return nil
-	}
 	if isAPI2Request(c) {
-		if userID, _ := AuthenticateAPI2(c, sessionService); userID != "" {
+		userID, _ := AuthenticateAPI2(c, sessionService)
+		if !needValidate(controller, method) || userID != "" {
 			return nil
 		}
 		c.Response.Status = 401
 		return c.RenderJSON(info.Re{Ok: false, Msg: "NOTLOGIN"})
 	}
 
-	// 验证是否已登录
-	if userId, ok := c.Session["UserId"]; ok {
-		if value, valid := userId.(string); valid && sessionService.ValidateUserSession(c.Session.ID(), value) {
-			return nil // 已登录
-		}
-		delete(c.Session, "UserId")
-		delete(c.Session, "Username")
+	// Public file actions still require a validated optional cookie identity.
+	// Revoked cookies must never authorize a download.
+	if userID, ok := c.Session["UserId"].(string); ok &&
+		sessionService.ValidateUserSession(c.Session.ID(), userID) {
+		return nil
+	}
+	delete(c.Session, "UserId")
+	delete(c.Session, "Username")
+	if !needValidate(controller, method) {
+		return nil
 	}
 
 	// 没有登录, 判断是否是ajax操作
@@ -153,6 +153,9 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 }
 
 var webMutationMethods = map[string]map[string]bool{
+	"Tag":      {"UpdateTag": true, "DeleteTag": true},
+	"Album":    {"AddAlbum": true, "UpdateAlbum": true, "DeleteAlbum": true},
+	"Web":      {"Save": true, "Star": true, "Restore": true, "EmailChange": true, "AdminSettings": true, "AdminResetPwd": true, "AdminRegister": true},
 	"Notebook": {"DeleteNotebook": true, "AddNotebook": true, "UpdateNotebookTitle": true, "MoveNotebook": true, "DragNotebooks": true, "SetNotebook2Blog": true},
 	"Note":     {"UpdateNoteOrContent": true, "DeleteNote": true, "DeleteTrash": true, "MoveNote": true, "CopyNote": true, "CopySharedNote": true, "SetNote2Blog": true},
 	"Share":    {"AddShareNote": true, "AddShareNotebook": true, "UpdateShareNotePerm": true, "UpdateShareNotebookPerm": true, "DeleteShareNote": true, "DeleteShareNotebook": true, "DeleteShareNoteBySharedUser": true, "DeleteShareNotebookBySharedUser": true, "DeleteUserShareNoteAndNotebook": true, "AddShareNoteGroup": true, "DeleteShareNoteGroup": true, "UpdateShareNoteGroupPerm": true, "AddShareNotebookGroup": true, "DeleteShareNotebookGroup": true, "UpdateShareNotebookGroupPerm": true},
@@ -220,7 +223,7 @@ func init() {
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &Album{})
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &File{})
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &Attach{})
-	//	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &Blog{})
+	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &Tag{})
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &NoteContentHistory{})
 	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &Notebook{})
 	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &Note{})
@@ -228,6 +231,9 @@ func init() {
 	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &User{})
 	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &File{})
 	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &Attach{})
+	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &Tag{})
+	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &Album{})
+	revel.InterceptFunc(WebMutationInterceptor, revel.BEFORE, &Web{})
 	revel.InterceptMethod(Api2.RequireSession, revel.BEFORE)
 
 }

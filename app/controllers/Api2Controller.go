@@ -295,6 +295,11 @@ func api2HistoryArray(histories []info.EachHistory) []info.EachHistory {
 }
 
 func (c Api2) RequireSession() revel.Result {
+	// Generic /:controller/:action routes must not bypass API2 method rules.
+	if !isAPI2Request(c.Controller) {
+		c.Response.Status = 404
+		return c.RenderJSON(info.Re{Ok: false, Msg: "notFound"})
+	}
 	// Login must remain public; Logout is idempotent and may be called after a
 	// session has already expired. Bootstrap is also public so the login page
 	// can discover registration/captcha state.

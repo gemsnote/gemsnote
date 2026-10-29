@@ -375,6 +375,9 @@ func (this *ShareService) AddShareNoteToUserId(noteId string, perm int, userId, 
 // updatedUserId是否有查看userId noteId的权限?
 // userId是所有者
 func (this *ShareService) HasReadPerm(userId, updatedUserId, noteId string) bool {
+	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(updatedUserId) || !bson.IsObjectIdHex(noteId) {
+		return false
+	}
 	q := this.getOrQ(updatedUserId) // (toUserId == "xxx" || ToGroupId in (1, 2,3))
 	q["UserId"] = bson.ObjectIdHex(userId)
 	q["NoteId"] = bson.ObjectIdHex(noteId)
@@ -413,6 +416,9 @@ func (this *ShareService) HasUpdateNotebookPerm(userId, updatedUserId, notebookI
 // user, including direct and group grants. It is used by snapshot generation
 // so a stale candidate relationship never becomes authorization.
 func (this *ShareService) HasReadNotebookPerm(userId, updatedUserId, notebookId string) bool {
+	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(updatedUserId) || !bson.IsObjectIdHex(notebookId) {
+		return false
+	}
 	q := this.getOrQ(updatedUserId)
 	q["UserId"] = bson.ObjectIdHex(userId)
 	q["NotebookId"] = bson.ObjectIdHex(notebookId)

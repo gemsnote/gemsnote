@@ -183,7 +183,7 @@ func (this *FileService) GetImageBase64(userId, fileId string) string {
 // 要判断是否具有权限
 // userId是否具有fileId的访问权限
 func (this *FileService) GetFile(userId, fileId string) string {
-	if fileId == "" {
+	if !bson.IsObjectIdHex(fileId) || !bson.IsObjectIdHex(userId) {
 		return ""
 	}
 
@@ -279,7 +279,7 @@ func (this *FileService) CopyImage(userId, fileId, toUserId string) (bool, strin
 	// dir := "files/" + toUserId + "/images"
 	dir := "files/" + GetRandomFilePath(toUserId, guid) + "/images"
 	filePath := dir + "/" + newFilename
-	err := os.MkdirAll(revel.BasePath+dir, 0755)
+	err := os.MkdirAll(revel.BasePath+"/"+dir, 0755)
 	if err != nil {
 		return false, ""
 	}

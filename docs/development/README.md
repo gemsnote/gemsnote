@@ -11,6 +11,7 @@
 
 - [API2 新接口](API2.md)：Web 和新客户端使用的 `/api2` 接口规范，分别列出 1.1.0 新增合同与 1.0.0 原有接口。
 - [Legacy API 兼容说明](LEGACY_API.md)：旧 `/api` 接口、Leanote 客户端兼容范围及限制。
+- [API 安全审查与回归](API_SECURITY.md)：认证隔离、权限、文件处理及安全回归范围。
 
 Web 认证回归使用 `frontend/tests/web-auth.mjs`，连接带内置种子的独立临时
 PostgreSQL/API2 实例（仅限 `127.0.0.1:19090`），验证旧 Cookie、过期/撤销 token、

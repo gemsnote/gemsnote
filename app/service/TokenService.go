@@ -43,7 +43,7 @@ func (this *TokenService) GetOverHours(tokenType int) float64 {
 
 // 验证token, 是否存在, 过时?
 func (this *TokenService) VerifyToken(token string, tokenType int) (ok bool, msg string, tokenInfo info.Token) {
-	overHours = this.GetOverHours(tokenType)
+	overHours := this.GetOverHours(tokenType)
 
 	ok = false
 	if token == "" {
@@ -51,9 +51,9 @@ func (this *TokenService) VerifyToken(token string, tokenType int) (ok bool, msg
 		return
 	}
 
-	db.GetByQ(db.Tokens, bson.M{"Token": token}, &tokenInfo)
+	db.GetByQ(db.Tokens, bson.M{"Token": token, "Type": tokenType}, &tokenInfo)
 
-	if tokenInfo.UserId == "" {
+	if tokenInfo.UserId == "" || tokenInfo.Type != tokenType {
 		msg = "不存在"
 		return
 	}
@@ -62,7 +62,7 @@ func (this *TokenService) VerifyToken(token string, tokenType int) (ok bool, msg
 	now := time.Now()
 	duration := now.Sub(tokenInfo.CreatedTime)
 
-	if duration.Hours() > overHours {
+	if duration < 0 || duration.Hours() > overHours {
 		msg = "过期"
 		return
 	}
