@@ -192,7 +192,17 @@ function appendUpload(value:string){content.value+=(content.value&& !content.val
 async function uploadImage(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value)return;try{const result:any=await upload('/file/pasteImage',file,{noteId:current.value.Note.NoteId});if(!result.Id)throw new Error(result.Msg||t('图片上传失败'));const src='/api2/file/getImage?fileId='+encodeURIComponent(result.Id);appendUpload(current.value.Note.IsMarkdown?`![${file.name}](${src})`:`<img src="${src}" alt="${file.name}">`)}catch(e){error.value=String(e)}}
 async function uploadAttach(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value||!await flush())return;try{await upload('/attach/uploadAttach',file,{noteId:current.value.Note.NoteId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId);panel.value='attachments'}catch(e){error.value=String(e)}}
 async function deleteAttach(attachId:string){if(!await confirmAction(t('删除此附件？'))||!await flush())return;try{await request('/attach/deleteAttach',{attachId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}}
-function download(){const blob=new Blob([content.value],{type:current.value.Note.IsMarkdown?'text/markdown':'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=(title.value||'note')+(current.value.Note.IsMarkdown?'.md':'.html');a.click();URL.revokeObjectURL(url)}
+const exporting=ref(false),exportNotice=ref('')
+async function download(){
+ if(!current.value||exporting.value)return
+ const noteId=current.value.Note.NoteId;exporting.value=true;exportNotice.value='';error.value=''
+ try{
+  if(!await flush())return
+  if(boot.value.Desktop){const result=await request('/desktop/export',{noteId});if(!result.Cancelled)exportNotice.value=t('笔记已导出');return}
+  const blob=new Blob([content.value],{type:current.value.Note.IsMarkdown?'text/markdown;charset=utf-8':'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a')
+  a.href=url;a.download=(title.value||'note')+(current.value.Note.IsMarkdown?'.md':'.html');document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)
+ }catch(e){error.value=String(e)}finally{exporting.value=false}
+}
 function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value||importDialog.value?.pending){e.preventDefault();e.returnValue=''}}
 function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();flush()}}
 function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
@@ -298,6 +308,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div class="resize-handle" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="t('调节笔记栏宽度')" :aria-valuenow="notesWidth" aria-valuemin="180" aria-valuemax="520" @keydown.arrow-left.prevent="resizeBy('notes',-10)" @keydown.arrow-right.prevent="resizeBy('notes',10)" @pointerdown.prevent="resizePanel('notes',$event)"></div>
 </section>
 <main class="editor">
+<p v-if="exportNotice" class="sync-success" role="status">{{exportNotice}} <button @click="exportNotice=''">{{t('关闭')}}</button></p>
 <p v-if="error" role="alert" class="error">{{error}} <button @click="error=''">{{t('关闭')}}</button>
 </p>
 <template v-if="current">
@@ -313,7 +324,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <button v-else-if="isSharedNote" @click="destination='';panel='move'">{{t('复制到我的笔记本')}}</button>
 <button v-if="own&&!trash" @click="showShare">{{t('共享')}}</button>
 <button v-if="own" @click="history">{{t('历史')}}</button>
-<button @click="download">{{t('导出')}}</button>
+<button :disabled="exporting" @click="download">{{t('导出')}}</button>
 <button v-if="trash&&own" @click="restore">{{t('恢复')}}</button>
 <button v-if="own||writable" @click="remove">{{t('删除')}}</button>
 </div>

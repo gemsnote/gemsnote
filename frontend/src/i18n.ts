@@ -7,6 +7,7 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '笔记已导出':'Note exported', 'exportUnavailable':'Native export is unavailable. Rebuild the desktop app.', 'exportSaveFailed':'Could not export the note. Check the destination and permissions.',
  '文件已丢失':'File missing', '图片无法加载':'Image unavailable', '重试下载':'Retry download', '添加附件':'Add attachment',
  'attachmentMissing':'The file is still missing on the server.', 'attachmentUnavailable':'This attachment cannot be downloaded.', 'attachmentChanged':'This attachment changed. Refresh the note and try again.',
  '导入 Markdown':'Import Markdown',
@@ -193,6 +194,7 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ exportUnavailable:'本地导出不可用，请重新构建桌面端', exportSaveFailed:'导出失败，请检查保存位置和权限',
  attachmentMissing:'服务端文件仍然缺失', attachmentUnavailable:'此附件当前无法下载', attachmentChanged:'附件已发生变化，请刷新笔记后重试',
  historyFileMissing:'历史文件已丢失，无法完整恢复此版本',
  historyFilesUnknown:'此历史版本缺少完整附件清单，仅支持恢复正文',
