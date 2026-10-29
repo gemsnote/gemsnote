@@ -63,6 +63,9 @@ CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
 
 cp -R conf messages public app/views mongodb_backup database docs \
   "$stage_dir/gemsnote/"
+mkdir -p "$stage_dir/gemsnote/mail-worker"
+cp mail-worker/tasks.py mail-worker/requirements.txt mail-worker/Dockerfile \
+  "$stage_dir/gemsnote/mail-worker/"
 mkdir -p "$stage_dir/gemsnote/frontend"
 cp -R frontend/dist "$stage_dir/gemsnote/frontend/"
 cp README.md "$stage_dir/gemsnote/"

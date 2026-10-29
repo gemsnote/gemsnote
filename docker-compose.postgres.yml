@@ -17,6 +17,8 @@ services:
       - ./database/seed.sql:/docker-entrypoint-initdb.d/002-gemsnote-seed.sql:ro
 
   gemsnote:
+    environment:
+      GEMSNOTE_MAIL_REDIS_URL: redis://mail-redis:6379/0
     build: .
     image: gemsnote:1.0.0
     container_name: gemsnote
@@ -34,3 +36,29 @@ services:
           create_host_path: false
       - ./files:/opt/gemsnote/files
       - ./public/upload:/opt/gemsnote/public/upload
+
+  mail-redis:
+    image: redis:7-alpine
+    profiles: [mail]
+    restart: unless-stopped
+    command: [redis-server, --appendonly, "yes"]
+    volumes:
+      - mail-redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mail-worker:
+    profiles: [mail]
+    build: ./mail-worker
+    restart: unless-stopped
+    environment:
+      GEMSNOTE_MAIL_REDIS_URL: redis://mail-redis:6379/0
+    depends_on:
+      mail-redis:
+        condition: service_healthy
+
+volumes:
+  mail-redis-data:

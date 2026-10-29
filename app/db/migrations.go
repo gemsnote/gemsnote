@@ -38,6 +38,13 @@ var migrations = []migration{
 		}
 		return nil // MongoDB documents need no backfill; absent state is protected.
 	}},
+	{version: "1.2.0", up: func(database Database) error {
+		if postgres, ok := database.(*PostgresDatabase); ok {
+			_, err := postgres.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT ''`)
+			return err
+		}
+		return nil
+	}},
 }
 
 func migrate(database Database) error {

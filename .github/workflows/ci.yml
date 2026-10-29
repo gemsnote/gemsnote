@@ -39,6 +39,18 @@ jobs:
       - name: Test
         run: go test ./...
 
+
+      - name: Set up Python for mail integration
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test Celery mail delivery
+        run: |
+          python -m venv "$RUNNER_TEMP/mail-test-venv"
+          "$RUNNER_TEMP/mail-test-venv/bin/pip" install -r mail-worker/tests/requirements.txt
+          MAIL_TEST_VENV="$RUNNER_TEMP/mail-test-venv" bash scripts/test-mail-queue.sh
+
       - name: Generate Revel entrypoint
         run: go run ./app/cmd build . "$RUNNER_TEMP/gemsnote-revel-build" prod
 

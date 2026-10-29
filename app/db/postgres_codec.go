@@ -187,6 +187,13 @@ func postgresUpsertDocument(query bson.M, data interface{}) bson.M {
 	update := postgresUpdateMap(data)
 	for key, value := range update {
 		if !strings.HasPrefix(key, "$") {
+			// Structs use the SQL name "id", while Mongo-compatible selectors
+			// use "_id". They refer to one column, not two INSERT fields.
+			if key == "id" {
+				delete(document, "_id")
+			} else if key == "_id" {
+				delete(document, "id")
+			}
 			document[key] = value
 			continue
 		}

@@ -302,8 +302,8 @@ func (c Api2) RequireSession() revel.Result {
 	}
 	// Login must remain public; Logout is idempotent and may be called after a
 	// session has already expired. Bootstrap is also public so the login page
-	// can discover registration/captcha state.
-	if c.MethodName == "Login" || c.MethodName == "TokenLogin" || c.MethodName == "Logout" || c.MethodName == "Register" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
+	// can discover login/captcha state.
+	if c.MethodName == "Login" || c.MethodName == "TokenLogin" || c.MethodName == "Logout" || c.MethodName == "RequestPasswordReset" || c.MethodName == "ResetPassword" {
 		return nil
 	}
 	userID, _ := AuthenticateAPI2(c.Controller, sessionService)
@@ -334,5 +334,25 @@ func intString(v int) string {
 
 func (c Api2) RestoreHistory(noteId, historyId string, usn int) revel.Result {
 	ok, msg := noteContentHistoryService.Restore(noteId, c.GetUserId(), historyId, usn)
+	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
+}
+
+// AdminRole accepts JSON and rechecks authority within the database operation.
+func (c Api2) AdminRole() revel.Result {
+	if !configService.IsAdmin(c.GetUserId()) {
+		c.Response.Status = 403
+		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
+	}
+	var p struct {
+		UserID string `json:"userId"`
+		Role   string `json:"role"`
+	}
+	if err := c.body(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	ok, msg := service.UserS.SetRole(c.GetUserId(), p.UserID, p.Role)
+	if msg == "noAuth" {
+		c.Response.Status = 403
+	}
 	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }

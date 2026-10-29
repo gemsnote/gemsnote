@@ -517,3 +517,7 @@ go test ./...
 数据库 CRUD 和迁移往返测试需要按[数据库抽象指南](development/DATABASE_ABSTRACTION_README.md)设置对应的集成测试环境变量。服务端的 GitHub Actions 会在每次 push 和 Pull Request 中执行前端测试、Go 测试、构建校验和 Docker 构建。
 
 推送与应用版本一致的 `MAJOR.MINOR.PATCH` Git 标签（如 `1.0.0`，不带 `v`）后，Actions 会构建 Release 包并发布同名 GHCR 多架构镜像，也可以手动指定已有 tag 发布。标签须指向包含新版工作流的提交；构建产物文件名仍使用 `-v<version>`。本地构建、tag 要求及发布产物详见[自动化构建与发布](development/RELEASE.md)。
+
+## 异步邮件服务
+
+邮箱验证、更换邮箱和找回密码由 Celery + Redis 异步发送。Docker 使用 `--profile mail` 启动邮件服务；Release/源码部署需另行运行 worker。SMTP 配置、管理员入口和故障排查见[异步邮件部署](MAIL.md)。

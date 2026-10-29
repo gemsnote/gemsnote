@@ -79,3 +79,20 @@ func TestBuildPostgresSetSupportsAtomicUpdates(t *testing.T) {
 		t.Fatalf("unexpected update: %q %#v", joined, args)
 	}
 }
+
+func TestPostgresTokenUpsertHasOnePrimaryKey(t *testing.T) {
+	id := bson.NewObjectId()
+	document := postgresUpsertDocument(bson.M{"_id": id}, info.Token{UserId: id, Email: "new@example.test", Token: "verification", Type: info.TokenUpdateEmail})
+	count := 0
+	for key := range document {
+		if postgresColumn(key) == "id" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("token upsert inserts %d primary-key columns", count)
+	}
+	if document["id"] != id {
+		t.Fatal("token upsert lost the user ID")
+	}
+}

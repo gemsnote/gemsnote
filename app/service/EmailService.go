@@ -2,17 +2,18 @@ package service
 
 import (
 	"bytes"
-	"crypto/tls"
+	"errors"
 	"fmt"
+	"github.com/garyburd/redigo/redis"
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"gopkg.in/mgo.v2/bson"
 	"html/template"
-	"net"
-	"net/smtp"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,198 +21,93 @@ import (
 
 type EmailService struct {
 	tpls map[string]*template.Template
+	mu   sync.Mutex
 }
 
 func NewEmailService() *EmailService {
 	return &EmailService{tpls: map[string]*template.Template{}}
 }
 
-// 发送邮件
-var host = ""
-var emailPort = ""
-var username = ""
-var password = ""
-var ssl = false
-
-func InitEmailFromDb() {
-	host = configService.GetGlobalStringConfig("emailHost")
-	emailPort = configService.GetGlobalStringConfig("emailPort")
-	username = configService.GetGlobalStringConfig("emailUsername")
-	password = configService.GetGlobalStringConfig("emailPassword")
-	if configService.GetGlobalStringConfig("emailSSL") == "1" {
-		ssl = true
+// SendEmail reports queue acceptance; SMTP delivery runs exclusively in Celery.
+func (this *EmailService) SendEmail(to, subject, body string) (bool, string) {
+	_, err := this.QueueEmail("", to, subject, body)
+	if err != nil {
+		return false, err.Error()
 	}
+	return true, ""
+}
+func (this *EmailService) RegisterSendActiveEmail(userInfo info.User, email string) bool {
+	_, err := this.QueueVerification(userInfo, email, info.TokenActiveEmail)
+	return err == nil
+}
+func (this *EmailService) UpdateEmailSendActiveEmail(userInfo info.User, email string) (bool, string) {
+	_, err := this.QueueVerification(userInfo, email, info.TokenUpdateEmail)
+	if err != nil {
+		return false, err.Error()
+	}
+	return true, ""
 }
 
-// return a smtp client
-func dial(addr string) (*smtp.Client, error) {
-	conn, err := tls.Dial("tcp", addr, nil)
-	if err != nil {
-		LogW("Dialing Error:", err)
-		return nil, err
+// Reserve before creating a token: repeated submissions must not invalidate an
+// already queued verification message. The cooldown is shared across workers.
+func (this *EmailService) QueueVerification(user info.User, email string, kind int) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !IsEmail(email) {
+		return "", errors.New("invalidEmail")
 	}
-	//分解主机端口字符串
-	host, _, _ := net.SplitHostPort(addr)
-	return smtp.NewClient(conn, host)
-}
-
-func SendEmailWithSSL(auth smtp.Auth, to []string, msg []byte) (err error) {
-	//create smtp client
-	c, err := dial(host + ":" + emailPort)
+	if kind == info.TokenUpdateEmail {
+		if strings.EqualFold(user.Email, email) {
+			return "", errors.New("emailUnchanged")
+		}
+		if userService.IsExistsUser(email) {
+			return "", errors.New("该邮箱已注册")
+		}
+	}
+	site := strings.TrimRight(configService.GetSiteUrl(), "/")
+	parsed, err := url.Parse(site)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", errors.New("mailSiteURLInvalid")
+	}
+	c, err := mailConnect()
 	if err != nil {
-		LogW("Create smpt client error:", err)
-		return err
+		return "", err
 	}
 	defer c.Close()
-
-	if auth != nil {
-		if ok, _ := c.Extension("AUTH"); ok {
-			if err = c.Auth(auth); err != nil {
-				LogW("Error during AUTH", err)
-				return err
-			}
+	key := "gemsnote:mail:verification:" + user.UserId.Hex()
+	lease := bson.NewObjectId().Hex()
+	reserved, err := redis.String(c.Do("SET", key, lease, "NX", "EX", 60))
+	if err == redis.ErrNil {
+		return "", errors.New("mailRateLimited")
+	}
+	if err != nil || reserved != "OK" {
+		return "", errors.New("mailQueueUnavailable")
+	}
+	accepted := false
+	defer func() {
+		if !accepted {
+			redis.NewScript(1, `if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end return 0`).Do(c, key, lease)
 		}
+	}()
+	prefix, path := "emailTemplateRegister", "/user/activeEmail"
+	if kind == info.TokenUpdateEmail {
+		prefix, path = "emailTemplateUpdateEmail", "/user/updateEmail"
 	}
-
-	if err = c.Mail(username); err != nil {
-		return err
+	subject, tpl := configService.GetGlobalStringConfig(prefix+"Subject"), configService.GetGlobalStringConfig(prefix)
+	if subject == "" || tpl == "" {
+		return "", errors.New("mailTemplateInvalid")
 	}
-
-	for _, addr := range to {
-		if err = c.Rcpt(addr); err != nil {
-			return err
-		}
-	}
-
-	w, err := c.Data()
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(msg)
-	if err != nil {
-		return err
-	}
-
-	err = w.Close()
-	if err != nil {
-		return err
-	}
-
-	return c.Quit()
-}
-
-func (this *EmailService) SendEmail(to, subject, body string) (ok bool, e string) {
-	InitEmailFromDb()
-
-	if host == "" || emailPort == "" || username == "" || password == "" {
-		return
-	}
-	hp := strings.Split(host, ":")
-	auth := smtp.PlainAuth("", username, password, hp[0])
-
-	var content_type string
-
-	mailtype := "html"
-	if mailtype == "html" {
-		content_type = "Content-Type: text/" + mailtype + "; charset=UTF-8"
-	} else {
-		content_type = "Content-Type: text/plain" + "; charset=UTF-8"
-	}
-
-	msg := []byte("To: " + to + "\r\nFrom: " + username + "<" + username + ">\r\nSubject: " + subject + "\r\n" + content_type + "\r\n\r\n" + body)
-	send_to := strings.Split(to, ";")
-
-	var err error
-	if ssl {
-		err = SendEmailWithSSL(auth, send_to, msg)
-	} else {
-		Log("no ssl")
-		err = smtp.SendMail(host+":"+emailPort, auth, username, send_to, msg)
-	}
-
-	if err != nil {
-		e = fmt.Sprint(err)
-		return
-	}
-	ok = true
-	return
-}
-
-// AddUser调用
-// 可以使用一个goroutine
-func (this *EmailService) RegisterSendActiveEmail(userInfo info.User, email string) bool {
-	token := tokenService.NewToken(userInfo.UserId.Hex(), email, info.TokenActiveEmail)
+	token := tokenService.NewToken(user.UserId.Hex(), email, kind)
 	if token == "" {
-		return false
+		return "", errors.New("mailTokenFailed")
 	}
-
-	subject := configService.GetGlobalStringConfig("emailTemplateRegisterSubject")
-	tpl := configService.GetGlobalStringConfig("emailTemplateRegister")
-
-	if tpl == "" {
-		return false
-	}
-
-	tokenUrl := configService.GetSiteUrl() + "/user/activeEmail?token=" + token
-	// {siteUrl} {tokenUrl} {token} {tokenTimeout} {user.id} {user.email} {user.username}
-	token2Value := map[string]interface{}{"siteUrl": configService.GetSiteUrl(), "tokenUrl": tokenUrl, "token": token, "tokenTimeout": strconv.Itoa(int(tokenService.GetOverHours(info.TokenActiveEmail))),
-		"user": map[string]interface{}{
-			"userId":   userInfo.UserId.Hex(),
-			"email":    userInfo.Email,
-			"username": userInfo.Username,
-		},
-	}
-
-	var ok bool
-	ok, _, subject, tpl = this.renderEmail(subject, tpl, token2Value)
+	values := map[string]interface{}{"siteUrl": site, "tokenUrl": site + path + "?token=" + url.QueryEscape(token), "token": token, "tokenTimeout": strconv.Itoa(int(tokenService.GetOverHours(kind))), "newEmail": email, "user": map[string]interface{}{"userId": user.UserId.Hex(), "email": user.Email, "username": user.Username}}
+	ok, _, subject, body := this.renderEmail(subject, tpl, values)
 	if !ok {
-		return false
+		return "", errors.New("mailTemplateInvalid")
 	}
-
-	// 发送邮件
-	ok, _ = this.SendEmail(email, subject, tpl)
-	return ok
-}
-
-// 修改邮箱
-func (this *EmailService) UpdateEmailSendActiveEmail(userInfo info.User, email string) (ok bool, msg string) {
-	// 先验证该email是否被注册了
-	if userService.IsExistsUser(email) {
-		ok = false
-		msg = "该邮箱已注册"
-		return
-	}
-
-	token := tokenService.NewToken(userInfo.UserId.Hex(), email, info.TokenUpdateEmail)
-
-	if token == "" {
-		return
-	}
-
-	subject := configService.GetGlobalStringConfig("emailTemplateUpdateEmailSubject")
-	tpl := configService.GetGlobalStringConfig("emailTemplateUpdateEmail")
-
-	// 发送邮件
-	tokenUrl := configService.GetSiteUrl() + "/user/updateEmail?token=" + token
-	// {siteUrl} {tokenUrl} {token} {tokenTimeout} {user.userId} {user.email} {user.username}
-	token2Value := map[string]interface{}{"siteUrl": configService.GetSiteUrl(), "tokenUrl": tokenUrl, "token": token, "tokenTimeout": strconv.Itoa(int(tokenService.GetOverHours(info.TokenActiveEmail))),
-		"newEmail": email,
-		"user": map[string]interface{}{
-			"userId":   userInfo.UserId.Hex(),
-			"email":    userInfo.Email,
-			"username": userInfo.Username,
-		},
-	}
-
-	ok, msg, subject, tpl = this.renderEmail(subject, tpl, token2Value)
-	if !ok {
-		return
-	}
-
-	// 发送邮件
-	ok, msg = this.SendEmail(email, subject, tpl)
-	return
+	id, err := this.QueueEmail(user.UserId.Hex(), email, subject, body)
+	accepted = err == nil
+	return id, err
 }
 
 func (this *EmailService) FindPwdSendEmail(token, email string) (ok bool, msg string) {
@@ -328,6 +224,8 @@ func (this *EmailService) ValidTpl(str string) (ok bool, msg string) {
 
 // ok, msg, subject, tpl
 func (this *EmailService) getTpl(str string) (ok bool, msg string, tpl *template.Template) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	defer func() {
 		if err := recover(); err != nil {
 			ok = false
@@ -403,86 +301,49 @@ func (this *EmailService) renderEmail(subject, body string, values map[string]in
 	return
 }
 
-// 发送email给用户
-// 需要记录
-func (this *EmailService) SendEmailToUsers(users []info.User, subject, body string) (ok bool, msg string) {
-	if users == nil || len(users) == 0 {
-		msg = "no users"
-		return
+// Bulk methods synchronously report queue acceptance; Celery performs delivery.
+// Never leave queue failures hidden inside a detached goroutine.
+func (this *EmailService) SendEmailToUsers(users []info.User, subject, body string) (bool, string) {
+	if len(users) == 0 {
+		return false, "no users"
 	}
-
-	// 尝试renderHtml
-	ok, msg, _, _ = this.renderEmail(subject, body, map[string]interface{}{})
-	if !ok {
-		Log(msg)
-		return
-	}
-
-	go func() {
-		for _, user := range users {
-			LogJ(user)
-			m := map[string]interface{}{}
-			m["userId"] = user.UserId.Hex()
-			m["username"] = user.Username
-			m["email"] = user.Email
-			ok2, msg2, subject2, body2 := this.renderEmail(subject, body, m)
-			ok = ok2
-			msg = msg2
-			if ok2 {
-				sendOk, msg := this.SendEmail(user.Email, subject2, body2)
-				this.AddEmailLog(user.Email, subject, body, sendOk, msg) // 把模板记录下
-				// 记录到Email Log
-				if sendOk {
-					// Log("ok " + user.Email)
-				} else {
-					// Log("no " + user.Email)
-				}
-			} else {
-				// Log(msg);
-			}
+	for _, user := range users {
+		ok, msg, renderedSubject, renderedBody := this.renderEmail(subject, body, map[string]interface{}{"userId": user.UserId.Hex(), "username": user.Username, "email": user.Email})
+		if !ok {
+			return false, msg
 		}
-	}()
-
-	return
+		if ok, msg = this.queueLoggedEmail(user.Email, renderedSubject, renderedBody); !ok {
+			return false, msg
+		}
+	}
+	return true, ""
 }
-
-func (this *EmailService) SendEmailToEmails(emails []string, subject, body string) (ok bool, msg string) {
-	if emails == nil || len(emails) == 0 {
-		msg = "no emails"
-		return
+func (this *EmailService) SendEmailToEmails(emails []string, subject, body string) (bool, string) {
+	if len(emails) == 0 {
+		return false, "no emails"
 	}
-
-	// 尝试renderHtml
-	ok, msg, _, _ = this.renderEmail(subject, body, map[string]interface{}{})
-	if !ok {
-		Log(msg)
-		return
-	}
-
-	//	go func() {
 	for _, email := range emails {
 		if email == "" {
 			continue
 		}
-		m := map[string]interface{}{}
-		m["email"] = email
-		ok, msg, subject, body = this.renderEmail(subject, body, m)
-		if ok {
-			sendOk, msg := this.SendEmail(email, subject, body)
-			this.AddEmailLog(email, subject, body, sendOk, msg)
-			// 记录到Email Log
-			if sendOk {
-				Log("ok " + email)
-			} else {
-				Log("no " + email)
-			}
-		} else {
-			Log(msg)
+		ok, msg, renderedSubject, renderedBody := this.renderEmail(subject, body, map[string]interface{}{"email": email})
+		if !ok {
+			return false, msg
+		}
+		if ok, msg = this.queueLoggedEmail(email, renderedSubject, renderedBody); !ok {
+			return false, msg
 		}
 	}
-	//	}()
-
-	return
+	return true, ""
+}
+func (this *EmailService) queueLoggedEmail(to, subject, body string) (bool, string) {
+	id, err := this.QueueEmail("", to, subject, body)
+	if err != nil {
+		this.AddEmailLog(to, subject, body, false, err.Error())
+		return false, err.Error()
+	}
+	this.AddEmailLog(to, subject, body, true, "queued:"+id)
+	return true, ""
 }
 
 // 添加邮件日志

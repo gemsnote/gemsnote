@@ -49,7 +49,7 @@ func (c Web) Bootstrap() revel.Result {
 	}
 	tags := tagService.GetUsedTags(userId)
 	starredCount, _ := noteService.ListStarNotes(userId, 1, 1, "UpdatedTime", false)
-	return c.RenderJSON(map[string]interface{}{"Ok": true, "User": c.GetUserInfo(), "IsAdmin": c.GetUsername() == configService.GetAdminUsername(), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()})
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "User": c.GetUserInfo(), "IsAdmin": configService.IsAdmin(c.GetUserId()), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()})
 }
 
 func (c Web) RequireSession() revel.Result {
@@ -196,16 +196,30 @@ func (c Web) ShareMembers(noteId string) revel.Result {
 	return c.RenderJSON(map[string]interface{}{"Users": shareService.ListNoteShareUserInfo(noteId, c.GetUserId())})
 }
 
-func (c Web) EmailChange(email, pwd string) revel.Result {
-	if !lea.IsEmail(email) {
-		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidEmail"})
+func (c Web) EmailChange(email, pwd string, current bool) revel.Result {
+	user := c.GetUserInfo()
+	kind := info.TokenActiveEmail
+	if current {
+		email = user.Email
+	} else {
+		verified, err := authService.Login(user.Email, pwd)
+		if err != nil || verified.UserId != user.UserId {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "wrongPassword"})
+		}
+		kind = info.TokenUpdateEmail
 	}
-	user, err := authService.Login(c.GetEmail(), pwd)
-	if err != nil || user.UserId.Hex() != c.GetUserId() {
-		return c.RenderJSON(info.Re{Ok: false, Msg: "wrongPassword"})
+	id, err := emailService.QueueVerification(user, email, kind)
+	if err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
 	}
-	ok, msg := emailService.UpdateEmailSendActiveEmail(user, email)
-	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "TaskId": id, "State": "queued"})
+}
+func (c Web) EmailStatus(taskId string) revel.Result {
+	status, err := service.GetMailStatus(c.GetUserId(), taskId)
+	if err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
+	}
+	return c.RenderJSON(status)
 }
 
 func (c Web) VerifyEmail(token string, change bool) revel.Result {
@@ -219,7 +233,7 @@ func (c Web) VerifyEmail(token string, change bool) revel.Result {
 	return c.RenderJSON(map[string]interface{}{"Ok": ok, "Msg": msg, "Email": email})
 }
 
-func (c Web) isAdmin() bool { return c.GetUsername() == configService.GetAdminUsername() }
+func (c Web) isAdmin() bool { return configService.IsAdmin(c.GetUserId()) }
 
 var webSettingKeys = []string{
 	"siteUrl", "emailHost", "emailPort", "emailUsername", "emailPassword", "emailSSL",
@@ -241,7 +255,19 @@ func (c Web) AdminData(keywords string, page int) revel.Result {
 			settings[key] = configService.GetGlobalStringConfig(key)
 		}
 	}
-	return c.RenderJSON(map[string]interface{}{"Users": users, "Settings": settings})
+	type adminUser struct {
+		info.User
+		Role string
+	}
+	result := make([]adminUser, 0, len(users))
+	for _, user := range users {
+		role := info.RoleUser
+		if user.Role == info.RoleAdmin {
+			role = info.RoleAdmin
+		}
+		result = append(result, adminUser{user, role})
+	}
+	return c.RenderJSON(map[string]interface{}{"Users": result, "Settings": settings})
 }
 
 func (c Web) AdminSettings() revel.Result {

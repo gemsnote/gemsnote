@@ -12,12 +12,14 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 // 配置服务
 // 只是全局的, 用户的配置没有
 type ConfigService struct {
+	configMu      sync.RWMutex
 	adminUserId   string
 	siteUrl       string
 	adminUsername string
@@ -43,12 +45,6 @@ func (this *ConfigService) InitGlobalConfigs() bool {
 	}
 	this.siteUrl, _ = revel.Config.String("site.url")
 
-	userInfo := userService.GetUserInfoByAny(this.adminUsername)
-	if userInfo.UserId == "" {
-		return false
-	}
-	this.adminUserId = userInfo.UserId.Hex()
-
 	configs := []info.Config{}
 	// db.ListByQ(db.Configs, bson.M{"UserId": userInfo.UserId}, &configs)
 	db.ListByQ(db.Configs, bson.M{}, &configs)
@@ -69,8 +65,41 @@ func (this *ConfigService) InitGlobalConfigs() bool {
 		}
 	}
 
+	// Retain the original administrator only as the bootstrap identity. Roles
+	// in user records are authoritative after initialization.
+	adminID, _ := revel.Config.String("adminUserId")
+	if adminID == "" {
+		adminID = this.GlobalStringConfigs["adminUserId"]
+	}
+	var userInfo info.User
+	if adminID != "" {
+		if !bson.IsObjectIdHex(adminID) {
+			return false
+		}
+		userInfo = userService.GetUserInfo(adminID)
+	} else {
+		userInfo = userService.GetUserInfoByAny(this.adminUsername)
+	}
+	if userInfo.UserId == "" {
+		return false
+	}
+	this.adminUserId = userInfo.UserId.Hex()
+	this.adminUsername = userInfo.Username
+	// Empty means a legacy account without an explicit role. Never re-promote
+	// an administrator whose role was explicitly changed to "user".
+	if userInfo.Role == "" {
+		if !db.UpdateByQField(db.Users, bson.M{"_id": userInfo.UserId, "$or": []bson.M{{"Role": ""}, {"Role": bson.M{"$exists": false}}}}, "Role", info.RoleAdmin) {
+			return false
+		}
+	}
+	if this.GlobalStringConfigs["adminUserId"] != this.adminUserId {
+		if !this.UpdateGlobalStringConfig(this.adminUserId, "adminUserId", this.adminUserId) {
+			return false
+		}
+	}
+
 	// site URL
-	if s, ok := this.GlobalStringConfigs["siteUrl"]; !ok || s != "" {
+	if s, ok := this.GlobalStringConfigs["siteUrl"]; !ok || s == "" {
 		this.GlobalStringConfigs["siteUrl"] = this.siteUrl
 	}
 
@@ -94,6 +123,8 @@ func (this *ConfigService) GetAdminUserId() string {
 
 // 通用方法
 func (this *ConfigService) updateGlobalConfig(userId, key string, value interface{}, isArr, isMap, isArrMap bool) bool {
+	this.configMu.Lock()
+	defer this.configMu.Unlock()
 	// 判断是否存在
 	if _, ok := this.GlobalAllConfigs[key]; !ok {
 		// 需要添加
@@ -122,7 +153,11 @@ func (this *ConfigService) updateGlobalConfig(userId, key string, value interfac
 			config.ValueStr = v
 			this.GlobalStringConfigs[key] = v
 		}
-		return db.Insert(db.Configs, config)
+		if !db.Insert(db.Configs, config) {
+			return false
+		}
+		this.GlobalAllConfigs[key] = value
+		return true
 	} else {
 		i := bson.M{"UpdatedTime": time.Now()}
 		this.GlobalAllConfigs[key] = value
@@ -164,9 +199,13 @@ func (this *ConfigService) UpdateGlobalArrMapConfig(userId, key string, value []
 
 // 获取全局配置, 博客平台使用
 func (this *ConfigService) GetGlobalStringConfig(key string) string {
+	this.configMu.RLock()
+	defer this.configMu.RUnlock()
 	return this.GlobalStringConfigs[key]
 }
 func (this *ConfigService) GetGlobalArrayConfig(key string) []string {
+	this.configMu.RLock()
+	defer this.configMu.RUnlock()
 	arr := this.GlobalArrayConfigs[key]
 	if arr == nil {
 		return []string{}
@@ -174,6 +213,8 @@ func (this *ConfigService) GetGlobalArrayConfig(key string) []string {
 	return arr
 }
 func (this *ConfigService) GetGlobalMapConfig(key string) map[string]string {
+	this.configMu.RLock()
+	defer this.configMu.RUnlock()
 	m := this.GlobalMapConfigs[key]
 	if m == nil {
 		return map[string]string{}
@@ -181,6 +222,8 @@ func (this *ConfigService) GetGlobalMapConfig(key string) map[string]string {
 	return m
 }
 func (this *ConfigService) GetGlobalArrMapConfig(key string) []map[string]string {
+	this.configMu.RLock()
+	defer this.configMu.RUnlock()
 	m := this.GlobalArrMapConfigs[key]
 	if m == nil {
 		return []map[string]string{}
@@ -604,4 +647,9 @@ func (this *ConfigService) HomePageIsAdminsBlog() bool {
 
 func (this *ConfigService) GetVersion() string {
 	return appversion.Current
+}
+
+// IsAdmin never grants privileges to an anonymous user or a reused username.
+func (this *ConfigService) IsAdmin(userID string) bool {
+	return bson.IsObjectIdHex(userID) && userService.GetUserInfo(userID).Role == info.RoleAdmin
 }

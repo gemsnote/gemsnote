@@ -92,10 +92,12 @@ POST    /api2/web/save                          Web.Save
 POST    /api2/web/restore                       Web.Restore
 GET     /api2/web/groups                        Web.Groups
 POST    /api2/web/shareMembers                  Web.ShareMembers
+POST    /api2/admin/role                        Api2.AdminRole
 POST    /api2/web/adminData                     Web.AdminData
 POST    /api2/web/adminSettings                 Web.AdminSettings
 POST    /api2/web/adminResetPwd                 Web.AdminResetPwd
 POST    /api2/web/adminRegister                 Web.AdminRegister
+POST    /api2/user/emailStatus                  Web.EmailStatus
 POST    /api2/web/emailChange                   Web.EmailChange
 POST    /api2/web/verifyEmail                   Web.VerifyEmail
 POST    /api2/member/group/addGroup             MemberGroup.AddGroup

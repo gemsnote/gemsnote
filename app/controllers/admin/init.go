@@ -77,8 +77,7 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 	}
 	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
 		if userID, _ := controllers.AuthenticateAPI2(c, sessionService); userID != "" {
-			user := userService.GetUserInfo(userID)
-			if user.Username == configService.GetAdminUsername() {
+			if configService.IsAdmin(userID) {
 				return nil
 			}
 		}
@@ -97,9 +96,8 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 
 	// 验证是否已登录
 	// 必须是管理员
-	username, usernameOK := c.Session["Username"].(string)
 	userId, userIDOK := c.Session["UserId"].(string)
-	if usernameOK && userIDOK && username == configService.GetAdminUsername() &&
+	if userIDOK && configService.IsAdmin(userId) &&
 		sessionService.ValidateUserSession(c.Session.ID(), userId) {
 		return nil // 已登录
 	}

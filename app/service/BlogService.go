@@ -762,7 +762,7 @@ func (this *BlogService) DeleteComment(noteId, commentId, userId string) bool {
 		return false
 	}
 
-	if userId == configService.GetAdminUserId() || note.UserId.Hex() == userId || comment.UserId.Hex() == userId {
+	if configService.IsAdmin(userId) || note.UserId.Hex() == userId || comment.UserId.Hex() == userId {
 		if db.Delete(db.BlogComments, bson.M{"_id": bson.ObjectIdHex(commentId)}) {
 			// 评论-1
 			db.Update(db.Notes, bson.M{"_id": bson.ObjectIdHex(noteId)}, bson.M{"$inc": bson.M{"CommentNum": -1}})

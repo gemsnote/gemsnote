@@ -38,3 +38,6 @@ mobile-app
 .omo
 data/
 /release/
+
+/mail-worker/__pycache__/
+/mail-worker/.venv/

@@ -224,7 +224,7 @@ func (c BaseController) SetLocale() string {
 func (c BaseController) SetUserInfo() info.User {
 	userInfo := c.GetUserInfo()
 	c.ViewArgs["userInfo"] = userInfo
-	if userInfo.Username == configService.GetAdminUsername() {
+	if configService.IsAdmin(userInfo.UserId.Hex()) {
 		c.ViewArgs["isAdmin"] = true
 	}
 	return userInfo

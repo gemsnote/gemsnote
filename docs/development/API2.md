@@ -6,16 +6,36 @@
 | --- | --- |
 | 接口前缀 | `/api2` |
 | 使用方 | Web、新桌面客户端和 Flutter 移动客户端 |
-| 当前版本 | `1.1.0`；`1.0.0` 为首个定稿版本 |
+| 当前版本 | `1.2.0`；`1.0.0` 为首个定稿版本 |
 | 版本来源 | [app/version/version.go](../../app/version/version.go)，同时用于服务端版本响应和数据库迁移 |
 | 路由与编码 | [conf/routes](../../conf/routes)、[Web 请求实现](../../frontend/src/api.ts)及对应控制器 |
 | Legacy 接口 | 旧 `/api` 继续保留，详见 [LEGACY_API.md](LEGACY_API.md) |
 
-本文先列出 1.1.0 新增合同，再列出 1.0.0 已有且继续提供的接口。
-1.1.0 保留 1.0.0 的既有调用方式，`min_version` 仍为空。
+本文按 1.2.0、1.1.0、1.0.0 的顺序介绍新增与保留的接口。
+1.2.0 保留 1.0.0、1.1.0 的既有调用方式，`min_version` 仍为空。
 接口前缀不代表统一的编码格式：JSON、表单和 multipart 必须按各端点要求使用。
 API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配路由补充别名。
 认证、上传及文件访问的安全约束见 [API 安全审查与回归](API_SECURITY.md)。
+
+## 1.2.0 增加的部分
+
+### 用户角色
+
+不提供用户自行注册功能。账号只能由管理员通过 Web 用户管理创建；`/register`、`/doRegister`、`/api2/auth/register` 均不是公开注册入口。
+
+- `POST /api2/admin/role`：JSON `{"userId":"<用户 ID>","role":"admin"}`，`role` 仅支持 `admin`、`user`。仅管理员可调用。成功返回 `Ok:true`，普通用户调用返回 HTTP 403 和 `noAuth`。
+- 禁止管理员将自己设为 `user`，返回 `Ok:false, Msg:cannotDemoteSelf`。修改别人的角色时重新检查操作者权限；PostgreSQL 在事务锁内完成，避免并发相互降级导致无管理员。
+- `/api2/admin/data` 的用户列表新增 `Role` 字段，Web 提供角色设置入口。新用户默认 `user`。角色变化在后续请求立即生效，不要求退出登录。
+- 数据库迁移为用户添加角色字段；启动时只初始化尚无角色的原管理员，不会覆盖明确的角色设置。旧 `/api` 的用户 JSON 不新增该字段。
+
+### 邮箱验证任务与管理员身份
+
+- `POST /api2/web/emailChange`：表单 `email`、`pwd` 验证当前密码并向新地址排队发送验证邮件；表单 `current=true` 则重发当前邮箱验证邮件。返回 `{"Ok":true,"TaskId":"<任务 ID>","State":"queued"}`。邮箱此时**尚未修改**。
+- `POST /api2/user/emailStatus`：表单 `taskId`，必须使用本人 Bearer token；返回 `TaskId`、`State`（`queued`、`sending`、`sent`、`failed`）及失败时的 `Error`。`sent` 仅表示 SMTP 接受邮件。别人的任务和不存在的任务均返回 `Ok:false, Msg:mailTaskNotFound`。
+- `POST /api2/web/verifyEmail`：现有公开验证接口，表单 `token`、`change=true`，完成新邮箱验证后才修改邮箱；成功消费令牌，不可重复使用。
+- `GET /api2/bootstrap` 的 `IsAdmin` 按用户记录的 `Role=admin` 判断，不再依赖可修改的用户名；桌面端仍不提供管理界面。
+
+发送错误包括 `mailNotConfigured`、`mailQueueNotConfigured`、`mailQueueUnavailable`、`mailRateLimited`、`mailSiteURLInvalid`、`mailTemplateInvalid`、`mailTokenFailed`；投递错误包括 `mailAuthenticationFailed`、`mailRecipientRejected`、`mailConnectionFailed`、`mailDeliveryFailed`、`mailTaskExpired`。邮箱相同返回 `emailUnchanged`，密码不正确返回 `wrongPassword`。部署与状态语义见[异步邮件说明](../MAIL.md)。
 
 ## 1.1.0 增加的部分
 
@@ -80,7 +100,7 @@ MongoDB 使用稀疏唯一上传键索引，旧文档不回填、不纳入清理
 
 ## 1.0.0 原来的部分
 
-以下接口和规则在 1.0.0 已有，1.1.0 继续提供。响应示例中的 `Version` 取当前
+以下接口和规则在 1.0.0 已有，后续版本继续提供。响应示例中的 `Version` 取当前
 服务端版本，不表示这些字段是 1.1.0 新增的。
 
 ### 笔记修改时间
@@ -102,7 +122,7 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
   "Ok": true,
   "Token": "...",
   "User": {"UserId": "...", "Username": "admin", "Email": "...", "Verified": true, "Logo": "..."},
-  "Server": {"Name": "gemsnote", "Version": "1.1.0", "MinVersion": ""}
+  "Server": {"Name": "gemsnote", "Version": "1.2.0", "MinVersion": ""}
 }
 ```
 
@@ -199,6 +219,6 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 ### 版本策略
 
 `/api` 是 legacy 接口，当前版本不会移除。API2 `1.0.0` 已定稿，后续合同变更须升级版本。
-新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.1.0","min_version":""}`，
+新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.2.0","min_version":""}`，
 或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
 后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。

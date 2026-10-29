@@ -89,6 +89,9 @@ func TestPublicRegistrationIsUnavailable(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if file == "Api2Controller.go" && strings.Contains(string(content), `c.MethodName == "Register"`) {
+			t.Error("registration must not be an anonymous API2 action")
+		}
 		if regexp.MustCompile(`func \(c \w+\) (Do)?Register\(`).Match(content) {
 			t.Errorf("public registration action must not exist in %s", file)
 		}

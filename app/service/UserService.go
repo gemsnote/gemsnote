@@ -39,6 +39,7 @@ func (this *UserService) AddUser(user info.User) bool {
 		user.UserId = bson.NewObjectId()
 	}
 	user.CreatedTime = time.Now()
+	user.Role = info.RoleUser
 
 	if user.Email != "" {
 		user.Email = strings.ToLower(user.Email)
@@ -337,7 +338,7 @@ func (this *UserService) UpdatePwd(userId, oldPwd, pwd string) (bool, string) {
 
 // 管理员重置密码
 func (this *UserService) ResetPwd(adminUserId, userId, pwd string) (ok bool, msg string) {
-	if configService.GetAdminUserId() != adminUserId {
+	if !configService.IsAdmin(adminUserId) {
 		return false, "NOTLOGIN"
 	}
 	if !bson.IsObjectIdHex(userId) {
@@ -422,6 +423,11 @@ func (this *UserService) UpdateEmail(token string) (ok bool, msg, email string) 
 
 		// 修改之, 并将verified = true
 		ok = db.UpdateByQMap(db.Users, bson.M{"_id": tokenInfo.UserId}, bson.M{"Email": email, "Verified": true})
+		if ok {
+			db.Delete(db.Tokens, bson.M{"_id": tokenInfo.UserId, "Token": token, "Type": info.TokenUpdateEmail})
+		} else {
+			msg = "emailUpdateFailed"
+		}
 		return
 	}
 
@@ -506,4 +512,8 @@ func (this *UserService) GetAllUserByFilter(userFilterEmail, userFilterWhiteList
 // 统计
 func (this *UserService) CountUser() int {
 	return db.Count(db.Users, bson.M{})
+}
+
+func (this *UserService) SetRole(actorID, targetID, role string) (bool, string) {
+	return db.SetUserRole(actorID, targetID, role)
 }

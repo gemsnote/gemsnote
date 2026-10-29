@@ -11,7 +11,13 @@ const (
 	ThirdQQ
 )
 
+const (
+	RoleAdmin = "admin"
+	RoleUser  = "user"
+)
+
 type User struct {
+	Role        string        `bson:"Role" json:"-"` // Exposed explicitly in API2 admin data only.
 	UserId      bson.ObjectId `bson:"_id,omitempty"` // 必须要设置bson:"_id" 不然mgo不会认为是主键
 	Email       string        `Email`                // 全是小写
 	Verified    bool          `Verified`             // Email是否已验证过?

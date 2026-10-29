@@ -18,6 +18,11 @@ site.url=http://localhost:9000 # or http://x.com:8080, http://www.xx.com:9000
 
 # admin username
 adminUsername=admin
+# Original administrator ID (24 hex digits), used only to bootstrap roles.
+# Once initialized, users.Role is authoritative; use Web admin to manage roles.
+# adminUserId=
+# Celery mail queue. GEMSNOTE_MAIL_REDIS_URL overrides this value.
+# mail.redis_url=redis://127.0.0.1:6379/0
 
 # database type: mongodb or postgresql
 db.type=postgresql
