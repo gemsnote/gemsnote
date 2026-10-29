@@ -7,6 +7,8 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '文件已丢失':'File missing', '图片无法加载':'Image unavailable', '重试下载':'Retry download', '添加附件':'Add attachment',
+ 'attachmentMissing':'The file is still missing on the server.', 'attachmentUnavailable':'This attachment cannot be downloaded.', 'attachmentChanged':'This attachment changed. Refresh the note and try again.',
  '导入 Markdown':'Import Markdown',
  '单个 MD 导入为笔记；ZIP 导入为新笔记本，文件夹成为子笔记本。':'Import an MD file as a note, or a ZIP as a new notebook with folders as sub-notebooks.',
  '仅导入 UTF-8 Markdown 文本，不导入图片和附件。MD 最大 4 MiB，ZIP 最大 32 MiB。':'Imports UTF-8 Markdown text only, without images or attachments. Maximum: 4 MiB per MD file, 32 MiB per ZIP.',
@@ -191,6 +193,7 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ attachmentMissing:'服务端文件仍然缺失', attachmentUnavailable:'此附件当前无法下载', attachmentChanged:'附件已发生变化，请刷新笔记后重试',
  historyFileMissing:'历史文件已丢失，无法完整恢复此版本',
  historyFilesUnknown:'此历史版本缺少完整附件清单，仅支持恢复正文',
  historyFilesInvalid:'历史附件清单无效，无法恢复',

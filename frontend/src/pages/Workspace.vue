@@ -43,7 +43,10 @@ function updateCompact(){compact.value=window.innerWidth<=1100}
 const imageInput=ref<HTMLInputElement>(),attachInput=ref<HTMLInputElement>(),sharedQueueMsg=ref('')
 const isSharedNote=computed(()=>!!current.value?.Note.IsShared)
 const sharedCacheLabel=computed(()=>{if(!isSharedNote.value)return'';const state=current.value?.Note.CacheState as string|undefined;const at=current.value?.Note.CachedAt as string|undefined;switch(state){case 'ready':return at?t('离线缓存 {date}',{date:formatDate(at)}):t('离线缓存');case 'stale':return t('缓存待更新');case 'pending':return t('未下载，请先同步');case 'revoked':return t('已撤销访问');default:return''}})
-function cacheStateLabel(a:any){switch(a.CacheState){case 'ready':return t('已缓存');case 'pending':return t('未下载');case 'failed':return t('下载失败');default:return''}}
+function cacheStateLabel(a:any){switch(a.CacheState){case 'ready':return t('已缓存');case 'pending':return t('未下载');case 'failed':return t('下载失败');case 'missing':return t('文件已丢失');default:return''}}
+const retryingAttachment=ref('')
+async function retryAttachment(attachId:string){if(retryingAttachment.value)return;retryingAttachment.value=attachId;try{await request('/desktop/attachments/retry',{attachId});if(current.value)await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}finally{retryingAttachment.value=''}}
+function imageUnavailable(event:Event){const img=event.target;if(!(img instanceof HTMLImageElement)||img.dataset.unavailable)return;img.dataset.unavailable='true';img.alt=t('图片无法加载');img.title=t('图片无法加载');img.style.maxWidth='160px';img.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" rx="6" fill="#edf1ee"/><path d="M25 55V25h40v30H25l12-14 10 10 8-8 10 12M75 25v18m0 7v4" fill="none" stroke="#52665c" stroke-width="3"/></svg>')}
 async function queueSharedDownload(attachId:string){try{await request('/attach/queueSharedDownload',{attachId});sharedQueueMsg.value=t('已加入离线下载队列，稍后自动下载');attachmentsFor(current.value?.Note.NoteId||'')}catch(e){error.value=String(e)}}
 let saveTimer:ReturnType<typeof setTimeout>|undefined,searchTimer:ReturnType<typeof setTimeout>|undefined,loadId=0,notesLoadId=0,savePromise:Promise<boolean>|undefined
 const runtimeUnsubscribers:Array<()=>void>=[]
@@ -304,7 +307,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div class="toolbar-actions">
 <button @click="preview=!preview">{{t(preview?'编辑':'预览')}}</button>
 <button v-if="writable&&!trash" @click="chooseImage">{{t('图片')}}</button>
-<button v-if="writable&&!trash" @click="chooseAttach">{{t('附件')}}{{attachments.length?` (${attachments.length})`:''}}</button>
+<button v-if="writable&&!trash" @click="panel='attachments'">{{t('附件')}}{{attachments.length?` (${attachments.length})`:''}}</button>
 <button v-else-if="attachments.length" @click="panel='attachments'">{{t('附件')}}{{` (${attachments.length})`}}</button>
 <button v-if="own&&!trash" @click="panel='move'">{{t('移动/复制')}}</button>
 <button v-else-if="isSharedNote" @click="destination='';panel='move'">{{t('复制到我的笔记本')}}</button>
@@ -324,7 +327,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <span>{{t('格式：')}}{{current.Note.IsMarkdown?'MD':'RT'}}</span>
 <span class="note-id" :title="current.Note.NoteId">{{current.Note.NoteId}}</span>
 </div>
-<div v-if="preview||!writable" class="rendered" v-html="html">
+<div v-if="preview||!writable" class="rendered" v-html="html" @error.capture="imageUnavailable">
 </div>
 <RichEditor v-else-if="!current.Note.IsMarkdown" :key="`${current.Note.NoteId}:${language}`" v-model="content" @update:model-value="changed"/>
 <textarea v-else v-model="content" class="content-editor" @input="changed" :aria-label="t(current.Note.IsMarkdown?'Markdown 正文':'HTML 正文')" spellcheck="false">
@@ -354,13 +357,16 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 </template>
 <template v-if="panel==='attachments'">
 <h2>{{t('附件')}}</h2>
+<button v-if="writable&&!trash" @click="chooseAttach">{{t('添加附件')}}</button>
 <p v-if="sharedQueueMsg" role="status" class="muted">{{sharedQueueMsg}}</p>
 <p v-if="!attachments.length" class="muted">{{t('暂无附件')}}</p>
 <ul class="attachments">
 <li v-for="attachment in attachments" :key="attachment.AttachId">
-<a :href="`/api2/attachments/download?attachId=${attachment.AttachId}`">{{attachment.Title}}</a>
-<small>{{Math.ceil((attachment.Size||0)/1024)}} KB</small>
-<small v-if="isSharedNote" class="muted">{{cacheStateLabel(attachment)}}</small>
+<span v-if="attachment.CacheState==='missing'" class="missing-attachment" :title="attachment.Title">⚠ {{attachment.Title}}</span>
+<a v-else :href="`/api2/attachments/download?attachId=${attachment.AttachId}`">{{attachment.Title}}</a>
+<small v-if="attachment.CacheState!=='missing'">{{Math.ceil((attachment.Size||0)/1024)}} KB</small>
+<small v-if="isSharedNote||attachment.CacheState==='missing'" class="muted">{{cacheStateLabel(attachment)}}</small>
+<button v-if="boot.Desktop&&!isSharedNote&&attachment.CacheState==='missing'" :disabled="!!retryingAttachment" @click="retryAttachment(attachment.AttachId)">{{t('重试下载')}}</button>
 <button v-if="isSharedNote&&attachment.CacheState!=='ready'" @click="queueSharedDownload(attachment.AttachId)">{{t('下载供离线使用')}}</button>
 <button v-if="writable" @click="deleteAttach(attachment.AttachId)">{{t('删除')}}</button>
 </li>
