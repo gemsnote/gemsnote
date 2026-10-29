@@ -19,14 +19,17 @@ const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),t
 const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
-const importing=ref(false)
+const importing=ref(false),importTarget=ref('')
 const importDialog=ref<InstanceType<typeof ImportDialog>>()
-async function showImport(){if(await flush())importing.value=true}
+async function showImport(target:string){bookMenu.value='';if(await flush()){importTarget.value=target;importing.value=true}}
 async function imported(job:ImportJob,complete:boolean){
  try{
   if(!await bootstrap())return
   expandedNotebooks.value=new Set([...expandedNotebooks.value,...job.bookIds])
-  if(complete){await select(job.rootId);if(job.noteId)await open(job.noteId)}else await load()
+  let parent=notebooks.value.find(n=>n.NotebookId===job.rootId)?.ParentNotebookId
+  const seen=new Set<string>()
+  while(parent&&!seen.has(parent)){seen.add(parent);expandedNotebooks.value.add(parent);parent=notebooks.value.find(n=>n.NotebookId===parent)?.ParentNotebookId}
+  if(complete){notebookSearch.value='';await select(job.rootId);if(job.noteId)await open(job.noteId)}else await load()
  }catch(e){error.value=String(e)}
 }
 const mobileNotesVisible=ref(false)
@@ -243,7 +246,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <header class="panel-header">
 <button v-if="!notebooksVisible" class="space-brand collapsed-brand" :title="t('展开我的空间')" :aria-label="t('展开我的空间')" @click="showNotebooks"><img :src="brandMark" alt=""></button>
 <RouterLink v-else to="/note" class="space-brand" :title="t('珠玑笔记')"><img :src="brandMark" :alt="t('珠玑笔记')"><span>{{t('珠玑笔记')}}</span></RouterLink>
-<div v-if="notebooksVisible" class="panel-actions"><button class="icon-button" @click="showImport" :title="t('导入 Markdown')" :aria-label="t('导入 Markdown')">↥</button><button class="icon-button" @click="addBook()" :title="t('新建笔记本')" :aria-label="t('新建笔记本')">＋</button><button class="icon-button desktop-only" @click="hideNotebooks" :title="t('收起我的空间')" :aria-label="t('收起我的空间')">‹</button></div>
+<div v-if="notebooksVisible" class="panel-actions"><button class="icon-button" @click="addBook()" :title="t('新建笔记本')" :aria-label="t('新建笔记本')">＋</button><button class="icon-button desktop-only" @click="hideNotebooks" :title="t('收起我的空间')" :aria-label="t('收起我的空间')">‹</button></div>
 </header>
 <div v-if="notebooksVisible" class="notebook-scroll">
 <input class="notebook-search" v-model="notebookSearch" :placeholder="t('搜索笔记本')" :aria-label="t('搜索笔记本')">
@@ -252,7 +255,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div v-for="n in filteredBooks" :key="n.NotebookId" class="notebook-row" :class="{selected:notebook===n.NotebookId}" :style="{paddingLeft:4+n.depth*16+'px'}">
 <button class="notebook-select" @click="selectBook(n)"><span class="tree-toggle" :aria-hidden="true">{{hasChildren(n)?(expandedNotebooks.has(n.NotebookId)?'▾':'▸'):'▱'}}</span> <span :title="n.Title">{{n.Title}}</span><small>{{n.NumberNotes}}</small></button>
 <button class="notebook-more" aria-haspopup="menu" :aria-expanded="bookMenu===n.NotebookId" :aria-label="t('{name} 菜单',{name:n.Title})" @pointerdown.stop @click.stop="bookMenu=bookMenu===n.NotebookId?'':n.NotebookId">⋯</button>
-<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
+<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="showImport(n.NotebookId)">{{t('导入笔记/笔记本')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
 </div>
 <h3>{{t('共享给我')}}</h3>
 <p v-if="boot.SharedCache==='unsupported'" class="muted">{{t('服务端不支持共享离线缓存')}}</p>
@@ -404,7 +407,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <button class="primary" @click="create(true)">{{t('新建笔记')}}</button>
 </div>
 </main>
-<ImportDialog v-if="importing" ref="importDialog" :items="notebookTree" :selected="sharedOwner?'':notebook" :user-id="boot.User.UserId" :desktop="!!boot.Desktop" @close="importing=false" @changed="imported"/>
+<ImportDialog v-if="importing" ref="importDialog" :items="notebookTree" :selected="importTarget" :user-id="boot.User.UserId" :desktop="!!boot.Desktop" @close="importing=false" @changed="imported"/>
 <section v-if="movingBook" class="dialog-backdrop" @click.self="!movingBookBusy&&(movingBook='')">
 <div class="dialog" role="dialog" aria-modal="true" :aria-label="t('移动笔记本')">
 <h2>{{t('移动笔记本')}}</h2>

@@ -7,6 +7,7 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '导入笔记/笔记本':'Import notes / notebook',
  '笔记已导出':'Note exported', 'exportUnavailable':'Native export is unavailable. Rebuild the desktop app.', 'exportSaveFailed':'Could not export the note. Check the destination and permissions.',
  '文件已丢失':'File missing', '图片无法加载':'Image unavailable', '重试下载':'Retry download', '添加附件':'Add attachment',
  'attachmentMissing':'The file is still missing on the server.', 'attachmentUnavailable':'This attachment cannot be downloaded.', 'attachmentChanged':'This attachment changed. Refresh the note and try again.',
