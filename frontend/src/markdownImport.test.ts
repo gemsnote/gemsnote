@@ -55,7 +55,7 @@ describe('Markdown import validation',()=>{
   expect(()=>parseMarkdownImport('bad.zip',encrypted)).toThrow('损坏')
  })
  it('rejects archives without Markdown and unsupported file extensions',()=>{
-  expect(()=>parseMarkdownImport('empty.zip',zip({'a.png':md('image')}))).toThrow('没有 Markdown')
+  expect(()=>parseMarkdownImport('empty.zip',zip({'a.png':md('image')}))).toThrow('没有可导入的文档')
   expect(()=>parseMarkdownImport('a.txt',md('text'))).toThrow('请选择')
  })
 })

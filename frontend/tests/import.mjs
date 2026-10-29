@@ -34,9 +34,9 @@ try{
      books.push({NotebookId:params.notebookId,Title:params.title,ParentNotebookId:params.parentNotebookId});writes.push(path);data={Ok:true};break
     case '/api2/save':
      expect(req.headers()['content-type']).toBe('application/json')
-     expect(params.isNew).toBe(true);expect(params.isMarkdown).toBe(true)
+     expect(params.isNew).toBe(true);expect(params.isMarkdown).toBe(!['Rich','Word'].includes(params.title))
      expect(notes.has(params.noteId)).toBe(false)
-     data={Note:{NoteId:params.noteId,UserId:userId,NotebookId:params.notebookId,Title:params.title,IsMarkdown:true,Tags:[],IsDirty:desktop,CreatedTime:'2026-10-28T10:00:00Z',UpdatedTime:'2026-10-28T10:00:00Z'},Content:params.content,Writable:true}
+     data={Note:{NoteId:params.noteId,UserId:userId,NotebookId:params.notebookId,Title:params.title,IsMarkdown:params.isMarkdown,Tags:[],IsDirty:desktop,CreatedTime:'2026-10-28T10:00:00Z',UpdatedTime:'2026-10-28T10:00:00Z'},Content:params.content,Writable:true}
      notes.set(params.noteId,data);writes.push(path)
      if(loseResponse){loseResponse=false;await route.abort('failed');return}break
     case '/api2/document':data=notes.get(params.noteId)||{Ok:false,Msg:'notExists'};break
@@ -47,9 +47,9 @@ try{
   await page.goto(`${baseURL}/note`)
   await expect(page.locator('.notebook-more')).toHaveCount(2)
   async function showImport(){await page.locator('.notebook-row').filter({hasText:'Destination'}).hover();await page.getByRole('button',{name:label('Destination 菜单','Destination menu'),exact:true}).click();await page.getByRole('menuitem',{name:label('导入笔记/笔记本','Import notes / notebook'),exact:true}).click()}
-  await expect(page.locator('.panel-header').getByRole('button',{name:label('导入 Markdown','Import Markdown'),exact:true})).toHaveCount(0)
+  await expect(page.locator('.panel-header').getByRole('button',{name:label('导入笔记','Import notes'),exact:true})).toHaveCount(0)
   await showImport()
-  let dialog=page.getByRole('dialog',{name:label('导入 Markdown','Import Markdown'),exact:true})
+  let dialog=page.getByRole('dialog',{name:label('导入笔记','Import notes'),exact:true})
   await dialog.locator('input[type=file]').setInputFiles({name:'单篇.MD',mimeType:'text/markdown',buffer:Buffer.from('# 你好\n\n完整正文')})
   await expect(dialog).toContainText(label('将导入 1 篇笔记','Import 1 notes'))
   loseResponse=true
@@ -63,7 +63,7 @@ try{
   expect([...notes.values()][0].Note.NotebookId).toBe(target)
 
   await showImport()
-  dialog=page.getByRole('dialog',{name:label('导入 Markdown','Import Markdown'),exact:true})
+  dialog=page.getByRole('dialog',{name:label('导入笔记','Import notes'),exact:true})
   await dialog.locator('input[type=file]').setInputFiles({name:'坏包.zip',mimeType:'application/zip',buffer:Buffer.from(zipSync({'../bad.md':strToU8('unsafe')}))})
   await expect(dialog.getByRole('alert')).toContainText(label('不安全','unsafe'))
   expect(writes.length).toBe(1)
@@ -82,6 +82,18 @@ try{
   await expect(page.locator('.notebook-row').filter({hasText:'资料'}).locator('small')).toHaveText('1')
   await expect(page.locator('.notebook-row').filter({hasText:'子目录'}).locator('small')).toHaveText('1')
   if(desktop)await expect(page.locator('.sync-pending-dot')).toHaveCount(1)
+  for(const [name,buffer] of [
+   ['Rich.rtf',Buffer.from(String.raw`{\rtf1\ansi {\b Rich body}}`)],
+   ['Word.docx',Buffer.from(zipSync({'word/document.xml':strToU8('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Word body</w:t></w:r></w:p></w:body></w:document>')}))],
+  ]){
+   await showImport();dialog=page.getByRole('dialog',{name:label('导入笔记','Import notes'),exact:true})
+   await dialog.locator('input[type=file]').setInputFiles({name,mimeType:'application/octet-stream',buffer})
+   await expect(dialog.getByRole('note')).toBeVisible()
+   await dialog.getByRole('button',{name:label('开始导入','Start import'),exact:true}).click()
+   await expect(dialog).toContainText(label('导入完成','Import complete'))
+   await dialog.getByRole('button',{name:label('关闭','Close'),exact:true}).click()
+   const imported=[...notes.values()].find(n=>n.Note.Title===name.split('.')[0]);expect(imported.Note.IsMarkdown).toBe(false);expect(imported.Content).toContain('<strong>');expect(imported.Note.NotebookId).toBe(target)
+  }
   expect(errors).toEqual([])
   await page.close()
   console.log(`${desktop?'Desktop (English)':'Web (Chinese)'}: MD, ZIP hierarchy, validation, retry and counts passed`)

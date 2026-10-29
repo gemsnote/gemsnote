@@ -1,10 +1,11 @@
+import {rtfToHtml,docxXmlToHtml,richWarning} from './richDocument'
 import {strFromU8, unzipSync} from 'fflate'
 
 // Validate the whole input before creating anything. No archive entry is ever
-// extracted to disk, and non-Markdown payloads are never decompressed.
+// extracted to disk, and only supported note documents and required DOCX XML are decompressed.
 export const importLimits = {archive:32*1024*1024, note:4*1024*1024, total:64*1024*1024, entries:5000, notes:2000, notebooks:1000, depth:20}
-export interface ImportNote {path:string; title:string; content:string; folder:string}
-export interface ImportSource {zip:boolean; title:string; folders:string[]; notes:ImportNote[]; ignored:number}
+export interface ImportNote {path:string; title:string; content:string; folder:string;isMarkdown?:boolean}
+export interface ImportSource {zip:boolean; title:string; folders:string[]; notes:ImportNote[]; ignored:number;warnings?:string[]}
 export class ImportError extends Error {
  constructor(public key:string){super(key);this.name='ImportError'}
 }
@@ -13,7 +14,7 @@ const markdown=/\.(md|markdown)$/i
 // Import planning is independent of the UI/system language. Preserve a stable
 // path order across builds, with parent folders created before their children.
 function comparePath(a:string,b:string){return a<b?-1:a>b?1:0}
-function title(name:string){return name.replace(/\.(md|markdown|zip)$/i,'').trim()||'Untitled'}
+function title(name:string){return name.replace(/\.(md|markdown|rtf|docx|zip)$/i,'').trim()||'Untitled'}
 function decode(bytes:Uint8Array){
  try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes)}catch{return fail('Markdown 文件必须使用 UTF-8 编码')}
 }
@@ -26,7 +27,7 @@ function safePath(name:string){
 const crcTable=Uint32Array.from({length:256},(_,i)=>{for(let j=0;j<8;j++)i=(i>>>1)^((i&1)?0xedb88320:0);return i>>>0})
 function crc32(bytes:Uint8Array){let crc=0xffffffff;for(const b of bytes)crc=(crc>>>8)^crcTable[(crc^b)&255];return (crc^0xffffffff)>>>0}
 interface ZipEntry {name:string; path:string; directory:boolean; size:number; crc:number; keep:boolean}
-function zipEntries(bytes:Uint8Array):ZipEntry[]{
+function zipEntries(bytes:Uint8Array,docx=false):ZipEntry[]{
  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),len=bytes.length
  const u16=(n:number)=>view.getUint16(n,true),u32=(n:number)=>view.getUint32(n,true)
  let end=len-22
@@ -51,10 +52,10 @@ function zipEntries(bytes:Uint8Array):ZipEntry[]{
   const start=local+30+u16(local+26)+u16(local+28)
   if(start+compressed>offset||start<local+30)fail('ZIP 文件损坏或格式不受支持')
   const ignored=path.split('/').some(p=>p==='__MACOSX'||p.startsWith('._')||p==='.DS_Store')
-  const keep=!ignored&&!directory&&markdown.test(path)
+  const keep=!ignored&&!directory&&(docx?/^word\/(document\.xml|styles\.xml|numbering\.xml|_rels\/document\.xml\.rels)$/.test(path):/\.(md|markdown|rtf|docx)$/i.test(path))
   if(keep){
    if(method!==0&&method!==8)fail('ZIP 文件损坏或格式不受支持')
-   if(size>importLimits.note||(total+=size)>importLimits.total)fail('Markdown 内容大小超出导入限制')
+   if(size>importLimits.note||(total+=size)>importLimits.total)fail('文档内容大小超出导入限制')
    if(++notes>importLimits.notes)fail('ZIP 文件数量超出导入限制')
   }
   entries.push({name,path,directory,size,crc:u32(pos+16),keep});pos=next
@@ -62,13 +63,27 @@ function zipEntries(bytes:Uint8Array):ZipEntry[]{
  if(pos!==end)fail('ZIP 文件损坏或格式不受支持')
  return entries
 }
+function richContent(name:string,bytes:Uint8Array):string{
+ try {
+  if(/\.rtf$/i.test(name))return rtfToHtml(bytes)
+  const entries=zipEntries(bytes,true),selected=new Set(entries.filter(e=>e.keep).map(e=>e.name)),files=unzipSync(bytes,{filter:entry=>selected.has(entry.name)})
+  for(const entry of entries.filter(e=>e.keep)){const data=files[entry.name];if(!data||data.length!==entry.size||crc32(data)!==entry.crc)fail('invalidRichDocument')}
+  return docxXmlToHtml(files)
+ }catch(e){if(e instanceof ImportError)throw e;return fail(e instanceof Error?e.message:'invalidRichDocument')}
+}
 export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
+ if(/\.(rtf|docx)$/i.test(name)){
+  if(bytes.length>importLimits.note)fail('文档内容大小超出导入限制')
+  const base=name.split(/[\\/]/).pop()!,content=richContent(base,bytes)
+  if(new TextEncoder().encode(content).length>importLimits.note)fail('文档内容大小超出导入限制')
+  return {zip:false,title:title(base),folders:[],notes:[{path:base,title:title(base),content,folder:'',isMarkdown:false}],ignored:0,warnings:[richWarning]}
+ }
  if(markdown.test(name)){
-  if(bytes.length>importLimits.note)fail('Markdown 内容大小超出导入限制')
+  if(bytes.length>importLimits.note)fail('文档内容大小超出导入限制')
   const base=name.split(/[\\/]/).pop()!
   return {zip:false,title:title(base),folders:[],notes:[{path:base,title:title(base),content:decode(bytes),folder:''}],ignored:0}
  }
- if(!/\.zip$/i.test(name))fail('请选择 Markdown 或 ZIP 文件')
+ if(!/\.zip$/i.test(name))fail('请选择 Markdown、RTF、DOCX 或 ZIP 文件')
  if(bytes.length>importLimits.archive)fail('ZIP 文件大小不能超过 32 MiB')
  let entries:ZipEntry[],files:Record<string,Uint8Array>
  try{
@@ -76,7 +91,7 @@ export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
   const selected=new Set(entries.filter(e=>e.keep).map(e=>e.name))
   files=unzipSync(bytes,{filter:entry=>selected.has(entry.name)})
  }catch(e){if(e instanceof ImportError)throw e;return fail('ZIP 文件损坏或格式不受支持')}
- const folders=new Set<string>(),notes:ImportNote[]=[]
+ const folders=new Set<string>(),notes:ImportNote[]=[];let totalContent=0
  function addFolder(path:string){const parts=path.split('/');for(let i=1;i<=parts.length;i++)folders.add(parts.slice(0,i).join('/'))}
  for(const entry of entries){
   if(entry.directory&&!entry.path.split('/').some(p=>p==='__MACOSX'||p.startsWith('._')))addFolder(entry.path)
@@ -85,9 +100,11 @@ export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
   if(!data||data.length!==entry.size||crc32(data)!==entry.crc)fail('ZIP 文件损坏或格式不受支持')
   const index=entry.path.lastIndexOf('/'),folder=index<0?'':entry.path.slice(0,index)
   if(folder)addFolder(folder)
-  notes.push({path:entry.path,title:title(entry.path.slice(index+1)),folder,content:decode(data)})
+  const content=markdown.test(entry.path)?decode(data):richContent(entry.path,data),size=new TextEncoder().encode(content).length
+  if(size>importLimits.note||(totalContent+=size)>importLimits.total)fail('文档内容大小超出导入限制')
+  notes.push({path:entry.path,title:title(entry.path.slice(index+1)),folder,content,isMarkdown:markdown.test(entry.path)})
  }
- if(!notes.length)fail('ZIP 中没有 Markdown 文件')
+ if(!notes.length)fail('ZIP 中没有可导入的文档')
  if(folders.size>importLimits.notebooks-1)fail('ZIP 文件数量超出导入限制')
- return {zip:true,title:title(name),folders:[...folders].sort((a,b)=>a.split('/').length-b.split('/').length||comparePath(a,b)),notes:notes.sort((a,b)=>comparePath(a.path,b.path)),ignored:entries.filter(e=>!e.directory&&!e.keep).length}
+ return {zip:true,title:title(name),folders:[...folders].sort((a,b)=>a.split('/').length-b.split('/').length||comparePath(a,b)),notes:notes.sort((a,b)=>comparePath(a.path,b.path)),ignored:entries.filter(e=>!e.directory&&!e.keep).length,warnings:notes.some(n=>n.isMarkdown===false)?[richWarning]:[]}
 }

@@ -4,6 +4,8 @@ import {useRoute,useRouter,onBeforeRouteLeave} from 'vue-router'
 import {marked} from 'marked'
 import DOMPurify from 'dompurify'
 import {request,objectId,upload} from '../api'
+import {htmlToRtf} from '../richDocument'
+import {hugoMarkdown,notebookZip,exportName,base64Bytes} from '../noteExport'
 import Navigation from '../components/Navigation.vue'
 import brandMark from '../assets/gemsnote_s.png'
 import RichEditor from '../components/RichEditor.vue'
@@ -196,16 +198,51 @@ async function uploadImage(event:Event){const input=event.target as HTMLInputEle
 async function uploadAttach(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value||!await flush())return;try{await upload('/attach/uploadAttach',file,{noteId:current.value.Note.NoteId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId);panel.value='attachments'}catch(e){error.value=String(e)}}
 async function deleteAttach(attachId:string){if(!await confirmAction(t('删除此附件？'))||!await flush())return;try{await request('/attach/deleteAttach',{attachId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}}
 const exporting=ref(false),exportNotice=ref('')
+async function saveExport(filename:string,bytes:Uint8Array){
+ if(boot.value.Desktop){
+  const result=await request('/desktop/exportFile',{filename,data:base64Bytes(bytes)})
+  if(!result.Cancelled)exportNotice.value=t('笔记已导出')
+  return
+ }
+ const blob=new Blob([new Uint8Array(bytes)],{type:filename.endsWith('.zip')?'application/zip':filename.endsWith('.rtf')?'application/rtf':'text/markdown;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a')
+ a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)
+}
 async function download(){
  if(!current.value||exporting.value)return
- const noteId=current.value.Note.NoteId;exporting.value=true;exportNotice.value='';error.value=''
+ exporting.value=true;exportNotice.value='';error.value=''
  try{
   if(!await flush())return
-  if(boot.value.Desktop){const result=await request('/desktop/export',{noteId});if(!result.Cancelled)exportNotice.value=t('笔记已导出');return}
-  const blob=new Blob([content.value],{type:current.value.Note.IsMarkdown?'text/markdown;charset=utf-8':'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a')
-  a.href=url;a.download=(title.value||'note')+(current.value.Note.IsMarkdown?'.md':'.html');document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)
- }catch(e){error.value=String(e)}finally{exporting.value=false}
+  const md=current.value.Note.IsMarkdown
+  await saveExport(exportName(title.value)+(md?'.md':'.rtf'),new TextEncoder().encode(md?hugoMarkdown(current.value.Note,content.value,currentNotebookTitle.value):htmlToRtf(content.value,title.value)))
+ }catch(e){error.value=t(e instanceof Error?e.message:String(e))}finally{exporting.value=false}
 }
+async function downloadBook(id:string){
+ bookMenu.value=''
+ if(exporting.value)return
+ exporting.value=true;exportNotice.value='';error.value=''
+ try{
+  if(!await flush())return
+  const book=notebooks.value.find(n=>n.NotebookId===id)
+  if(!book)return
+  const bytes=await notebookZip(book,async function*(selected){
+   const seen=new Set<string>()
+   for(let page=1;;page++){
+    const batch=await request<any[]>('/web/notes',{notebookId:selected.NotebookId,page,trash:false,starred:false,sort:'Title'})
+    if(!Array.isArray(batch))throw new Error('invalidExportResponse')
+    for(const n of batch){
+     if(seen.has(n.NoteId))throw new Error('invalidExportResponse')
+     seen.add(n.NoteId)
+     const doc=await request('/web/document',{noteId:n.NoteId})
+     if(!doc.Note||typeof doc.Content!=='string'||doc.Note.NotebookId!==selected.NotebookId)throw new Error('invalidExportResponse')
+     yield doc
+    }
+    if(batch.length<100)break
+   }
+  })
+  await saveExport(exportName(book.Title,'notebook')+'.zip',bytes)
+ }catch(e){error.value=t(e instanceof Error?e.message:String(e))}finally{exporting.value=false}
+}
+
 function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value||importDialog.value?.pending){e.preventDefault();e.returnValue=''}}
 function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();flush()}}
 function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
@@ -249,13 +286,16 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div v-if="notebooksVisible" class="panel-actions"><button class="icon-button" @click="addBook()" :title="t('新建笔记本')" :aria-label="t('新建笔记本')">＋</button><button class="icon-button desktop-only" @click="hideNotebooks" :title="t('收起我的空间')" :aria-label="t('收起我的空间')">‹</button></div>
 </header>
 <div v-if="notebooksVisible" class="notebook-scroll">
+<p v-if="exporting" role="status">{{t('正在导出…')}}</p>
+<p v-if="error&&!current" class="error" role="alert">{{error}}</p>
+<p v-if="exportNotice&&!current" role="status">{{exportNotice}}</p>
 <input class="notebook-search" v-model="notebookSearch" :placeholder="t('搜索笔记本')" :aria-label="t('搜索笔记本')">
 <button :class="{selected:!notebook&&!trash&&!starred&&!sharedOwner}" @click="select()">{{t('所有笔记')}} <small>{{boot.TotalNotes||0}}</small></button>
 <button :class="{selected:starred}" @click="select('','',false,true)">★ {{t('已加星')}} <small>{{boot.TotalStarred||0}}</small></button>
 <div v-for="n in filteredBooks" :key="n.NotebookId" class="notebook-row" :class="{selected:notebook===n.NotebookId}" :style="{paddingLeft:4+n.depth*16+'px'}">
 <button class="notebook-select" @click="selectBook(n)"><span class="tree-toggle" :aria-hidden="true">{{hasChildren(n)?(expandedNotebooks.has(n.NotebookId)?'▾':'▸'):'▱'}}</span> <span :title="n.Title">{{n.Title}}</span><small>{{n.NumberNotes}}</small></button>
 <button class="notebook-more" aria-haspopup="menu" :aria-expanded="bookMenu===n.NotebookId" :aria-label="t('{name} 菜单',{name:n.Title})" @pointerdown.stop @click.stop="bookMenu=bookMenu===n.NotebookId?'':n.NotebookId">⋯</button>
-<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="showImport(n.NotebookId)">{{t('导入笔记/笔记本')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
+<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="showImport(n.NotebookId)">{{t('导入笔记/笔记本')}}</button><button role="menuitem" :disabled="exporting" @click="downloadBook(n.NotebookId)">{{t('导出笔记本（ZIP）')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
 </div>
 <h3>{{t('共享给我')}}</h3>
 <p v-if="boot.SharedCache==='unsupported'" class="muted">{{t('服务端不支持共享离线缓存')}}</p>

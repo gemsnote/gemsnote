@@ -3,7 +3,7 @@ import {ImportError} from './markdownImport'
 import type {Params} from './api'
 
 type BookStep={kind:'book';id:string;title:string;parent:string}
-type NoteStep={kind:'note';id:string;title:string;parent:string;content:string}
+type NoteStep={kind:'note';id:string;title:string;parent:string;content:string;isMarkdown:boolean}
 export interface ImportJob {userId:string;steps:(BookStep|NoteStep)[];next:number;uncertain:boolean;rootId:string;noteId:string;bookIds:string[]}
 export type ImportAPI=(path:string,params?:Params)=>Promise<any>
 export function createImportJob(source:ImportSource,userId:string,parent:string,name:string,newId:()=>string):ImportJob{
@@ -13,7 +13,7 @@ export function createImportJob(source:ImportSource,userId:string,parent:string,
  if(!rootId||!userId||(source.zip&&!name.trim()))throw new ImportError('请选择目标笔记本并填写名称')
  for(const path of source.folders){const at=path.lastIndexOf('/');addBook(path,path.slice(at+1),at<0?rootId:ids.get(path.slice(0,at))!)}
  let noteId=''
- for(const note of source.notes){const id=newId();noteId=id;steps.push({kind:'note',id,title:note.title,parent:note.folder?ids.get(note.folder)!:rootId,content:note.content})}
+ for(const note of source.notes){const id=newId();noteId=id;steps.push({kind:'note',id,title:note.title,parent:note.folder?ids.get(note.folder)!:rootId,content:note.content,isMarkdown:note.isMarkdown!==false})}
  return {userId,steps,next:0,uncertain:false,rootId,noteId:source.zip?'':noteId,bookIds}
 }
 function flatten(books:any[]):any[]{return (books||[]).flatMap(b=>[b,...flatten(b.Subs)])}
@@ -31,7 +31,7 @@ export async function runImportJob(job:ImportJob,api:ImportAPI,progress:()=>void
    if(found){
     const matches=step.kind==='book'
      ?found.Title===step.title&&(found.ParentNotebookId||'')===step.parent
-     :found.Note?.NoteId===step.id&&found.Note?.UserId===job.userId&&found.Note?.NotebookId===step.parent&&found.Note?.Title===step.title&&found.Note?.IsMarkdown===true&&found.Content===step.content
+     :found.Note?.NoteId===step.id&&found.Note?.UserId===job.userId&&found.Note?.NotebookId===step.parent&&found.Note?.Title===step.title&&found.Note?.IsMarkdown===step.isMarkdown&&found.Content===step.content
     if(!matches)throw new ImportError('导入记录已发生变化，请检查已导入内容')
     job.next++;job.uncertain=false;progress();continue
    }
@@ -39,7 +39,7 @@ export async function runImportJob(job:ImportJob,api:ImportAPI,progress:()=>void
   job.uncertain=true
   progress()
   if(step.kind==='book')await api('/notebook/addNotebook',{notebookId:step.id,title:step.title,parentNotebookId:step.parent})
-  else await api('/web/save',{noteId:step.id,notebookId:step.parent,title:step.title,content:step.content,tags:'',isNew:true,isMarkdown:true})
+  else await api('/web/save',{noteId:step.id,notebookId:step.parent,title:step.title,content:step.content,tags:'',isNew:true,isMarkdown:step.isMarkdown})
   job.next++;job.uncertain=false;progress()
  }
 }

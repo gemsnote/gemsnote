@@ -21,8 +21,8 @@ async function selected(file:File){
  if(busy.value||job.value)return
  const token=++sequence;cancelWorker();source.value=undefined;error.value='';reading.value=true
  try{
-  if(!/\.(md|markdown|zip)$/i.test(file.name))throw new ImportError('请选择 Markdown 或 ZIP 文件')
-  if(file.size>(/\.zip$/i.test(file.name)?importLimits.archive:importLimits.note))throw new ImportError(/\.zip$/i.test(file.name)?'ZIP 文件大小不能超过 32 MiB':'Markdown 内容大小超出导入限制')
+  if(!/\.(md|markdown|rtf|docx|zip)$/i.test(file.name))throw new ImportError('请选择 Markdown、RTF、DOCX 或 ZIP 文件')
+  if(file.size>(/\.zip$/i.test(file.name)?importLimits.archive:importLimits.note))throw new ImportError(/\.zip$/i.test(file.name)?'ZIP 文件大小不能超过 32 MiB':'文档内容大小超出导入限制')
   const bytes=new Uint8Array(await file.arrayBuffer())
   if(token!==sequence)return
   worker=new Worker(new URL('../markdownImport.worker.ts',import.meta.url),{type:'module'})
@@ -51,19 +51,20 @@ onBeforeUnmount(()=>{disposed=true;sequence++;stop.value=true;cancelWorker()})
 </script>
 <template>
 <section class="dialog-backdrop import-backdrop">
-<div class="dialog import-dialog" role="dialog" aria-modal="true" :aria-label="t('导入 Markdown')" :aria-busy="busy||reading">
-<h2>{{t('导入 Markdown')}}</h2>
-<p>{{t('单个 MD 导入为笔记；ZIP 导入为新笔记本，文件夹成为子笔记本。')}}</p>
-<p class="muted">{{t('仅导入 UTF-8 Markdown 文本，不导入图片和附件。MD 最大 4 MiB，ZIP 最大 32 MiB。')}}</p>
+<div class="dialog import-dialog" role="dialog" aria-modal="true" :aria-label="t('导入笔记')" :aria-busy="busy||reading">
+<h2>{{t('导入笔记')}}</h2>
+<p>{{t('Markdown 导入为 Markdown 笔记，RTF/DOCX 导入为富文本笔记；ZIP 文件夹成为子笔记本。')}}</p>
+<p class="muted">{{t('文档最大 4 MiB，ZIP 最大 32 MiB。不下载远程资源。')}}</p>
 <template v-if="!job">
-<FilePicker :label="t('Markdown 或 ZIP 文件')" accept=".md,.markdown,.zip" @selected="selected"/>
+<FilePicker :label="t('Markdown、RTF、DOCX 或 ZIP 文件')" accept=".md,.markdown,.rtf,.docx,.zip" @selected="selected"/>
 <p v-if="reading" role="status">{{t('正在解析文件…')}}</p>
 <template v-if="source">
 <label v-if="source.zip">{{t('新笔记本名称')}}<input v-model="name" maxlength="200"></label>
+<p v-for="warning in source.warnings||[]" :key="warning" role="note">{{t(warning)}}</p>
 <p>{{t('将导入 {notes} 篇笔记、{books} 个新笔记本；跳过 {ignored} 个文件。',{notes:source.notes.length,books:source.zip?source.folders.length+1:0,ignored:source.ignored})}}</p>
 <p>{{t(source.zip?'选择新笔记本的父级':'选择目标笔记本')}}</p>
 <NotebookPicker v-model="destination" :items="items" :root="source.zip"/>
-<p v-if="!source.zip&&!items.length">{{t('请先创建一个笔记本，再导入单个 Markdown 文件。')}}</p>
+<p v-if="!source.zip&&!items.length">{{t('请先创建一个笔记本，再导入单个文档。')}}</p>
 </template>
 </template>
 <template v-else>
