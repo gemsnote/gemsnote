@@ -9,7 +9,7 @@
 
 ## 接口与客户端
 
-- [API2 新接口](API2.md)：Web 和新客户端使用的 `/api2` 接口规范，分别列出 1.2.0、1.1.0 新增合同与 1.0.0 原有接口。
+- [API2 新接口](API2.md)：Web 和新客户端使用的 `/api2` 接口规范，分别列出 1.3.0、1.2.0、1.1.0 新增合同与 1.0.0 原有接口。
 - [Legacy API 兼容说明](LEGACY_API.md)：旧 `/api` 接口、Leanote 客户端兼容范围及限制。
 - [API 安全审查与回归](API_SECURITY.md)：认证隔离、权限、文件处理及安全回归范围。
 
@@ -41,3 +41,5 @@ GEMSNOTE_DISPOSABLE_API2=1 GEMSNOTE_API2_URL=http://127.0.0.1:19090 \
 - [异步邮件与权限回归](../MAIL.md)：Celery 邮件任务、发送结果查询及管理员稳定身份。
 
 角色权限回归：`npm --prefix frontend run test:admin-roles` 检查中英文管理界面和自己的角色按钮禁用。`scripts/test-admin-roles.py` 仅允许通过 `GEMSNOTE_DISPOSABLE_API2=1` 对临时 `127.0.0.1:19090` 实例执行，测试角色授权、撤销、自我降级拒绝和并发互相降级；它会修改测试管理员角色，禁止指向实际实例。
+
+用户状态回归：`scripts/test-user-flags.py` 在上述临时 API2 实例中验证禁用、恢复、禁止自我禁用、Cookie／API token 撤销和并发操作；需设置 `GEMSNOTE_DISPOSABLE_API2=1` 和临时 PostgreSQL 容器名 `GEMSNOTE_TEST_PG_CONTAINER=gemsnote-api2-test-<PID>-<随机数>`。禁止对实际实例执行。中英文状态按钮由 `npm --prefix frontend run test:admin-roles` 覆盖。

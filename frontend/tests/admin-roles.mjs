@@ -10,8 +10,8 @@ try{
  for(const language of ['zh-CN','en-US']){
   const page=await browser.newPage({locale:language})
   await page.addInitScript(lang=>localStorage.setItem('gemsnote:language',lang),language)
-  const users=[{UserId:'self',Username:'current-admin',Email:'self@example.test',Role:'admin'},{UserId:'other',Username:'other-user',Email:'other@example.test',Role:'user'}]
-  let changes=0
+  const users=[{UserId:'self',Username:'current-admin',Email:'self@example.test',Role:'admin',Flag:'A'},{UserId:'other',Username:'other-user',Email:'other@example.test',Role:'user',Flag:'A'}]
+  let changes=0,flagChanges=0
   await page.route('**/api2/**',async route=>{
    const req=route.request(),path=new URL(req.url()).pathname
    let data={Ok:true}
@@ -20,6 +20,10 @@ try{
    if(path==='/api2/admin/role'){
     expect(req.headers()['content-type']).toBe('application/json')
     const params=req.postDataJSON();expect(params.userId).toBe('other');users[1].Role=params.role;changes++
+   }
+   if(path==='/api2/admin/flag'){
+    expect(req.headers()['content-type']).toBe('application/json')
+    const params=req.postDataJSON();expect(params.userId).toBe('other');users[1].Flag=params.flag;flagChanges++
    }
    await route.fulfill({json:data})
   })
@@ -33,7 +37,13 @@ try{
   await other.getByRole('button',{name:label('设为普通用户','Make regular user')}).click()
   await expect(other.getByRole('button',{name:label('设为管理员','Make administrator')})).toBeEnabled()
   expect(changes).toBe(2)
+  await expect(self.getByRole('button',{name:label('禁用用户','Disable user')})).toBeDisabled()
+  await other.getByRole('button',{name:label('禁用用户','Disable user')}).click()
+  await expect(other.getByRole('cell',{name:label('已禁用','Disabled'),exact:true})).toBeVisible()
+  await other.getByRole('button',{name:label('启用用户','Enable user')}).click()
+  await expect(other.getByRole('cell',{name:label('可用','Available'),exact:true})).toBeVisible()
+  expect(flagChanges).toBe(2)
   await page.close()
-  console.log(`PASS admin roles UI and disabled self-demotion: ${language}`)
+  console.log(`PASS admin roles/flags UI and disabled self-demotion/self-disable: ${language}`)
  }
 }finally{await browser.close();await new Promise(resolve=>server.httpServer.close(resolve))}

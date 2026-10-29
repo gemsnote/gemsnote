@@ -55,7 +55,7 @@ func (this *SessionService) ValidateUserSession(sessionId, userId string) bool {
 	}
 	session := info.Session{}
 	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId, "UserId": userId}, &session)
-	if session.Id == "" {
+	if session.Id == "" || !db.UserAvailable(userId) {
 		return false
 	}
 	return this.Update(sessionId, "UpdatedTime", time.Now())
@@ -114,11 +114,7 @@ func (this *SessionService) SetCaptcha(sessionId, captcha string) bool {
 // -----------
 // API
 func (this *SessionService) GetUserId(sessionId string) string {
-	session := this.Get(sessionId)
-	// 更新updateTime, 避免过期
-	db.UpdateByQMap(db.Sessions, bson.M{"SessionId": sessionId},
-		bson.M{"UpdatedTime": time.Now()})
-	return session.UserId
+	return this.FindUserId(sessionId)
 }
 
 // FindUserId validates an existing API token without creating a session row
@@ -129,7 +125,7 @@ func (this *SessionService) FindUserId(sessionId string) string {
 	}
 	session := info.Session{}
 	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId}, &session)
-	if session.Id == "" || session.UserId == "" {
+	if session.Id == "" || !db.UserAvailable(session.UserId) {
 		return ""
 	}
 	this.Update(sessionId, "UpdatedTime", time.Now())
@@ -139,6 +135,6 @@ func (this *SessionService) FindUserId(sessionId string) string {
 // 登录成功后设置userId
 func (this *SessionService) SetUserId(sessionId, userId string) bool {
 	this.Get(sessionId)
-	ok := this.Update(sessionId, "UserId", userId)
+	ok := db.BindUserSession(sessionId, userId)
 	return ok
 }

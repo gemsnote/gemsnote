@@ -53,7 +53,7 @@ func (this *TokenService) VerifyToken(token string, tokenType int) (ok bool, msg
 
 	db.GetByQ(db.Tokens, bson.M{"Token": token, "Type": tokenType}, &tokenInfo)
 
-	if tokenInfo.UserId == "" || tokenInfo.Type != tokenType {
+	if tokenInfo.UserId == "" || tokenInfo.Type != tokenType || !db.UserAvailable(tokenInfo.UserId.Hex()) {
 		msg = "不存在"
 		return
 	}

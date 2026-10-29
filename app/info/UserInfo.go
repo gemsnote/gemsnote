@@ -12,11 +12,14 @@ const (
 )
 
 const (
-	RoleAdmin = "admin"
-	RoleUser  = "user"
+	FlagAvailable = "A"
+	FlagDisabled  = "D"
+	RoleAdmin     = "admin"
+	RoleUser      = "user"
 )
 
 type User struct {
+	Flag        string        `bson:"Flag" json:"-"` // Explicitly exposed in API2 administration only.
 	Role        string        `bson:"Role" json:"-"` // Exposed explicitly in API2 admin data only.
 	UserId      bson.ObjectId `bson:"_id,omitempty"` // 必须要设置bson:"_id" 不然mgo不会认为是主键
 	Email       string        `Email`                // 全是小写
@@ -94,4 +97,10 @@ type UserAndBlog struct {
 	BlogUrl   string        `BlogUrl`   // 博客链接, 主页
 
 	BlogUrls // 各个页面
+}
+
+// Missing flags belong to legacy MongoDB documents. Unknown nonempty values
+// fail closed, while old documents retain their pre-upgrade availability.
+func (user User) Available() bool {
+	return user.UserId.Valid() && (user.Flag == "" || user.Flag == FlagAvailable)
 }

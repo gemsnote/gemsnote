@@ -79,6 +79,18 @@ func (this *ConfigService) InitGlobalConfigs() bool {
 		userInfo = userService.GetUserInfo(adminID)
 	} else {
 		userInfo = userService.GetUserInfoByAny(this.adminUsername)
+		// Older installations did not persist adminUserId. The original
+		// administrator may already have renamed their account, but global
+		// configuration records still retain its owner ID. Recover only an
+		// unambiguous legacy identity, never override an explicitly set role.
+		if userInfo.UserId == "" && !db.Has(db.Users, bson.M{"Role": info.RoleAdmin}) {
+			if ownerID := legacyConfigOwner(configs); ownerID != "" {
+				candidate := userService.GetUserInfo(ownerID)
+				if candidate.Available() && candidate.Role == "" {
+					userInfo = candidate
+				}
+			}
+		}
 	}
 	if userInfo.UserId == "" {
 		return false
@@ -87,7 +99,7 @@ func (this *ConfigService) InitGlobalConfigs() bool {
 	this.adminUsername = userInfo.Username
 	// Empty means a legacy account without an explicit role. Never re-promote
 	// an administrator whose role was explicitly changed to "user".
-	if userInfo.Role == "" {
+	if userInfo.Available() && userInfo.Role == "" {
 		if !db.UpdateByQField(db.Users, bson.M{"_id": userInfo.UserId, "$or": []bson.M{{"Role": ""}, {"Role": bson.M{"$exists": false}}}}, "Role", info.RoleAdmin) {
 			return false
 		}
@@ -104,6 +116,24 @@ func (this *ConfigService) InitGlobalConfigs() bool {
 	}
 
 	return true
+}
+
+// Global settings were writable only by the old administrator. Require every
+// record to identify the same valid owner; never guess from usernames, user
+// creation order, known seed IDs, or a majority of settings.
+func legacyConfigOwner(configs []info.Config) string {
+	owner := ""
+	for _, config := range configs {
+		if !config.UserId.Valid() {
+			return ""
+		}
+		id := config.UserId.Hex()
+		if owner != "" && owner != id {
+			return ""
+		}
+		owner = id
+	}
+	return owner
 }
 
 func (this *ConfigService) GetSiteUrl() string {
@@ -651,5 +681,9 @@ func (this *ConfigService) GetVersion() string {
 
 // IsAdmin never grants privileges to an anonymous user or a reused username.
 func (this *ConfigService) IsAdmin(userID string) bool {
-	return bson.IsObjectIdHex(userID) && userService.GetUserInfo(userID).Role == info.RoleAdmin
+	if !bson.IsObjectIdHex(userID) {
+		return false
+	}
+	user := userService.GetUserInfo(userID)
+	return user.Available() && user.Role == info.RoleAdmin
 }

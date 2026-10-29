@@ -6,16 +6,31 @@
 | --- | --- |
 | 接口前缀 | `/api2` |
 | 使用方 | Web、新桌面客户端和 Flutter 移动客户端 |
-| 当前版本 | `1.2.0`；`1.0.0` 为首个定稿版本 |
+| 当前版本 | `1.3.0`；`1.0.0` 为首个定稿版本 |
 | 版本来源 | [app/version/version.go](../../app/version/version.go)，同时用于服务端版本响应和数据库迁移 |
 | 路由与编码 | [conf/routes](../../conf/routes)、[Web 请求实现](../../frontend/src/api.ts)及对应控制器 |
 | Legacy 接口 | 旧 `/api` 继续保留，详见 [LEGACY_API.md](LEGACY_API.md) |
 
-本文按 1.2.0、1.1.0、1.0.0 的顺序介绍新增与保留的接口。
-1.2.0 保留 1.0.0、1.1.0 的既有调用方式，`min_version` 仍为空。
+本文按 1.3.0、1.2.0、1.1.0、1.0.0 的顺序介绍新增与保留的接口。
+1.3.0 保留较早版本的既有调用方式，`min_version` 仍为空。
 接口前缀不代表统一的编码格式：JSON、表单和 multipart 必须按各端点要求使用。
 API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配路由补充别名。
 认证、上传及文件访问的安全约束见 [API 安全审查与回归](API_SECURITY.md)。
+
+## 1.3.0 增加的部分
+
+### 用户启用状态
+
+用户新增 `flag`（PostgreSQL 列名；MongoDB 字段名为 `Flag`）：`A` 为 available，`D` 为 disabled。新用户和升级前没有状态字段的用户默认 `A`。
+
+- `POST /api2/admin/flag`：管理员使用 JSON `{"userId":"<用户 ID>","flag":"D"}` 禁用用户，`flag:"A"` 重新启用。只接受这两个值；其他值返回 `Ok:false, Msg:invalidUserFlag`。
+- 管理员不能禁用自己，返回 `Ok:false, Msg:cannotDisableSelf`。普通用户不能调用此接口。数据库操作会重新检查操作者仍是可用的管理员。
+- `/api2/admin/data` 用户列表新增 `Flag` 字段，Web 显示“可用／已禁用”并提供切换按钮。
+- 修改状态会撤销该用户的 Cookie 会话、API token 和密码／邮箱验证令牌。禁用状态下，正确密码登录返回 `userDisabled`；旧会话的受保护请求返回 `NOTLOGIN`。公开 bootstrap 返回 `User:null`。
+- 重新启用不会恢复旧凭据，需要重新登录。笔记、笔记本和附件均保留；用户角色也不会因禁用／启用而改变。
+- PostgreSQL 的角色、状态修改及登录会话写入共享事务锁，防止并发禁用后写回有效 token，或并发禁用／降级清空所有可用管理员。
+
+旧 `/api` 保留请求格式和用户 JSON 字段，但同样拒绝被禁用的账号；没有给旧用户 JSON 增加 `Flag` 字段。桌面／移动客户端离线缓存不是服务端权限的一部分，服务端禁用不会远程删除已经下载的数据。
 
 ## 1.2.0 增加的部分
 
@@ -26,7 +41,7 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 - `POST /api2/admin/role`：JSON `{"userId":"<用户 ID>","role":"admin"}`，`role` 仅支持 `admin`、`user`。仅管理员可调用。成功返回 `Ok:true`，普通用户调用返回 HTTP 403 和 `noAuth`。
 - 禁止管理员将自己设为 `user`，返回 `Ok:false, Msg:cannotDemoteSelf`。修改别人的角色时重新检查操作者权限；PostgreSQL 在事务锁内完成，避免并发相互降级导致无管理员。
 - `/api2/admin/data` 的用户列表新增 `Role` 字段，Web 提供角色设置入口。新用户默认 `user`。角色变化在后续请求立即生效，不要求退出登录。
-- 数据库迁移为用户添加角色字段；启动时只初始化尚无角色的原管理员，不会覆盖明确的角色设置。旧 `/api` 的用户 JSON 不新增该字段。
+- 数据库迁移为用户添加角色字段；启动时只初始化尚无角色的原管理员；原名称已失效且未保存管理员 ID 时，可从唯一的旧全局配置拥有者恢复，不会覆盖明确的角色设置。旧 `/api` 的用户 JSON 不新增该字段。
 
 ### 邮箱验证任务与管理员身份
 
@@ -122,7 +137,7 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
   "Ok": true,
   "Token": "...",
   "User": {"UserId": "...", "Username": "admin", "Email": "...", "Verified": true, "Logo": "..."},
-  "Server": {"Name": "gemsnote", "Version": "1.2.0", "MinVersion": ""}
+  "Server": {"Name": "gemsnote", "Version": "1.3.0", "MinVersion": ""}
 }
 ```
 
@@ -219,6 +234,6 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 ### 版本策略
 
 `/api` 是 legacy 接口，当前版本不会移除。API2 `1.0.0` 已定稿，后续合同变更须升级版本。
-新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.2.0","min_version":""}`，
+新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.3.0","min_version":""}`，
 或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
 后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。

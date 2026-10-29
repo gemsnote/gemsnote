@@ -8,6 +8,7 @@ import (
 
 	appversion "github.com/gemsnote/gemsnote/app/version"
 	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 type migration struct {
@@ -41,6 +42,17 @@ var migrations = []migration{
 	{version: "1.2.0", up: func(database Database) error {
 		if postgres, ok := database.(*PostgresDatabase); ok {
 			_, err := postgres.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT ''`)
+			return err
+		}
+		return nil
+	}},
+	{version: "1.3.0", up: func(database Database) error {
+		if postgres, ok := database.(*PostgresDatabase); ok {
+			_, err := postgres.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS flag TEXT NOT NULL DEFAULT 'A' CHECK (flag IN ('A','D'))`)
+			return err
+		}
+		if mongo, ok := database.(*MongoDatabase); ok {
+			_, err := mongo.db.C("users").UpdateAll(bson.M{"$or": []bson.M{{"Flag": bson.M{"$exists": false}}, {"Flag": ""}}}, bson.M{"$set": bson.M{"Flag": "A"}})
 			return err
 		}
 		return nil

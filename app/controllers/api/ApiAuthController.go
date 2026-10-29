@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/service"
 	"github.com/revel/revel"
@@ -41,11 +42,16 @@ func (c ApiAuth) Login(email, pwd string) revel.Result {
 			c.Response.Status = 500
 			return c.RenderJSON(info.ApiRe{Ok: false, Msg: "tokenGenerationFailed"})
 		}
-		sessionService.SetUserId(token, userInfo.UserId.Hex())
+		if !sessionService.SetUserId(token, userInfo.UserId.Hex()) {
+			return c.RenderJSON(info.ApiRe{Ok: false, Msg: "sessionCreationFailed"})
+		}
 		return c.RenderJSON(info.AuthOk{Ok: true, Token: token, UserId: userInfo.UserId, Email: userInfo.Email, Username: userInfo.Username})
 	} else {
 		// 登录错误, 则错误次数++
 		msg = "wrongUsernameOrPassword"
+		if errors.Is(err, service.ErrUserDisabled) {
+			msg = "userDisabled"
+		}
 	}
 	return c.RenderJSON(info.ApiRe{Ok: false, Msg: c.Message(msg)})
 }

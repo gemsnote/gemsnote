@@ -105,9 +105,14 @@ func (c BaseController) GetSession(key string) string {
 	}
 	return v.(string)
 }
-func (c BaseController) SetSession(userInfo info.User) {
+
+// Register the server-side login before writing authenticated cookie fields.
+func (c BaseController) SetSession(userInfo info.User) bool {
 	if userInfo.UserId.Hex() != "" {
 		userId := userInfo.UserId.Hex()
+		if !sessionService.SetUserId(c.Session.ID(), userId) {
+			return false
+		}
 		c.Session["UserId"] = userId
 		c.Session["Email"] = userInfo.Email
 		c.Session["Username"] = userInfo.Username
@@ -130,10 +135,9 @@ func (c BaseController) SetSession(userInfo info.User) {
 			c.Session["LeftIsMin"] = "0"
 		}
 
-		// Web sessions share the same server-side registry as API tokens so a
-		// password change can revoke every active login for this user.
-		sessionService.SetUserId(c.Session.ID(), userId)
+		return true
 	}
+	return false
 }
 
 func (c BaseController) ClearSession() {

@@ -13,6 +13,8 @@ import (
 
 // 登录与权限 Login & Register
 
+var ErrUserDisabled = errors.New("userDisabled")
+
 type AuthService struct {
 }
 
@@ -24,6 +26,9 @@ func (this *AuthService) Login(emailOrUsername, pwd string) (info.User, error) {
 	userInfo := userService.GetUserInfoByName(emailOrUsername)
 	if userInfo.UserId == "" || !ComparePwd(pwd, userInfo.Pwd) {
 		return userInfo, errors.New("wrong username or password")
+	}
+	if !userInfo.Available() {
+		return userInfo, ErrUserDisabled
 	}
 	return userInfo, nil
 }

@@ -40,6 +40,7 @@ func (this *UserService) AddUser(user info.User) bool {
 	}
 	user.CreatedTime = time.Now()
 	user.Role = info.RoleUser
+	user.Flag = info.FlagAvailable
 
 	if user.Email != "" {
 		user.Email = strings.ToLower(user.Email)
@@ -516,4 +517,8 @@ func (this *UserService) CountUser() int {
 
 func (this *UserService) SetRole(actorID, targetID, role string) (bool, string) {
 	return db.SetUserRole(actorID, targetID, role)
+}
+
+func (this *UserService) SetFlag(actorID, targetID, flag string) (bool, string) {
+	return db.SetUserFlag(actorID, targetID, flag)
 }

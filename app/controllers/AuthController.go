@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"errors"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
+	"github.com/gemsnote/gemsnote/app/service"
 	"github.com/revel/revel"
 	//	"strconv"
 )
@@ -39,8 +41,13 @@ func (c Auth) doLogin(email, pwd string) revel.Result {
 	if err != nil {
 		// 登录错误, 则错误次数++
 		msg = "wrongUsernameOrPassword"
+		if errors.Is(err, service.ErrUserDisabled) {
+			msg = "userDisabled"
+		}
 	} else {
-		c.SetSession(userInfo)
+		if !c.SetSession(userInfo) {
+			return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("sessionCreationFailed")})
+		}
 		sessionService.ClearLoginTimes(sessionId)
 		return c.RenderJSON(info.Re{Ok: true})
 	}
@@ -59,9 +66,14 @@ func (c Auth) DoLogin(email, pwd string, captcha string) revel.Result {
 		if err != nil {
 			// 登录错误, 则错误次数++
 			msg = "wrongUsernameOrPassword"
+			if errors.Is(err, service.ErrUserDisabled) {
+				msg = "userDisabled"
+			}
 			sessionService.IncrLoginTimes(sessionId)
 		} else {
-			c.SetSession(userInfo)
+			if !c.SetSession(userInfo) {
+				return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("sessionCreationFailed")})
+			}
 			sessionService.ClearLoginTimes(sessionId)
 			return c.RenderJSON(info.Re{Ok: true})
 		}

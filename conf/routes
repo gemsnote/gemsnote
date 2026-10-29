@@ -92,6 +92,7 @@ POST    /api2/web/save                          Web.Save
 POST    /api2/web/restore                       Web.Restore
 GET     /api2/web/groups                        Web.Groups
 POST    /api2/web/shareMembers                  Web.ShareMembers
+POST    /api2/admin/flag                        Api2.AdminFlag
 POST    /api2/admin/role                        Api2.AdminRole
 POST    /api2/web/adminData                     Web.AdminData
 POST    /api2/web/adminSettings                 Web.AdminSettings

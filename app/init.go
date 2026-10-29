@@ -431,7 +431,9 @@ func init() {
 		controllers.InitService()
 		admin.InitService()
 		member.InitService()
-		service.ConfigS.InitGlobalConfigs()
+		if !service.ConfigS.InitGlobalConfigs() {
+			revel.AppLog.Error("Administrator role initialization failed; verify adminUserId/adminUsername and database permissions. Explicit user roles are not overridden.")
+		}
 		api.InitService()
 	})
 }

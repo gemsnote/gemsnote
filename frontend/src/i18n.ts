@@ -7,6 +7,13 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '状态':'Status','已禁用':'Disabled','可用':'Available','启用用户':'Enable user','禁用用户':'Disable user',
+ '不能禁用自己的账号':'You cannot disable your own account',
+ 'cannotDisableSelf':'You cannot disable your own account.', 'invalidUserFlag':'Invalid account status.',
+ 'userDisabled':'This account is disabled. Contact an administrator.',
+ 'sessionCreationFailed':'Could not create a login session. Check account status or try again later.',
+ 'sessionRevocationFailed':'Could not revoke login sessions. Refresh the account status and retry.',
+
  '角色':'Role','管理员':'Administrator','普通用户':'Regular user',
  '设为普通用户':'Make regular user','设为管理员':'Make administrator',
  '不能修改自己的管理员权限':'You cannot remove your own administrator role',
@@ -226,6 +233,10 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ cannotDisableSelf:'不能禁用自己的账号。',invalidUserFlag:'用户状态无效，只能为 A 或 D。',
+ userDisabled:'账号已被禁用，请联系管理员。',sessionCreationFailed:'无法建立登录会话，请确认账号状态或稍后重试。',
+ sessionRevocationFailed:'清理登录会话失败，请刷新账号状态后重试。',
+
  cannotDemoteSelf:'不能将自己的管理员权限改为普通用户。',invalidRole:'角色无效。',noAuth:'没有操作权限。',
 
  "mailQueueNotConfigured":"邮件任务队列未配置，请联系管理员。",

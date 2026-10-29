@@ -258,6 +258,7 @@ func (c Web) AdminData(keywords string, page int) revel.Result {
 	type adminUser struct {
 		info.User
 		Role string
+		Flag string
 	}
 	result := make([]adminUser, 0, len(users))
 	for _, user := range users {
@@ -265,7 +266,11 @@ func (c Web) AdminData(keywords string, page int) revel.Result {
 		if user.Role == info.RoleAdmin {
 			role = info.RoleAdmin
 		}
-		result = append(result, adminUser{user, role})
+		flag := user.Flag
+		if flag == "" {
+			flag = info.FlagAvailable
+		}
+		result = append(result, adminUser{user, role, flag})
 	}
 	return c.RenderJSON(map[string]interface{}{"Users": result, "Settings": settings})
 }

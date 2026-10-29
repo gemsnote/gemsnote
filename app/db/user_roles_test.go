@@ -33,3 +33,21 @@ func TestLegacyUserDoesNotExposeRole(t *testing.T) {
 		t.Fatal("role changed the legacy user response")
 	}
 }
+
+func TestUserFlagChangeValidation(t *testing.T) {
+	actor, target := bson.NewObjectId().Hex(), bson.NewObjectId().Hex()
+	for _, test := range []struct{ actor, target, flag, want string }{
+		{actor, actor, "D", "cannotDisableSelf"},
+		{actor, strings.ToUpper(actor), "D", "cannotDisableSelf"},
+		{actor, actor, "A", ""},
+		{actor, target, "D", ""},
+		{actor, target, "A", ""},
+		{actor, target, "d", "invalidUserFlag"},
+		{actor, target, "", "invalidUserFlag"},
+		{actor, "invalid", "D", "userNotExists"},
+	} {
+		if got := validateFlagChange(test.actor, test.target, test.flag); got != test.want {
+			t.Fatalf("flag validation got %q want %q", got, test.want)
+		}
+	}
+}

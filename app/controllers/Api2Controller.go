@@ -8,6 +8,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -35,6 +36,9 @@ func (c Api2) TokenLogin() revel.Result {
 	}
 	user, err := authService.Login(p.Email, p.Pwd)
 	if err != nil {
+		if errors.Is(err, service.ErrUserDisabled) {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "userDisabled"})
+		}
 		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("wrongUsernameOrPassword")})
 	}
 	token, tokenErr := service.NewAPIToken()
@@ -43,7 +47,9 @@ func (c Api2) TokenLogin() revel.Result {
 		c.Response.Status = 500
 		return c.RenderJSON(info.Re{Ok: false, Msg: "tokenGenerationFailed"})
 	}
-	sessionService.SetUserId(token, user.UserId.Hex())
+	if !sessionService.SetUserId(token, user.UserId.Hex()) {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "sessionCreationFailed"})
+	}
 	return c.RenderJSON(map[string]interface{}{
 		"Ok":     true,
 		"Token":  token,
@@ -351,6 +357,25 @@ func (c Api2) AdminRole() revel.Result {
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
 	}
 	ok, msg := service.UserS.SetRole(c.GetUserId(), p.UserID, p.Role)
+	if msg == "noAuth" {
+		c.Response.Status = 403
+	}
+	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
+}
+
+func (c Api2) AdminFlag() revel.Result {
+	if !configService.IsAdmin(c.GetUserId()) {
+		c.Response.Status = 403
+		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
+	}
+	var p struct {
+		UserID string `json:"userId"`
+		Flag   string `json:"flag"`
+	}
+	if err := c.body(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	ok, msg := userService.SetFlag(c.GetUserId(), p.UserID, p.Flag)
 	if msg == "noAuth" {
 		c.Response.Status = 403
 	}

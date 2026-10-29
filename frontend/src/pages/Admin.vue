@@ -26,6 +26,12 @@ async function setRole(target:any){
  try{await action('/api2/admin/role',{userId:target.UserId,role:target.Role==='admin'?'user':'admin'})}
  finally{roleBusy.value=false}
 }
+async function setFlag(target:any){
+ if(roleBusy.value||target.UserId===user.value.UserId)return
+ roleBusy.value=true
+ try{await action('/api2/admin/flag',{userId:target.UserId,flag:target.Flag==='D'?'A':'D'})}
+ finally{roleBusy.value=false}
+}
 onMounted(async()=>{try{const bootstrap=await request('/web/bootstrap');if(bootstrap.Desktop){await router.replace('/note');return}user.value=bootstrap.User||{};await load()}catch(error){message.value=String(error)}})
 </script>
 
@@ -34,8 +40,8 @@ onMounted(async()=>{try{const bootstrap=await request('/web/bootstrap');if(boots
     <h1>{{t('系统管理')}}</h1><p role="status">{{ message }}</p>
     <section class="card"><h2>{{t('用户管理')}}</h2>
       <form class="inline" @submit.prevent="page=1;load()"><input v-model="keywords" :placeholder="t('搜索用户')"><button>{{t('搜索')}}</button></form>
-      <table><thead><tr><th>{{t('用户名')}}</th><th>{{t('邮箱')}}</th><th>{{t('角色')}}</th><th>{{t('操作')}}</th></tr></thead><tbody>
-        <tr v-for="u in data.Users" :key="u.UserId"><td>{{u.Username}}</td><td>{{u.Email}}</td><td>{{t(u.Role==='admin'?'管理员':'普通用户')}}</td><td><button :disabled="roleBusy||u.UserId===user.UserId" :title="u.UserId===user.UserId?t('不能修改自己的管理员权限'):''" @click="setRole(u)">{{t(u.Role==='admin'?'设为普通用户':'设为管理员')}}</button><button @click="resetId=u.UserId">{{t('重置密码')}}</button></td></tr>
+      <table><thead><tr><th>{{t('用户名')}}</th><th>{{t('邮箱')}}</th><th>{{t('角色')}}</th><th>{{t('状态')}}</th><th>{{t('操作')}}</th></tr></thead><tbody>
+        <tr v-for="u in data.Users" :key="u.UserId"><td>{{u.Username}}</td><td>{{u.Email}}</td><td>{{t(u.Role==='admin'?'管理员':'普通用户')}}</td><td>{{t(u.Flag==='D'?'已禁用':'可用')}}</td><td><button :disabled="roleBusy||u.UserId===user.UserId" :title="u.UserId===user.UserId?t('不能禁用自己的账号'):''" @click="setFlag(u)">{{t(u.Flag==='D'?'启用用户':'禁用用户')}}</button><button :disabled="roleBusy||u.UserId===user.UserId" :title="u.UserId===user.UserId?t('不能修改自己的管理员权限'):''" @click="setRole(u)">{{t(u.Role==='admin'?'设为普通用户':'设为管理员')}}</button><button @click="resetId=u.UserId">{{t('重置密码')}}</button></td></tr>
       </tbody></table>
       <div class="inline"><button :disabled="page===1" @click="page--;load()">{{t('上一页')}}</button><span>{{page}}</span><button :disabled="data.Users.length<20" @click="page++;load()">{{t('下一页')}}</button></div>
       <form v-if="resetId" class="inline" @submit.prevent="action('/web/adminResetPwd',{userId:resetId,pwd:resetPwd})"><label>{{t('新密码')}}<input v-model="resetPwd" type="password" required></label><button>{{t('确认重置')}}</button><button type="button" @click="resetId=''">{{t('取消')}}</button></form>
