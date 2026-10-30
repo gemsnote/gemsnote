@@ -158,7 +158,7 @@ const translations: Record<string, string> = {
   '当前服务端版本过低，请先升级服务端。': 'This server is too old. Upgrade it first.',
   '密码已修改，请重新登录。': 'Password changed. Please sign in again.',
   '请检查邮箱中的重置密码链接。': 'Check your email for the password reset link.',
-  '账号管理': 'Account settings', '个人资料': 'Profile', '当前头像': 'Current avatar',
+  '账号管理': 'Account settings', '个人资料': 'Profile', '当前头像': 'Current avatar', '当前邮箱': 'Current email', '确认新密码': 'Confirm new password',
   '更换头像': 'Change avatar', '用户名': 'Username', '更新用户名': 'Update username',
   '新邮箱': 'New email', '当前密码': 'Current password', '发送邮箱验证邮件': 'Send verification email',
   '重新发送当前邮箱验证邮件': 'Resend verification email', '修改密码': 'Change password',

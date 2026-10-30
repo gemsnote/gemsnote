@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { request, upload, resolveAvatarUrl } from '../api'
 import Navigation from '../components/Navigation.vue'
-import FilePicker from '../components/FilePicker.vue'
 import EmailVerification from '../components/EmailVerification.vue'
 import {confirmAction} from '../dialogs'
 import {t} from '../i18n'
@@ -16,7 +15,10 @@ const message = ref('')
 const username = ref('')
 const serverAddress = ref('')
 const oldPwd = ref('')
-const pwd = ref('')
+const pwd = ref(''), confirmPwd = ref(''), passwordError = ref('')
+const usernameSaving = ref(false), passwordSaving = ref(false), avatarUploading = ref(false)
+const avatarInput = ref<HTMLInputElement>()
+const avatarSrc = computed(() => resolveAvatarUrl(user.value.Logo || ''))
 const groups = ref<Group[]>([])
 const newGroupTitle = ref('')
 const addUserEmails = ref<Record<string, string>>({})
@@ -55,18 +57,37 @@ onMounted(async () => {
   } catch (error) { showError(error) }
 })
 
-async function update(path: string, data: any) {
+async function updateUsername() {
+  if (usernameSaving.value) return
+  usernameSaving.value = true; message.value = ''
   try {
-    await request(path, data)
-    message.value = t('已更新')
-    if (path.endsWith('updatePwd')) {
-      await request('/web/logout', {})
-      location.href = '/login'
-    }
+    const value = username.value.trim()
+    await request('/user/updateUsername', { username: value })
+    user.value.Username = value; username.value = value; message.value = t('已更新')
   } catch (error) { showError(error) }
+  finally { usernameSaving.value = false }
 }
-async function avatar(file: File) {
+async function updatePassword() {
+  if (passwordSaving.value) return
+  passwordError.value = ''; message.value = ''
+  if (pwd.value !== confirmPwd.value) { passwordError.value = t('两次输入的密码不一致'); return }
+  passwordSaving.value = true
+  try {
+    await request('/user/updatePwd', { oldPwd: oldPwd.value, pwd: pwd.value })
+    oldPwd.value = ''; pwd.value = ''; confirmPwd.value = ''
+    await request('/web/logout', {})
+    location.href = '/login'
+  } catch (error) { passwordError.value = error instanceof Error ? error.message : String(error) }
+  finally { passwordSaving.value = false }
+}
+async function avatar(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // Allow selecting the same file again after a failed upload.
+  if (!file || avatarUploading.value) return
+  avatarUploading.value = true; message.value = ''
   try { const result = await upload('/file/uploadAvatar', file); user.value.Logo = resolveAvatarUrl(result.Id); message.value = t('头像已更新') } catch (error) { showError(error) }
+  finally { avatarUploading.value = false }
 }
 async function addGroup() {
   const title = newGroupTitle.value.trim()
@@ -98,10 +119,36 @@ async function deleteUser(group: Group, member: GroupUser) {
   <div class="shell settings-shell">
     <Navigation :admin="admin" :user="user" back-only />
     <main class="settings">
-      <h1>{{t('账号管理')}}</h1><p class="muted">{{ user.Email }} · {{t(user.Verified?'邮箱已验证':'邮箱未验证')}}</p><p v-if="message" role="status" class="message">{{ message }}</p>
+      <h1>{{t('账号管理')}}</h1><p v-if="message" role="status" class="message">{{ message }}</p>
       <label v-if="serverAddress" class="server-address">{{t('服务器地址')}}<input :value="serverAddress" :title="serverAddress" readonly></label>
-      <section class="card"><h2>{{t('个人资料')}}</h2><img v-if="user.Logo" :src="user.Logo" class="avatar" :alt="t('当前头像')"><FilePicker :label="t('更换头像')" accept="image/*" @selected="avatar"/><form @submit.prevent="update('/user/updateUsername', { username })"><label>{{t('用户名')}}<input v-model="username" required></label><button>{{t('更新用户名')}}</button></form><EmailVerification v-if="user.UserId" :user-id="user.UserId" :current-email="user.Email" :pending-email="user.PendingEmail" @pending="user.PendingEmail=$event"/></section>
-      <section class="card"><h2>{{t('修改密码')}}</h2><form @submit.prevent="update('/user/updatePwd', { oldPwd, pwd })"><label>{{t('原密码')}}<input v-model="oldPwd" type="password" autocomplete="current-password" required></label><label>{{t('新密码')}}<input v-model="pwd" type="password" autocomplete="new-password" required></label><button class="primary">{{t('修改并重新登录')}}</button></form></section>
+      <section class="card">
+        <h2>{{t('个人资料')}}</h2>
+        <button type="button" class="profile-avatar" :disabled="avatarUploading" :aria-busy="avatarUploading" :aria-label="t('更换头像')" :title="t('更换头像')" @click="avatarInput?.click()">
+          <img v-if="avatarSrc" :src="avatarSrc" :alt="t('当前头像')">
+          <span v-else>{{ (user.Username || user.Email || '?').slice(0, 1).toUpperCase() }}</span>
+        </button>
+        <input ref="avatarInput" type="file" hidden accept="image/*" :disabled="avatarUploading" :aria-label="t('更换头像')" @change="avatar">
+        <form @submit.prevent="updateUsername">
+          <label for="account-username">{{t('用户名')}}</label>
+          <div class="username-row">
+            <input id="account-username" v-model="username" required autocomplete="username" :disabled="usernameSaving">
+            <button class="username-save" :disabled="usernameSaving" :aria-label="t('更新用户名')" :title="t('更新用户名')">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h9"/></svg>
+            </button>
+          </div>
+        </form>
+        <EmailVerification v-if="user.UserId" :user-id="user.UserId" :current-email="user.Email" :verified="!!user.Verified" :pending-email="user.PendingEmail" @pending="user.PendingEmail=$event"/>
+      </section>
+      <section class="card">
+        <h2>{{t('修改密码')}}</h2>
+        <form @submit.prevent="updatePassword">
+          <label>{{t('原密码')}}<input v-model="oldPwd" type="password" autocomplete="current-password" required :disabled="passwordSaving"></label>
+          <label>{{t('新密码')}}<input v-model="pwd" type="password" autocomplete="new-password" required :disabled="passwordSaving" @input="passwordError=''"></label>
+          <label>{{t('确认新密码')}}<input v-model="confirmPwd" type="password" autocomplete="new-password" required :disabled="passwordSaving" :aria-invalid="!!passwordError" :aria-describedby="passwordError?'password-error':undefined" @input="passwordError=''"></label>
+          <p v-if="passwordError" id="password-error" role="alert" class="danger">{{passwordError}}</p>
+          <button class="primary" :disabled="passwordSaving">{{t('修改并重新登录')}}</button>
+        </form>
+      </section>
       <section class="card groups">
         <h2>{{t('用户分组')}}</h2><p class="muted">{{t('将已有账号加入分组后，可在分享笔记或笔记本时选择整个分组。')}}</p>
         <form class="inline-form" @submit.prevent="addGroup"><input v-model="newGroupTitle" maxlength="100" :placeholder="t('新分组名称')" :aria-label="t('新分组名称')"><button class="primary">{{t('新建分组')}}</button></form>
@@ -121,7 +168,12 @@ async function deleteUser(group: Group, member: GroupUser) {
 </template>
 
 <style scoped>
-.avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover }
+.profile-avatar { display: grid; place-items: center; width: 72px; height: 72px; padding: 0; border-radius: 50%; overflow: hidden; background: #e9eee8; color: #193b35; font-size: 28px }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover }
+.username-row { display: flex; align-items: stretch; gap: .5rem }
+.username-row input { flex: 1; min-width: 0 }
+.username-save { display: grid; place-items: center; flex: 0 0 44px; padding: 8px }
+label[for="account-username"] { margin-bottom: 8px }
 .server-address { max-width: 760px }
 .message { color: var(--accent, #1769aa) }
 .inline-form, .actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap }

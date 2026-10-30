@@ -25,6 +25,7 @@ try {
         case '/api2/web/downloadStatus': data = { Running: false }; break
         case '/api2/bootstrap': data = { Desktop: true, Host: 'https://notes.example.test:2443', User: { UserId: 'user1', Username: 'tester', Email: 'tester@example.test' }, Notebooks: [], Tags: [] }; break
         case '/api2/notes': data = []; break
+        case '/api2/user/info': data = {UserId:'user1',Email:'tester@example.test',Verified:false}; break
         case '/api2/desktop/about':
           data = aboutFails ? { Ok: false, Msg: 'info unavailable' } : { Name: 'Gemsnote', Version: '9.8.7-test', Platform: 'linux', Arch: 'amd64', Runtime: 'go1.23.0' }
           break
@@ -89,19 +90,24 @@ try {
     const serverAddress = page.getByLabel(chinese ? '服务器地址' : 'Server address', { exact: true })
     await expect(serverAddress).toHaveValue('https://notes.example.test:2443')
     await expect(serverAddress).toHaveAttribute('readonly', '')
-    const picker = page.getByRole('group', { name: chinese ? '更换头像' : 'Change avatar' })
-    await expect(picker).toContainText(chinese ? '未选择文件' : 'No file selected')
+    const picker = page.getByRole('button', { name: chinese ? '更换头像' : 'Change avatar', exact: true })
+    await expect(page.getByRole('button', { name: chinese ? '选择文件' : 'Choose file', exact: true })).toHaveCount(0)
     const fileChooserPromise = page.waitForEvent('filechooser')
-    await picker.getByRole('button', { name: chinese ? '选择文件' : 'Choose file' }).click()
+    await picker.click()
     const fileChooser = await fileChooserPromise
     expect(await fileChooser.element().getAttribute('accept')).toBe('image/*')
     const avatar = { name: 'avatar.png', mimeType: 'image/png', buffer: Buffer.from('test avatar bytes') }
     await fileChooser.setFiles(avatar)
     await expect.poll(() => uploadCount).toBe(1)
-    await expect(picker.getByRole('status')).toHaveText('avatar.png')
+    await expect(picker.locator('img')).toHaveAttribute('src', '/api2/file/getImage?fileId=507f1f77bcf86cd799439011')
     // Selecting the same file again is a valid retry.
-    await picker.locator('input[type=file]').setInputFiles(avatar)
+    await page.locator('input[type=file]').setInputFiles(avatar)
     await expect.poll(() => uploadCount).toBe(2)
+
+    await expect(page.getByLabel(chinese ? '确认新密码' : 'Confirm new password', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: chinese ? '邮箱未验证' : 'Email not verified', exact: true }).click()
+    await expect(dialog).toContainText(chinese ? '是否向 tester@example.test 重发验证邮件？' : 'Resend a verification email to tester@example.test?')
+    await dialog.getByRole('button', { name: chinese ? '取消' : 'Cancel', exact: true }).click()
 
     const email = page.getByLabel(chinese ? '新邮箱' : 'New email', { exact: true })
     await email.fill('not-an-email')
@@ -128,7 +134,7 @@ try {
     await page.getByRole('menuitemradio', { name: chinese ? 'English' : '简体中文' }).click()
     await page.getByRole('button', { name: chinese ? 'User menu' : '用户菜单', exact: true }).click()
     await page.getByRole('menuitem', { name: chinese ? 'Account' : '账号', exact: true }).click()
-    await expect(page.getByRole('button', { name: chinese ? 'Choose file' : '选择文件', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: chinese ? 'Change avatar' : '更换头像', exact: true })).toBeVisible()
     console.log(`PASS about, file upload, dialogs, validation and language switching: ${language}`)
     await page.close()
   }
