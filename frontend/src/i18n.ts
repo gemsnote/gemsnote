@@ -7,6 +7,18 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ "重新生成":"Regenerate",
+ "复制密码":"Copy password",
+ "密码已复制":"Password copied",
+ "复制失败，请手动选择密码复制":"Copy failed. Select and copy the password manually.",
+ "用户名至少4位，只能包含字母、数字、下划线和连字符":"Use at least 4 letters, digits, underscores or hyphens.",
+ "自动生成12位随机密码，包含大小写字母、数字和符号":"A random 12-character password with uppercase and lowercase letters, digits and symbols.",
+ "用户已创建，请保存初始密码并安全交给用户":"User created. Save the initial password and share it securely with the user.",
+ "已创建用户的初始密码":"Created user’s initial password",
+ "invalidUsername":"Use at least 4 letters, digits, underscores or hyphens for the username.",
+ "usernameIsExisted":"Username is already in use.",
+ "createUserFailed":"Could not create the user. Please retry.",
+
  '状态':'Status','已禁用':'Disabled','可用':'Available','启用用户':'Enable user','禁用用户':'Disable user',
  '不能禁用自己的账号':'You cannot disable your own account',
  'cannotDisableSelf':'You cannot disable your own account.', 'invalidUserFlag':'Invalid account status.',
@@ -239,6 +251,7 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ invalidUsername:'用户名至少4位，只能包含字母、数字、下划线和连字符。',usernameIsExisted:'用户名已存在。',createUserFailed:'创建用户失败，请重试。',
  cannotDisableSelf:'不能禁用自己的账号。',invalidUserFlag:'用户状态无效，只能为 A 或 D。',
  userDisabled:'账号已被禁用，请联系管理员。',sessionCreationFailed:'无法建立登录会话，请确认账号状态或稍后重试。',
  sessionRevocationFailed:'清理登录会话失败，请刷新账号状态后重试。',

@@ -41,7 +41,14 @@ admin_id = bootstrap(admin)['User']['UserId']
 assert change(admin, admin_id, 'user')[1]['Msg'] == 'cannotDemoteSelf'
 assert bootstrap(admin)['IsAdmin']
 assert change(admin, admin_id, 'superuser')[1]['Msg'] == 'invalidRole'
-assert request('/api2/web/adminRegister', {'email': 'roles-test@example.test', 'pwd': 'Role-test-123!', 'role': 'admin'}, admin, False)[1]['Ok']
+assert request('/api2/web/adminRegister', {'username': 'roles-test', 'email': 'roles-test@example.test', 'pwd': 'Role-test-123!', 'role': 'admin'}, admin, False)[1]['Ok']
+# Explicit username is normalized, independently usable for login, and unique.
+assert login('ROLES-TEST', 'Role-test-123!')
+for invalid in ['', 'abc', 'bad name', 'bad@example.test']:
+    result = request('/api2/web/adminRegister', {'username': invalid, 'email': 'invalid@example.test', 'pwd': 'Role-test-123!'}, admin, False)[1]
+    assert not result['Ok'] and result['Msg'] == 'invalidUsername', result
+result = request('/api2/web/adminRegister', {'username': 'Roles-Test', 'email': 'duplicate@example.test', 'pwd': 'Role-test-123!'}, admin, False)[1]
+assert not result['Ok'] and result['Msg'] == 'usernameIsExisted', result
 other = login('roles-test@example.test', 'Role-test-123!')
 other_id = bootstrap(other)['User']['UserId']
 assert not bootstrap(other)['IsAdmin'], 'new users must not inherit an injected admin role'

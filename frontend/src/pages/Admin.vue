@@ -4,13 +4,34 @@ import { useRouter } from 'vue-router'
 import { request } from '../api'
 import Navigation from '../components/Navigation.vue'
 import {t} from '../i18n'
+import {generateInitialPassword} from '../password'
 
 const roleBusy=ref(false)
 const data = ref<any>({ Users: [], Settings: {} })
 const router = useRouter()
 const user = ref<any>({})
 const message = ref(''), keywords = ref(''), page = ref(1)
-const email = ref(''), pwd = ref(''), resetId = ref(''), resetPwd = ref('')
+const username = ref(''), email = ref(''), pwd = ref(generateInitialPassword()), resetId = ref(''), resetPwd = ref('')
+
+const creating = ref(false)
+const created = ref<{username:string;pwd:string}|null>(null)
+async function copyPassword(value:string) {
+  try { await navigator.clipboard.writeText(value); message.value=t('密码已复制') }
+  catch { message.value=t('复制失败，请手动选择密码复制') }
+}
+async function createUser() {
+  if(creating.value)return
+  creating.value=true
+  try {
+    const name=username.value.trim()
+    await request('/web/adminRegister',{username:name,email:email.value.trim(),pwd:pwd.value})
+    created.value={username:name,pwd:pwd.value}
+    username.value='';email.value='';pwd.value=generateInitialPassword()
+    message.value=t('用户已创建，请保存初始密码并安全交给用户')
+    await load()
+  } catch(error) { message.value=String(error) }
+  finally { creating.value=false }
+}
 
 async function load() {
   try { data.value = await request('/web/adminData', { keywords: keywords.value, page: page.value }) }
@@ -46,7 +67,24 @@ onMounted(async()=>{try{const bootstrap=await request('/web/bootstrap');if(boots
       <div class="inline"><button :disabled="page===1" @click="page--;load()">{{t('上一页')}}</button><span>{{page}}</span><button :disabled="data.Users.length<20" @click="page++;load()">{{t('下一页')}}</button></div>
       <form v-if="resetId" class="inline" @submit.prevent="action('/web/adminResetPwd',{userId:resetId,pwd:resetPwd})"><label>{{t('新密码')}}<input v-model="resetPwd" type="password" required></label><button>{{t('确认重置')}}</button><button type="button" @click="resetId=''">{{t('取消')}}</button></form>
     </section>
-    <section class="card"><h2>{{t('添加用户（管理）')}}</h2><form @submit.prevent="action('/web/adminRegister',{email,pwd})"><label>{{t('邮箱')}}<input v-model="email" type="email" required></label><label>{{t('初始密码')}}<input v-model="pwd" type="password" required></label><button>{{t('创建')}}</button></form></section>
+    <section class="card"><h2>{{t('添加用户（管理）')}}</h2>
+      <form @submit.prevent="createUser">
+        <label>{{t('用户名')}}<input v-model.trim="username" required minlength="4" pattern="[A-Za-z0-9_\-]+" autocomplete="off" :disabled="creating"></label>
+        <small>{{t('用户名至少4位，只能包含字母、数字、下划线和连字符')}}</small>
+        <label>{{t('邮箱')}}<input v-model.trim="email" type="email" required :disabled="creating"></label>
+        <label>{{t('初始密码')}}<input :value="pwd" type="text" readonly autocomplete="off" spellcheck="false"></label>
+        <div class="inline"><button type="button" :disabled="creating" @click="pwd=generateInitialPassword()">{{t('重新生成')}}</button><button type="button" @click="copyPassword(pwd)">{{t('复制密码')}}</button></div>
+        <small>{{t('自动生成12位随机密码，包含大小写字母、数字和符号')}}</small>
+        <button :disabled="creating">{{t('创建')}}</button>
+      </form>
+      <div v-if="created" class="created-credentials" role="status">
+        <p>{{t('用户已创建，请保存初始密码并安全交给用户')}}</p>
+        <p>{{t('用户名')}}: {{created.username}}</p>
+        <label>{{t('已创建用户的初始密码')}}<input :value="created.pwd" type="text" readonly autocomplete="off" spellcheck="false"></label>
+        <button type="button" @click="copyPassword(created.pwd)">{{t('复制密码')}}</button>
+        <button type="button" @click="created=null">{{t('关闭')}}</button>
+      </div>
+    </section>
     <section class="card"><h2>{{t('站点与邮件')}}</h2><form @submit.prevent="action('/web/adminSettings',data.Settings)">
       <label>{{t('站点 URL')}}<input v-model="data.Settings.siteUrl" type="url"></label>
       <label>{{t('邮件服务器')}}<input v-model="data.Settings.emailHost"></label><label>{{t('邮件端口')}}<input v-model="data.Settings.emailPort"></label>

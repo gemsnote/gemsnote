@@ -49,7 +49,7 @@ assert change(admin, admin_id, 'D')[1]['Msg'] == 'cannotDisableSelf'
 assert change(admin, admin_id.upper(), 'D')[1]['Msg'] == 'cannotDisableSelf'
 assert change(admin, admin_id, 'invalid')[1]['Msg'] == 'invalidUserFlag'
 name = 'flags-test@example.test'
-assert request('/api2/web/adminRegister', {'email': name, 'pwd': 'Flag-test-123!', 'flag': 'D'}, admin, True)[1]['Ok']
+assert request('/api2/web/adminRegister', {'username': 'flags-test', 'email': name, 'pwd': 'Flag-test-123!', 'flag': 'D'}, admin, True)[1]['Ok']
 other = login(name)['Token']
 user_id = bootstrap(other)['User']['UserId']
 assert re.fullmatch('[a-f0-9]{24}', user_id)

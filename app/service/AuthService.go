@@ -45,6 +45,28 @@ func (this *AuthService) Login(emailOrUsername, pwd string) (info.User, error) {
 // 2. 将gemsnote共享给我
 // [ok]
 func (this *AuthService) CreateUser(email, pwd string) (bool, string) {
+	return this.createUser(email, pwd, "")
+}
+
+// CreateUserWithUsername creates a named account without changing legacy creation semantics.
+func (this *AuthService) CreateUserWithUsername(email, pwd, username string) (bool, string) {
+	username = strings.TrimSpace(username)
+	if ok, _ := Vd("username", username); !ok {
+		return false, "invalidUsername"
+	}
+	return this.createUser(email, pwd, username)
+}
+
+func (this *AuthService) createUser(email, pwd, username string) (bool, string) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	usernameRaw := username
+	username = strings.ToLower(username)
+	if username == "" {
+		username = email
+	}
+	if userService.IsExistsUserByUsername(username) {
+		return false, "usernameIsExisted"
+	}
 	// 用户是否已存在
 	if userService.IsExistsUser(email) {
 		return false, "userHasBeenRegistered-" + email
@@ -53,55 +75,55 @@ func (this *AuthService) CreateUser(email, pwd string) (bool, string) {
 	if passwd == "" {
 		return false, "GenerateHash error"
 	}
-	user := info.User{UserId: bson.NewObjectId(), Email: email, Username: email, Pwd: passwd}
+	user := info.User{UserId: bson.NewObjectId(), Email: email, Username: username, UsernameRaw: usernameRaw, Pwd: passwd}
 	return this.register(user)
 }
 
 func (this *AuthService) register(user info.User) (bool, string) {
-	if userService.AddUser(user) {
-		// 添加笔记本, 生活, 学习, 工作
-		userId := user.UserId.Hex()
-		notebook := info.Notebook{
-			Seq:    -1,
-			UserId: user.UserId}
-		title2Id := map[string]bson.ObjectId{"life": bson.NewObjectId(), "study": bson.NewObjectId(), "work": bson.NewObjectId()}
-		for title, objectId := range title2Id {
-			notebook.Title = title
-			notebook.NotebookId = objectId
-			notebook.UserId = user.UserId
-			notebookService.AddNotebook(notebook)
+	if !userService.AddUser(user) {
+		return false, "createUserFailed"
+	}
+	// 添加笔记本, 生活, 学习, 工作
+	userId := user.UserId.Hex()
+	notebook := info.Notebook{
+		Seq:    -1,
+		UserId: user.UserId}
+	title2Id := map[string]bson.ObjectId{"life": bson.NewObjectId(), "study": bson.NewObjectId(), "work": bson.NewObjectId()}
+	for title, objectId := range title2Id {
+		notebook.Title = title
+		notebook.NotebookId = objectId
+		notebook.UserId = user.UserId
+		notebookService.AddNotebook(notebook)
+	}
+
+	// 添加gemsnote -> 该用户的共享
+	registerSharedUserId := configService.GetGlobalStringConfig("registerSharedUserId")
+	if registerSharedUserId != "" {
+		registerSharedNotebooks := configService.GetGlobalArrMapConfig("registerSharedNotebooks")
+		registerSharedNotes := configService.GetGlobalArrMapConfig("registerSharedNotes")
+		registerCopyNoteIds := configService.GetGlobalArrayConfig("registerCopyNoteIds")
+
+		// 添加共享笔记本
+		for _, notebook := range registerSharedNotebooks {
+			perm, _ := strconv.Atoi(notebook["perm"])
+			shareService.AddShareNotebookToUserId(notebook["notebookId"], perm, registerSharedUserId, userId)
 		}
 
-		// 添加gemsnote -> 该用户的共享
-		registerSharedUserId := configService.GetGlobalStringConfig("registerSharedUserId")
-		if registerSharedUserId != "" {
-			registerSharedNotebooks := configService.GetGlobalArrMapConfig("registerSharedNotebooks")
-			registerSharedNotes := configService.GetGlobalArrMapConfig("registerSharedNotes")
-			registerCopyNoteIds := configService.GetGlobalArrayConfig("registerCopyNoteIds")
-
-			// 添加共享笔记本
-			for _, notebook := range registerSharedNotebooks {
-				perm, _ := strconv.Atoi(notebook["perm"])
-				shareService.AddShareNotebookToUserId(notebook["notebookId"], perm, registerSharedUserId, userId)
-			}
-
-			// 添加共享笔记
-			for _, note := range registerSharedNotes {
-				perm, _ := strconv.Atoi(note["perm"])
-				shareService.AddShareNoteToUserId(note["noteId"], perm, registerSharedUserId, userId)
-			}
-
-			// 复制笔记
-			for _, noteId := range registerCopyNoteIds {
-				note := noteService.CopySharedNote(noteId, title2Id["life"].Hex(), registerSharedUserId, user.UserId.Hex())
-				//				Log(noteId)
-				//				Log("Copy")
-				//				LogJ(note)
-				noteUpdate := bson.M{"IsBlog": false} // 不要是博客
-				noteService.UpdateNote(user.UserId.Hex(), note.NoteId.Hex(), noteUpdate, -1)
-			}
+		// 添加共享笔记
+		for _, note := range registerSharedNotes {
+			perm, _ := strconv.Atoi(note["perm"])
+			shareService.AddShareNoteToUserId(note["noteId"], perm, registerSharedUserId, userId)
 		}
 
+		// 复制笔记
+		for _, noteId := range registerCopyNoteIds {
+			note := noteService.CopySharedNote(noteId, title2Id["life"].Hex(), registerSharedUserId, user.UserId.Hex())
+			//				Log(noteId)
+			//				Log("Copy")
+			//				LogJ(note)
+			noteUpdate := bson.M{"IsBlog": false} // 不要是博客
+			noteService.UpdateNote(user.UserId.Hex(), note.NoteId.Hex(), noteUpdate, -1)
+		}
 	}
 
 	return true, ""

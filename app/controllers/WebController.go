@@ -306,7 +306,7 @@ func (c Web) AdminResetPwd(userId, pwd string) revel.Result {
 	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }
 
-func (c Web) AdminRegister(email, pwd string) revel.Result {
+func (c Web) AdminRegister(email, pwd, username string) revel.Result {
 	if !c.isAdmin() {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
@@ -317,7 +317,7 @@ func (c Web) AdminRegister(email, pwd string) revel.Result {
 	if ok, msg := lea.Vd("password", pwd); !ok {
 		return c.RenderJSON(info.Re{Ok: false, Msg: msg})
 	}
-	ok, msg := authService.CreateUser(email, pwd)
+	ok, msg := authService.CreateUserWithUsername(email, pwd, username)
 	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }
 

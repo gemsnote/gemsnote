@@ -36,6 +36,8 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 
 ### 用户角色
 
+管理端创建账号：`POST /api2/web/adminRegister`，参数 `username`、`email`、`pwd` 均必填（当前接受表单参数）。用户名至少 4 位，仅限英文字母、数字、下划线、连字符，按小写保存和检查重复；可使用用户名或邮箱登录。Web 自动生成 12 位高强度初始密码并明文展示，可重新生成和复制；服务端仅保存密码哈希。
+
 不提供用户自行注册功能。账号只能由管理员通过 Web 用户管理创建；`/register`、`/doRegister`、`/api2/auth/register` 均不是公开注册入口。
 
 - `POST /api2/admin/role`：JSON `{"userId":"<用户 ID>","role":"admin"}`，`role` 仅支持 `admin`、`user`。仅管理员可调用。成功返回 `Ok:true`，普通用户调用返回 HTTP 403 和 `noAuth`。
