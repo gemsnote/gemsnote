@@ -14,6 +14,7 @@ const (
 	TokenPwd = iota
 	TokenActiveEmail
 	TokenUpdateEmail
+	TokenInitialPassword
 )
 
 // 过期时间

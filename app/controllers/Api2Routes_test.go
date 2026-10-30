@@ -30,6 +30,7 @@ func TestAPI2BrowserRoutesHaveExplicitMethods(t *testing.T) {
 		routes[parts[1]+" "+parts[2]] = true
 	}
 	for _, route := range []string{
+		"POST /api2/admin/resendVerification",
 		"POST /api2/note/deleteNote",
 		"POST /api2/note/deleteTrash",
 		"POST /api2/note/moveNote",

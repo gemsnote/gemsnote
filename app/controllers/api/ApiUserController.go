@@ -37,6 +37,12 @@ func (c ApiUser) Info() revel.Result {
 		Logo:     userInfo.Logo,
 		Verified: userInfo.Verified,
 	}
+	if strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		return c.RenderJSON(struct {
+			info.ApiUser
+			PendingEmail string
+		}{apiUser, userService.PendingEmail(userInfo)})
+	}
 	return c.RenderJSON(apiUser)
 }
 

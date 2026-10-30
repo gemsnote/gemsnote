@@ -29,6 +29,8 @@ git push origin 1.0.0
 5. 根据提交记录生成 Release Notes 并创建 GitHub Release；
 6. 同时向 GitHub Container Registry（GHCR）推送包含 `linux/amd64` 和 `linux/arm64` 的镜像，镜像标签为 `ghcr.io/gemsnote/gemsnote:<版本号>`，例如 `ghcr.io/gemsnote/gemsnote:1.0.0`。GitHub Release 与镜像发布都在版本校验和发布包构建通过后执行。
 
+GHCR 的 Gemsnote 镜像同时包含服务端与 Asynq 邮件 worker，分别使用 `docker-entry-server.sh` 和 `docker-entry-mail-worker.sh` 启动；发布工作流只构建、推送这一种多架构镜像。Compose 的 `mail-worker` 与 `gemsnote` 引用相同镜像版本。
+
 镜像发布使用工作流自带的 `GITHUB_TOKEN`，无需配置 Docker Hub 凭据。首次发布的 GHCR 包默认可能为私有；如需公开拉取，请在 GitHub 的包设置中将其可见性改为 Public。公开后可用 `docker pull ghcr.io/gemsnote/gemsnote:1.0.0` 拉取，Docker 会自动选择匹配主机架构的镜像。本流程只发布明确的版本标签，不更新 `latest`。
 
 如果发布工作流本身修复后需要重试已有标签，不要删除或强推标签，也不要只点旧运行记录的“重新运行”（它仍使用原来的工作流版本）。将修复后的工作流合并到 GitHub 默认分支后，在 Actions → Release → Run workflow 中填写已有标签（如 `1.0.0`）。手动运行会从该标签检出源码，重新测试、构建并发布；请先确认该标签尚未创建 GitHub Release，避免重复创建失败。
@@ -36,7 +38,7 @@ git push origin 1.0.0
 新标签应指向包含此工作流的发布提交。旧 `v` 前缀标签不会触发当前发布流程，
 无需删除或移动它们。构建产物文件名仍保留 `-v<version>`，与 Git/GHCR 标签是两回事。
 
-每个发布包都包含服务端、Vue `frontend/dist`、MongoDB/PostgreSQL 迁移工具、配置、页面资源、数据库 Schema、初始数据和文档；运行发布包不需要安装 Node.js。
+每个发布包都包含服务端、原生 `gemsnote-mail-worker` 邮件程序、Vue `frontend/dist`、MongoDB/PostgreSQL 迁移工具、配置、页面资源、数据库 Schema、初始数据和文档；运行发布包不需要安装 Node.js。
 
 ## 发布新版本
 
@@ -73,7 +75,7 @@ scripts/build-release.sh linux amd64 "$PWD/release"
 scripts/build-release.sh <goos> <goarch> <绝对输出目录>
 ```
 
-可用目标包括 `linux amd64`、`linux arm64`、`windows amd64`、`darwin amd64` 和 `darwin arm64`。POSIX 目标生成 `.tar.gz`，Windows 目标生成 `.zip`。输出目录必须使用绝对路径，因为 Windows 打包阶段会切换到临时目录。脚本会构建 Vue、生成 Revel 生产入口，并编译服务端和 `gemsnote-migrate` 工具；脚本直接读取 `app/version/version.go` 中的 `Current`，不接受版本参数；定义缺失、重复或不符合 `MAJOR.MINOR.PATCH` 时立即失败。脚本本身不执行测试，发布前仍需运行上述测试。GitHub Actions 保留 tag 与代码版本的一致性校验。
+可用目标包括 `linux amd64`、`linux arm64`、`windows amd64`、`darwin amd64` 和 `darwin arm64`。POSIX 目标生成 `.tar.gz`，Windows 目标生成 `.zip`。输出目录必须使用绝对路径，因为 Windows 打包阶段会切换到临时目录。脚本会构建 Vue、生成 Revel 生产入口，并编译服务端、`gemsnote-migrate` 迁移工具和 `gemsnote-mail-worker` 邮件程序；脚本直接读取 `app/version/version.go` 中的 `Current`，不接受版本参数；定义缺失、重复或不符合 `MAJOR.MINOR.PATCH` 时立即失败。脚本本身不执行测试，发布前仍需运行上述测试。GitHub Actions 保留 tag 与代码版本的一致性校验。
 
 发布包包含服务端、迁移工具、`frontend/dist`、配置、数据库 Schema、初始数据和文档，运行时不需要 Node.js。包内通过 `run.sh`（Linux/macOS）或 `run.bat`（Windows）启动。发布前应检查包内 `conf`，不要带入本地密码、`.env` 或运行时数据；`files/` 不会打包，`public/upload` 为空目录。
 

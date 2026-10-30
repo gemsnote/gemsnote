@@ -27,7 +27,7 @@ export async function request<T = any>(path: string, params?: Params, options?: 
   }
   const target = api2Path(path)
   const core = target === '/api2/auth/login' || target === '/api2/auth/session' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
-  const jsonBody = target === '/api2/desktop/exportFile' || target === '/api2/admin/flag' || target === '/api2/admin/role' || core || target === '/api2/notebook/moveNotebook'
+  const jsonBody = target === '/api2/admin/resendVerification' || target === '/api2/desktop/exportFile' || target === '/api2/admin/flag' || target === '/api2/admin/role' || core || target === '/api2/notebook/moveNotebook'
   const token=getToken()
   const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', signal:options?.signal, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }), ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
   const data = await response.json().catch(() => null)

@@ -43,6 +43,8 @@ assert bootstrap(admin)['IsAdmin']
 assert change(admin, admin_id, 'superuser')[1]['Msg'] == 'invalidRole'
 assert request('/api2/web/adminRegister', {'username': 'roles-test', 'email': 'roles-test@example.test', 'pwd': 'Role-test-123!', 'role': 'admin'}, admin, False)[1]['Ok']
 # Explicit username is normalized, independently usable for login, and unique.
+created_id=next(u['UserId'] for u in request('/api2/admin/data',{},admin)[1]['Users'] if u['Username']=='roles-test')
+assert request('/api2/web/adminResetPwd',{'userId':created_id,'pwd':'Role-test-123!'},admin,False)[1]['Ok']
 assert login('ROLES-TEST', 'Role-test-123!')
 for invalid in ['', 'abc', 'bad name', 'bad@example.test']:
     result = request('/api2/web/adminRegister', {'username': invalid, 'email': 'invalid@example.test', 'pwd': 'Role-test-123!'}, admin, False)[1]

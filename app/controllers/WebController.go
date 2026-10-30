@@ -49,7 +49,15 @@ func (c Web) Bootstrap() revel.Result {
 	}
 	tags := tagService.GetUsedTags(userId)
 	starredCount, _ := noteService.ListStarNotes(userId, 1, 1, "UpdatedTime", false)
-	return c.RenderJSON(map[string]interface{}{"Ok": true, "User": c.GetUserInfo(), "IsAdmin": configService.IsAdmin(c.GetUserId()), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()})
+	currentUser := c.GetUserInfo()
+	var profile interface{} = currentUser
+	if isAPI2Request(c.Controller) {
+		profile = struct {
+			info.User
+			PendingEmail string
+		}{currentUser, userService.PendingEmail(currentUser)}
+	}
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "User": profile, "IsAdmin": configService.IsAdmin(c.GetUserId()), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()})
 }
 
 func (c Web) RequireSession() revel.Result {
@@ -208,14 +216,22 @@ func (c Web) EmailChange(email, pwd string, current bool) revel.Result {
 		}
 		kind = info.TokenUpdateEmail
 	}
-	id, err := emailService.QueueVerification(user, email, kind)
+	id, err := emailService.QueueVerification(user, email, kind, c.Request.Header.Get("Accept-Language"))
 	if err != nil {
 		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
 	}
-	return c.RenderJSON(map[string]interface{}{"Ok": true, "TaskId": id, "State": "queued"})
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "TaskId": id, "State": "queued", "PendingEmail": userService.PendingEmail(user)})
 }
-func (c Web) EmailStatus(taskId string) revel.Result {
-	status, err := service.GetMailStatus(c.GetUserId(), taskId)
+func (c Web) EmailStatus(taskId, userId string) revel.Result {
+	owner := c.GetUserId()
+	if userId != "" && userId != owner {
+		if !c.isAdmin() {
+			c.Response.Status = 403
+			return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
+		}
+		owner = userId
+	}
+	status, err := service.GetMailStatus(owner, taskId)
 	if err != nil {
 		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
 	}
@@ -224,13 +240,13 @@ func (c Web) EmailStatus(taskId string) revel.Result {
 
 func (c Web) VerifyEmail(token string, change bool) revel.Result {
 	var ok bool
-	var msg, email string
+	var msg, email, resetToken string
 	if change {
 		ok, msg, email = userService.UpdateEmail(token)
 	} else {
-		ok, msg, email = userService.ActiveEmail(token)
+		ok, msg, email, resetToken = userService.VerifyEmailForPassword(token)
 	}
-	return c.RenderJSON(map[string]interface{}{"Ok": ok, "Msg": msg, "Email": email})
+	return c.RenderJSON(map[string]interface{}{"Ok": ok, "Msg": msg, "Email": email, "ResetToken": resetToken})
 }
 
 func (c Web) isAdmin() bool { return configService.IsAdmin(c.GetUserId()) }
@@ -257,8 +273,9 @@ func (c Web) AdminData(keywords string, page int) revel.Result {
 	}
 	type adminUser struct {
 		info.User
-		Role string
-		Flag string
+		Role         string
+		Flag         string
+		PendingEmail string
 	}
 	result := make([]adminUser, 0, len(users))
 	for _, user := range users {
@@ -270,7 +287,7 @@ func (c Web) AdminData(keywords string, page int) revel.Result {
 		if flag == "" {
 			flag = info.FlagAvailable
 		}
-		result = append(result, adminUser{user, role, flag})
+		result = append(result, adminUser{user, role, flag, userService.PendingEmail(user)})
 	}
 	return c.RenderJSON(map[string]interface{}{"Users": result, "Settings": settings})
 }
@@ -306,7 +323,7 @@ func (c Web) AdminResetPwd(userId, pwd string) revel.Result {
 	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }
 
-func (c Web) AdminRegister(email, pwd, username string) revel.Result {
+func (c Web) AdminRegister(email, username string) revel.Result {
 	if !c.isAdmin() {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
@@ -314,11 +331,16 @@ func (c Web) AdminRegister(email, pwd, username string) revel.Result {
 	if ok, msg := lea.Vd("email", email); !ok {
 		return c.RenderJSON(info.Re{Ok: false, Msg: msg})
 	}
-	if ok, msg := lea.Vd("password", pwd); !ok {
+	created, msg := authService.CreateInvitedUser(email, username)
+	if created.UserId == "" {
 		return c.RenderJSON(info.Re{Ok: false, Msg: msg})
 	}
-	ok, msg := authService.CreateUserWithUsername(email, pwd, username)
-	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
+	taskID, err := emailService.QueueVerification(created, created.Email, info.TokenActiveEmail, c.Request.Header.Get("Accept-Language"))
+	mailError := ""
+	if err != nil {
+		mailError = err.Error()
+	}
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "UserId": created.UserId.Hex(), "TaskId": taskID, "MailError": mailError})
 }
 
 func init() { revel.InterceptMethod(Web.RequireSession, revel.BEFORE) }

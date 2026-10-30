@@ -5,6 +5,7 @@ import (
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"gopkg.in/mgo.v2/bson"
+	"strings"
 )
 
 // 找回密码
@@ -17,6 +18,7 @@ type PwdService struct {
 // 用户存在, 生成code
 func (this *PwdService) FindPwd(email string) (ok bool, msg string) {
 	ok = false
+	email = strings.ToLower(strings.TrimSpace(email))
 	userId := userService.GetUserId(email)
 	if userId == "" {
 		msg = "用户不存在"
@@ -37,13 +39,20 @@ func (this *PwdService) FindPwd(email string) (ok bool, msg string) {
 // 修改密码
 // 先验证
 func (this *PwdService) UpdatePwd(token, pwd string) (bool, string) {
-	var tokenInfo info.Token
-	var ok bool
-	var msg string
-
-	// 先验证
-	if ok, msg, tokenInfo = tokenService.VerifyToken(token, info.TokenPwd); !ok {
-		return ok, msg
+	ok, msg, tokenInfo := tokenService.VerifyLinkToken(token, info.TokenPwd, info.TokenInitialPassword)
+	if !ok {
+		return false, msg
+	}
+	user := userService.GetUserInfo(tokenInfo.UserId.Hex())
+	if user.UserId == "" || user.Email != tokenInfo.Email {
+		return false, "verificationLinkInvalid"
+	}
+	query := bson.M{"_id": tokenInfo.UserId, "Email": user.Email, "Pwd": user.Pwd}
+	if tokenInfo.Type == info.TokenInitialPassword {
+		if user.Pwd != "" || !user.Verified {
+			return false, "verificationLinkInvalid"
+		}
+		query["Pwd"] = ""
 	}
 
 	passwd := GenPwd(pwd)
@@ -52,7 +61,7 @@ func (this *PwdService) UpdatePwd(token, pwd string) (bool, string) {
 	}
 
 	// 修改密码之
-	ok = db.UpdateByQField(db.Users, bson.M{"_id": tokenInfo.UserId}, "Pwd", passwd)
+	ok = db.UpdateByQMap(db.Users, query, bson.M{"Pwd": passwd, "Verified": true})
 	if !ok {
 		return false, ""
 	}
@@ -62,7 +71,7 @@ func (this *PwdService) UpdatePwd(token, pwd string) (bool, string) {
 	sessionService.ClearUserSessions(tokenInfo.UserId.Hex())
 
 	// 删除token
-	tokenService.DeleteToken(tokenInfo.UserId.Hex(), info.TokenPwd)
+	db.Delete(db.Tokens, bson.M{"_id": tokenInfo.UserId, "Token": token, "Type": tokenInfo.Type})
 
 	return true, ""
 }

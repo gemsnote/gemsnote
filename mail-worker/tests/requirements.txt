@@ -1,2 +1,1 @@
--r ../requirements.txt
 aiosmtpd==1.4.6

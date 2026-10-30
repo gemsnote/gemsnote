@@ -44,7 +44,11 @@ func (this *UserService) AddUser(user info.User) bool {
 
 	if user.Email != "" {
 		user.Email = strings.ToLower(user.Email)
-
+	}
+	if !db.Insert(db.Users, user) {
+		return false
+	}
+	if user.Email != "" && user.Pwd != "" {
 		// 发送验证邮箱
 		go func() {
 			emailService.RegisterSendActiveEmail(user, user.Email)
@@ -53,7 +57,7 @@ func (this *UserService) AddUser(user info.User) bool {
 		}()
 	}
 
-	return db.Insert(db.Users, user)
+	return true
 }
 
 // 通过email得到userId
@@ -384,57 +388,95 @@ func (this *UserService) UpdateAccount(userId, accountType string, accountStartT
 //---------------
 // 修改email
 
-// 注册后验证邮箱
-func (this *UserService) ActiveEmail(token string) (ok bool, msg, email string) {
-	tokenInfo := info.Token{}
-	if ok, msg, tokenInfo = tokenService.VerifyToken(token, info.TokenActiveEmail); ok {
-		// 修改之后的邮箱
-		email = tokenInfo.Email
-		userInfo := this.GetUserInfoByEmail(email)
-		if userInfo.UserId == "" {
-			ok = false
-			msg = "不存在该用户"
-			return
-		}
-
-		// 修改之, 并将verified = true
-		ok = db.UpdateByQMap(db.Users, bson.M{"_id": userInfo.UserId}, bson.M{"Verified": true})
-		return
+// PendingEmail exposes the target of a still-valid email-change record. Email and
+// Verified continue to describe the current address until the link is confirmed.
+func (this *UserService) PendingEmail(user info.User) string {
+	if user.UserId == "" {
+		return ""
 	}
-
-	ok = false
-	msg = "该链接已过期"
-	return
+	var record info.Token
+	db.GetByQ(db.Tokens, bson.M{"_id": user.UserId, "Type": info.TokenUpdateEmail}, &record)
+	if pendingEmailValid(user, record, time.Now()) {
+		return record.Email
+	}
+	return ""
 }
 
-// 修改邮箱
-// 在此之前, 验证token是否过期
-// 验证email是否有人注册了
-func (this *UserService) UpdateEmail(token string) (ok bool, msg, email string) {
-	tokenInfo := info.Token{}
-	if ok, msg, tokenInfo = tokenService.VerifyToken(token, info.TokenUpdateEmail); ok {
-		// 修改之后的邮箱
-		email = strings.ToLower(tokenInfo.Email)
-		// 先验证该email是否被注册了
-		if userService.IsExistsUser(email) {
-			ok = false
-			msg = "该邮箱已注册"
-			return
-		}
+func pendingEmailValid(user info.User, record info.Token, now time.Time) bool {
+	age := now.Sub(record.CreatedTime)
+	return user.Available() && user.UserId != "" && record.UserId == user.UserId &&
+		record.Type == info.TokenUpdateEmail && record.Token != "" && record.Email != "" &&
+		!strings.EqualFold(record.Email, user.Email) && age >= 0 && age.Hours() <= info.UpdateEmailOverHours
+}
 
-		// 修改之, 并将verified = true
-		ok = db.UpdateByQMap(db.Users, bson.M{"_id": tokenInfo.UserId}, bson.M{"Email": email, "Verified": true})
-		if ok {
-			db.Delete(db.Tokens, bson.M{"_id": tokenInfo.UserId, "Token": token, "Type": info.TokenUpdateEmail})
-		} else {
-			msg = "emailUpdateFailed"
-		}
-		return
+// VerifyEmailForPassword exchanges an invitation proof for a short-lived setup
+// token. Retrying the same link after a lost response does not extend its expiry.
+func (this *UserService) VerifyEmailForPassword(token string) (bool, string, string, string) {
+	ok, msg, record := tokenService.VerifyLinkToken(token, info.TokenActiveEmail, info.TokenInitialPassword)
+	if !ok {
+		return false, msg, "", ""
 	}
+	user := this.GetUserInfo(record.UserId.Hex())
+	if user.UserId == "" || !strings.EqualFold(user.Email, record.Email) {
+		return false, "verificationLinkInvalid", "", ""
+	}
+	if record.Type == info.TokenInitialPassword {
+		if user.Pwd == "" && user.Verified {
+			return true, "", user.Email, token
+		}
+		return false, "verificationLinkInvalid", "", ""
+	}
+	if user.Pwd != "" {
+		ok, msg, email := this.ActiveEmail(token)
+		return ok, msg, email, ""
+	}
+	if !db.UpdateByQMap(db.Users, bson.M{"_id": user.UserId, "Email": user.Email, "Pwd": ""}, bson.M{"Verified": true}) {
+		return false, "emailUpdateFailed", "", ""
+	}
+	if !db.UpdateByQMap(db.Tokens, bson.M{"_id": user.UserId, "Token": token, "Type": info.TokenActiveEmail}, bson.M{"Type": info.TokenInitialPassword, "CreatedTime": time.Now()}) {
+		return false, "mailTokenFailed", "", ""
+	}
+	return true, "", user.Email, token
+}
 
-	ok = false
-	msg = "该链接已过期"
-	return
+// Email verification is bound to both the account and its current address.
+func (this *UserService) ActiveEmail(token string) (bool, string, string) {
+	ok, msg, record := tokenService.VerifyLinkToken(token, info.TokenActiveEmail)
+	if !ok {
+		return false, msg, ""
+	}
+	email := strings.ToLower(record.Email)
+	user := this.GetUserInfo(record.UserId.Hex())
+	if user.UserId == "" || !strings.EqualFold(user.Email, email) {
+		return false, "verificationLinkInvalid", ""
+	}
+	if !db.UpdateByQMap(db.Users, bson.M{"_id": record.UserId, "Email": user.Email}, bson.M{"Verified": true}) {
+		return false, "emailUpdateFailed", ""
+	}
+	db.Delete(db.Tokens, bson.M{"_id": record.UserId, "Token": token, "Type": info.TokenActiveEmail})
+	return true, "", email
+}
+
+func (this *UserService) UpdateEmail(token string) (bool, string, string) {
+	ok, msg, record := tokenService.VerifyLinkToken(token, info.TokenUpdateEmail)
+	if !ok {
+		return false, msg, ""
+	}
+	user := this.GetUserInfo(record.UserId.Hex())
+	if !pendingEmailValid(user, record, time.Now()) {
+		return false, "verificationLinkInvalid", ""
+	}
+	email := strings.ToLower(record.Email)
+	if this.IsExistsUser(email) {
+		return false, "该邮箱已注册", ""
+	}
+	// Publish the new address and verification state together; keep the old
+	// address unchanged if verification or the conditional update fails.
+	if !db.UpdateByQMap(db.Users, bson.M{"_id": record.UserId, "Email": user.Email}, bson.M{"Email": email, "Verified": true}) {
+		return false, "emailUpdateFailed", ""
+	}
+	db.Delete(db.Tokens, bson.M{"_id": record.UserId, "Token": token, "Type": info.TokenUpdateEmail})
+	return true, "", email
 }
 
 //------------

@@ -1,10 +1,8 @@
 package service
 
-// Celery's Redis transport uses a JSON envelope around its protocol-v2 body.
-// Only the task ID enters the broker: SMTP credentials live in a short-lived
-// private payload key, never in task arguments, results or application logs.
+// Queue task arguments contain only IDs; credentials stay in short-lived private keys.
 import (
-	"encoding/base64"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/mail"
@@ -14,35 +12,17 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+	"github.com/gemsnote/gemsnote/internal/mailqueue"
 	"github.com/revel/revel"
 	"gopkg.in/mgo.v2/bson"
 )
 
-const mailQueue = "gemsnote.mail"
-const mailTTL = 600
+const mailTTL = int64(mailqueue.PayloadTTL / time.Second)
 
-type MailStatus struct {
-	TaskID string `json:"TaskId"`
-	State  string `json:"State"`
-	Error  string `json:"Error,omitempty"`
-}
-type mailOwner struct {
-	UserID  string
-	Created int64
-}
-type smtpSettings struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	SSL      bool   `json:"ssl"`
-}
-type mailPayload struct {
-	SMTP    smtpSettings `json:"smtp"`
-	To      []string     `json:"to"`
-	Subject string       `json:"subject"`
-	Body    string       `json:"body"`
-}
+type MailStatus = mailqueue.Status
+type mailOwner = mailqueue.Owner
+type smtpSettings = mailqueue.SMTPSettings
+type mailPayload = mailqueue.Payload
 
 func mailRedisURL() string {
 	if value := os.Getenv("GEMSNOTE_MAIL_REDIS_URL"); value != "" {
@@ -65,20 +45,12 @@ func mailConnect() (redis.Conn, error) {
 	}
 	return c, nil
 }
-func celeryMailMessage(id string, now time.Time) ([]byte, error) {
-	body, err := json.Marshal([]interface{}{[]string{id}, map[string]interface{}{}, map[string]interface{}{"callbacks": nil, "errbacks": nil, "chain": nil, "chord": nil}})
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(map[string]interface{}{
-		"body": base64.StdEncoding.EncodeToString(body), "content-encoding": "utf-8", "content-type": "application/json",
-		"headers":    map[string]interface{}{"lang": "py", "task": "gemsnote.mail.send", "id": id, "root_id": id, "retries": 0, "expires": now.Add(mailTTL * time.Second).UTC().Format(time.RFC3339), "argsrepr": "<mail task>", "kwargsrepr": "{}"},
-		"properties": map[string]interface{}{"correlation_id": id, "delivery_mode": 2, "delivery_tag": id, "body_encoding": "base64", "delivery_info": map[string]string{"exchange": "", "routing_key": mailQueue}},
-	})
-}
 func (this *EmailService) QueueEmail(owner, to, subject, body string) (string, error) {
+	return this.queueEmail(owner, to, subject, body, "")
+}
+func (this *EmailService) queueEmail(owner, to, subject, body, plain string) (string, error) {
 	port, _ := strconv.Atoi(configService.GetGlobalStringConfig("emailPort"))
-	payload := mailPayload{SMTP: smtpSettings{Host: configService.GetGlobalStringConfig("emailHost"), Port: port, Username: configService.GetGlobalStringConfig("emailUsername"), Password: configService.GetGlobalStringConfig("emailPassword"), SSL: configService.GetGlobalStringConfig("emailSSL") == "1"}, Subject: subject, Body: body}
+	payload := mailPayload{SMTP: smtpSettings{Host: configService.GetGlobalStringConfig("emailHost"), Port: port, Username: configService.GetGlobalStringConfig("emailUsername"), Password: configService.GetGlobalStringConfig("emailPassword"), SSL: configService.GetGlobalStringConfig("emailSSL") == "1"}, Subject: subject, Body: body, Text: plain}
 	if payload.SMTP.Host == "" || port < 1 || port > 65535 || payload.SMTP.Username == "" || payload.SMTP.Password == "" {
 		return "", errors.New("mailNotConfigured")
 	}
@@ -98,34 +70,11 @@ func (this *EmailService) QueueEmail(owner, to, subject, body string) (string, e
 	return enqueueMail(owner, payload)
 }
 func enqueueMail(owner string, payload mailPayload) (string, error) {
-	c, err := mailConnect()
-	if err != nil {
-		return "", err
-	}
-	defer c.Close()
 	id := bson.NewObjectId().Hex()
-	now := time.Now()
-	envelope, err := celeryMailMessage(id, now)
-	if err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := mailqueue.Enqueue(ctx, mailRedisURL(), id, owner, payload); err != nil {
 		return "", err
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-	metadata, _ := json.Marshal(mailOwner{owner, now.Unix()})
-	// Atomically publish metadata, payload and task, in one transaction.
-	script := redis.NewScript(0, `
- redis.call('SET','gemsnote:mail:owner:'..ARGV[2],ARGV[3],'EX',86400)
- redis.call('SET','gemsnote:mail:payload:'..ARGV[2],ARGV[4],'EX',600)
- redis.call('LPUSH','gemsnote.mail',ARGV[5])
- return 1`)
-	result, err := redis.Int(script.Do(c, owner, id, metadata, data, envelope))
-	if err != nil {
-		return "", errors.New("mailQueueUnavailable")
-	}
-	if result != 1 {
-		return "", errors.New("mailRateLimited")
 	}
 	return id, nil
 }

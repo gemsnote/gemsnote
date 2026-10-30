@@ -24,7 +24,7 @@ func (this *AuthService) Login(emailOrUsername, pwd string) (info.User, error) {
 	emailOrUsername = strings.Trim(emailOrUsername, " ")
 	//	pwd = strings.Trim(pwd, " ")
 	userInfo := userService.GetUserInfoByName(emailOrUsername)
-	if userInfo.UserId == "" || !ComparePwd(pwd, userInfo.Pwd) {
+	if userInfo.UserId == "" || userInfo.Pwd == "" || !ComparePwd(pwd, userInfo.Pwd) {
 		return userInfo, errors.New("wrong username or password")
 	}
 	if !userInfo.Available() {
@@ -48,13 +48,24 @@ func (this *AuthService) CreateUser(email, pwd string) (bool, string) {
 	return this.createUser(email, pwd, "")
 }
 
-// CreateUserWithUsername creates a named account without changing legacy creation semantics.
-func (this *AuthService) CreateUserWithUsername(email, pwd, username string) (bool, string) {
+// CreateInvitedUser stores no usable password. The owner sets one after email verification.
+func (this *AuthService) CreateInvitedUser(email, username string) (info.User, string) {
 	username = strings.TrimSpace(username)
+	email = strings.ToLower(strings.TrimSpace(email))
 	if ok, _ := Vd("username", username); !ok {
-		return false, "invalidUsername"
+		return info.User{}, "invalidUsername"
 	}
-	return this.createUser(email, pwd, username)
+	if userService.IsExistsUserByUsername(strings.ToLower(username)) {
+		return info.User{}, "usernameIsExisted"
+	}
+	if userService.IsExistsUser(email) {
+		return info.User{}, "emailAlreadyRegistered"
+	}
+	user := info.User{UserId: bson.NewObjectId(), Email: email, Username: strings.ToLower(username), UsernameRaw: username}
+	if ok, msg := this.register(user); !ok {
+		return info.User{}, msg
+	}
+	return user, ""
 }
 
 func (this *AuthService) createUser(email, pwd, username string) (bool, string) {

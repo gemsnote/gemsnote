@@ -7,14 +7,30 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
- "重新生成":"Regenerate",
- "复制密码":"Copy password",
- "密码已复制":"Password copied",
- "复制失败，请手动选择密码复制":"Copy failed. Select and copy the password manually.",
+ "verificationLinkMissing":"Required verification link parameters are missing. Copy the complete link from the email and try again.",
+ "verificationLinkInvalid":"This link is invalid or no longer active. It may have been used, replaced by a newer email, or opened on a different server. Check the site address and use the complete link from the latest email.",
+ "verificationLinkExpired":"This link has expired. Request a new verification or password reset email.",
+ "verificationLinkNotYetValid":"The verification record is dated later than the server’s current time. Ask your administrator to check the server clock.",
+
+ '设置已保存':'Settings saved','设置保存失败':'Could not save settings','正在保存…':'Saving…',
+ '重发验证邮件':'Resend verification email','是否向 {email} 重发验证邮件？':'Resend a verification email to {email}?','验证邮件已发送':'Verification email sent',
+ 'emailAlreadyVerified':'This email address is already verified. Refresh the user list.',
+ 'emailChangePending':'An email change is pending. Complete it before resending verification for the current address.',
+
+ "用户已创建，请用户通过验证邮件设置密码。":"User created. Ask the user to set a password through the verification email.",
+ "用户验证邮箱后自行设置密码，无需管理员指定密码。":"Users verify their email and set their own password. No administrator-assigned password is needed.",
+ "验证邮件正在发送，请稍候。":"Sending the verification email. Please wait.",
+ "验证邮件已发送，请用户点击链接验证邮箱并设置密码。":"Verification email sent. Ask the user to verify their email and set a password using the link.",
+ "账号已创建，但验证邮件发送失败。":"The account was created, but the verification email could not be sent.",
+ "请检查邮件配置。用户可通过登录页的找回密码重新获取链接，无需重复创建账号。":"Check the mail configuration. The user can request a new link using Forgot password; do not create the account again.",
+ "设置密码":"Set password",
+ "确认密码":"Confirm password",
+ "两次输入的密码不一致":"The passwords do not match.",
+ "emailAlreadyRegistered":"Email is already registered.",
+
+ '邮箱已验证':'Email verified','邮箱未验证':'Email not verified','待验证的新邮箱':'New email awaiting verification',
+ '创建用户':'Create user',
  "用户名至少4位，只能包含字母、数字、下划线和连字符":"Use at least 4 letters, digits, underscores or hyphens.",
- "自动生成12位随机密码，包含大小写字母、数字和符号":"A random 12-character password with uppercase and lowercase letters, digits and symbols.",
- "用户已创建，请保存初始密码并安全交给用户":"User created. Save the initial password and share it securely with the user.",
- "已创建用户的初始密码":"Created user’s initial password",
  "invalidUsername":"Use at least 4 letters, digits, underscores or hyphens for the username.",
  "usernameIsExisted":"Username is already in use.",
  "createUserFailed":"Could not create the user. Please retry.",
@@ -40,7 +56,7 @@ const translations: Record<string, string> = {
  "mailTemplateInvalid":"The email template is missing or invalid. Contact your administrator.",
  "mailTokenFailed":"Could not create a verification token. Try again later.",
  "mailTaskNotFound":"The mail task is missing or expired. Send a new request.",
- "mailTaskExpired":"The mail task timed out. Ask your administrator to check the Celery worker.",
+ "mailTaskExpired":"The mail task timed out. Ask your administrator to check the mail worker.",
  "mailAuthenticationFailed":"SMTP authentication failed. Ask your administrator to check the credentials.",
  "mailRecipientRejected":"The mail server rejected the recipient. Check the new email address.",
  "mailConnectionFailed":"The mail server connection failed or timed out. Contact your administrator.",
@@ -251,6 +267,14 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ "verificationLinkMissing":"验证链接缺少必要参数。请从邮件中复制完整链接后重试。",
+ "verificationLinkInvalid":"此链接无效或已失效，可能已使用、被新邮件替换，或指向了不同的服务端。请确认邮件中的站点地址与当前实例一致，并使用最新邮件中的完整链接。",
+ "verificationLinkExpired":"此链接已超过有效期。请重新获取验证邮件或密码重置邮件。",
+ "verificationLinkNotYetValid":"验证记录的时间晚于服务端当前时间，请联系管理员检查服务端时钟。",
+
+ emailAlreadyVerified:'该邮箱已验证，请刷新用户列表。',emailChangePending:'正在验证新邮箱，请先完成邮箱修改，再重发当前邮箱的验证邮件。',
+
+ emailAlreadyRegistered:'该邮箱已注册。',
  invalidUsername:'用户名至少4位，只能包含字母、数字、下划线和连字符。',usernameIsExisted:'用户名已存在。',createUserFailed:'创建用户失败，请重试。',
  cannotDisableSelf:'不能禁用自己的账号。',invalidUserFlag:'用户状态无效，只能为 A 或 D。',
  userDisabled:'账号已被禁用，请联系管理员。',sessionCreationFailed:'无法建立登录会话，请确认账号状态或稍后重试。',
@@ -266,7 +290,7 @@ const historyErrorsZh: Record<string,string> = {
  "mailTemplateInvalid":"邮件模板未配置或无效，请联系管理员。",
  "mailTokenFailed":"无法创建邮箱验证凭据，请稍后重试。",
  "mailTaskNotFound":"邮件任务不存在或记录已过期，请重新发送。",
- "mailTaskExpired":"邮件任务超时或未被处理，请联系管理员检查 Celery worker。",
+ "mailTaskExpired":"邮件任务超时或未被处理，请联系管理员检查邮件 worker。",
  "mailAuthenticationFailed":"邮件发送失败：SMTP 认证失败，请管理员检查用户名和密码。",
  "mailRecipientRejected":"邮件发送失败：邮件服务器拒绝收件地址，请检查新邮箱。",
  "mailConnectionFailed":"邮件发送失败：连接邮件服务器失败或超时，请管理员检查 SMTP 配置。",

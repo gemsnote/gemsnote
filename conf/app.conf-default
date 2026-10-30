@@ -21,7 +21,7 @@ adminUsername=admin
 # Original administrator ID (24 hex digits), used only to bootstrap roles.
 # Once initialized, users.Role is authoritative; use Web admin to manage roles.
 # adminUserId=
-# Celery mail queue. GEMSNOTE_MAIL_REDIS_URL overrides this value.
+# Asynq mail queue. GEMSNOTE_MAIL_REDIS_URL overrides this value.
 # mail.redis_url=redis://127.0.0.1:6379/0
 
 # database type: mongodb or postgresql

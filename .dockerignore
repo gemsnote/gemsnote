@@ -36,4 +36,5 @@ conf/app.docker-*.conf
 test-results/
 tests/
 **/*_test.go
-mail-worker/
+mail-worker/tests/
+mail-worker/__pycache__/

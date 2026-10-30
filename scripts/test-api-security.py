@@ -61,6 +61,8 @@ owner = admin["User"]["UserId"]
 email = "security-" + secrets.token_hex(6) + "@example.test"
 pwd = secrets.token_urlsafe(18)
 assert api("/api2/web/adminRegister", {"username": "security-test", "email": email, "pwd": pwd}, admin_token, form=True)["Ok"]
+created_id=next(u["UserId"] for u in api("/api2/admin/data",{},admin_token)["Users"] if u["Email"]==email)
+assert api("/api2/web/adminResetPwd",{"userId":created_id,"pwd":pwd},admin_token,form=True)["Ok"]
 other = api("/api2/auth/login", {"email": email, "pwd": pwd})
 token = other["Token"]
 user = other["User"]["UserId"]

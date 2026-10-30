@@ -32,7 +32,7 @@ func (this *TokenService) DeleteToken(userId string, tokenType int) bool {
 }
 
 func (this *TokenService) GetOverHours(tokenType int) float64 {
-	if tokenType == info.TokenPwd {
+	if tokenType == info.TokenPwd || tokenType == info.TokenInitialPassword {
 		return info.PwdOverHours
 	} else if tokenType == info.TokenUpdateEmail {
 		return info.UpdateEmailOverHours
@@ -69,4 +69,47 @@ func (this *TokenService) VerifyToken(token string, tokenType int) (ok bool, msg
 
 	ok = true
 	return
+}
+
+// VerifyLinkToken distinguishes expiry from an unknown/replaced link. Accepting
+// multiple purposes in one lookup preserves the cause for setup/reset links.
+func (this *TokenService) VerifyLinkToken(token string, types ...int) (bool, string, info.Token) {
+	if token == "" {
+		return false, "verificationLinkMissing", info.Token{}
+	}
+	var record info.Token
+	db.GetByQ(db.Tokens, bson.M{"Token": token}, &record)
+	var user info.User
+	if record.UserId.Valid() {
+		db.GetByQWithFields(db.Users, bson.M{"_id": record.UserId}, []string{"_id", "Flag"}, &user)
+	}
+	msg := validateLinkRecord(token, record, user, types, time.Now())
+	return msg == "", msg, record
+}
+
+func validateLinkRecord(token string, record info.Token, user info.User, types []int, now time.Time) string {
+	if token == "" {
+		return "verificationLinkMissing"
+	}
+	allowed := false
+	for _, kind := range types {
+		if record.Type == kind {
+			allowed = true
+			break
+		}
+	}
+	if !allowed || record.Token != token || !record.UserId.Valid() || user.UserId != record.UserId || record.CreatedTime.IsZero() {
+		return "verificationLinkInvalid"
+	}
+	if !user.Available() {
+		return "userDisabled"
+	}
+	age := now.Sub(record.CreatedTime)
+	if age < 0 {
+		return "verificationLinkNotYetValid"
+	}
+	if age.Hours() > (&TokenService{}).GetOverHours(record.Type) {
+		return "verificationLinkExpired"
+	}
+	return ""
 }

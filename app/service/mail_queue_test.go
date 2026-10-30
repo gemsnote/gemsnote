@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"os"
 	"testing"
@@ -11,35 +10,9 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-func TestCeleryMailProtocol(t *testing.T) {
-	raw, err := celeryMailMessage("test-id", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var message struct {
-		Body       string
-		Headers    map[string]interface{}
-		Properties map[string]interface{}
-	}
-	if err = json.Unmarshal(raw, &message); err != nil {
-		t.Fatal(err)
-	}
-	if message.Headers["task"] != "gemsnote.mail.send" || message.Properties["correlation_id"] != "test-id" {
-		t.Fatal("invalid Celery task envelope")
-	}
-	body, err := base64.StdEncoding.DecodeString(message.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var tuple []json.RawMessage
-	if json.Unmarshal(body, &tuple) != nil || len(tuple) != 3 || string(tuple[0]) != `["test-id"]` {
-		t.Fatalf("invalid protocol-v2 args: %s", body)
-	}
-}
-
-// Uses an isolated Redis, a real Celery worker and a local TLS SMTP fixture.
+// Uses an isolated Redis, a real Asynq worker and a local TLS SMTP fixture.
 // Never run against a production queue.
-func TestCeleryDeliveryIntegration(t *testing.T) {
+func TestAsynqDeliveryIntegration(t *testing.T) {
 	url := os.Getenv("GEMSNOTE_MAIL_TEST_REDIS")
 	if url == "" {
 		t.Skip("set GEMSNOTE_MAIL_TEST_REDIS for disposable mail integration")

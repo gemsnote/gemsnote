@@ -72,7 +72,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Test Celery mail delivery
+      - name: Test Asynq mail delivery
         run: |
           python -m venv "$RUNNER_TEMP/mail-test-venv"
           "$RUNNER_TEMP/mail-test-venv/bin/pip" install -r mail-worker/tests/requirements.txt
@@ -193,13 +193,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.image.outputs.name }}:${{ needs.validate.outputs.version }}
-          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
-
-      - name: Build and push mail worker
-        uses: docker/build-push-action@v7
-        with:
-          context: ./mail-worker
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.image.outputs.name }}-mail-worker:${{ needs.validate.outputs.version }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}

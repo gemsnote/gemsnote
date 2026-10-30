@@ -520,6 +520,8 @@ go test ./...
 
 ## 异步邮件服务
 
-邮箱验证、更换邮箱和找回密码由 Celery + Redis 异步发送。Docker 使用 `--profile mail` 启动邮件服务；Release/源码部署需另行运行 worker。SMTP 配置、管理员入口和故障排查见[异步邮件部署](MAIL.md)。
+邮箱验证、更换邮箱和找回密码由 Asynq + Redis 异步发送。Docker 使用 `--profile mail` 启动邮件服务；Release/源码部署需另行运行 worker。SMTP 配置、管理员入口和故障排查见[异步邮件部署](MAIL.md)。
+
+邮件容器与服务端使用同一个 Gemsnote 镜像，`mail-worker` 通过 `/opt/gemsnote/docker-entry-mail-worker.sh` 启动 Asynq，队列服务名为 `redis`。启用 `mail` profile 及旧部署切换步骤见 [邮件部署说明](MAIL.md#docker-部署)。
 
 用户状态字段随 1.3.0 数据库迁移自动增加，历史用户默认为 `A`（可用）。管理员可在 Web 用户管理中设为 `D`（禁用）；状态和角色独立保存。禁用会撤销登录与验证凭据，重新启用后必须重新登录，不会删除笔记数据。

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { request } from '../api'
 import {t} from '../i18n'
 
-const route = useRoute()
+const route = useRoute(), router=useRouter()
 const message = ref(t('正在验证…'))
 
 onMounted(async () => {
@@ -13,6 +13,7 @@ onMounted(async () => {
       token: String(route.query.token || ''),
       change: route.path === '/user/updateEmail',
     })
+    if(result.ResetToken){await router.replace({path:`/findPassword/${encodeURIComponent(result.ResetToken)}`,query:{setup:'1'}});return}
     message.value = t('邮箱 {email} 验证成功，请重新登录。', {email:result.Email})
   } catch (error) {
     message.value = String(error)

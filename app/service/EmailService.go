@@ -28,7 +28,7 @@ func NewEmailService() *EmailService {
 	return &EmailService{tpls: map[string]*template.Template{}}
 }
 
-// SendEmail reports queue acceptance; SMTP delivery runs exclusively in Celery.
+// SendEmail reports queue acceptance; SMTP delivery runs exclusively in the Asynq worker.
 func (this *EmailService) SendEmail(to, subject, body string) (bool, string) {
 	_, err := this.QueueEmail("", to, subject, body)
 	if err != nil {
@@ -50,7 +50,7 @@ func (this *EmailService) UpdateEmailSendActiveEmail(userInfo info.User, email s
 
 // Reserve before creating a token: repeated submissions must not invalidate an
 // already queued verification message. The cooldown is shared across workers.
-func (this *EmailService) QueueVerification(user info.User, email string, kind int) (string, error) {
+func (this *EmailService) QueueVerification(user info.User, email string, kind int, languages ...string) (string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !IsEmail(email) {
 		return "", errors.New("invalidEmail")
@@ -88,24 +88,28 @@ func (this *EmailService) QueueVerification(user info.User, email string, kind i
 			redis.NewScript(1, `if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end return 0`).Do(c, key, lease)
 		}
 	}()
-	prefix, path := "emailTemplateRegister", "/user/activeEmail"
+	path := "/user/activeEmail"
 	if kind == info.TokenUpdateEmail {
-		prefix, path = "emailTemplateUpdateEmail", "/user/updateEmail"
-	}
-	subject, tpl := configService.GetGlobalStringConfig(prefix+"Subject"), configService.GetGlobalStringConfig(prefix)
-	if subject == "" || tpl == "" {
-		return "", errors.New("mailTemplateInvalid")
+		path = "/user/updateEmail"
 	}
 	token := tokenService.NewToken(user.UserId.Hex(), email, kind)
 	if token == "" {
 		return "", errors.New("mailTokenFailed")
 	}
-	values := map[string]interface{}{"siteUrl": site, "tokenUrl": site + path + "?token=" + url.QueryEscape(token), "token": token, "tokenTimeout": strconv.Itoa(int(tokenService.GetOverHours(kind))), "newEmail": email, "user": map[string]interface{}{"userId": user.UserId.Hex(), "email": user.Email, "username": user.Username}}
-	ok, _, subject, body := this.renderEmail(subject, tpl, values)
-	if !ok {
+	defer func() {
+		if !accepted {
+			db.Delete(db.Tokens, bson.M{"_id": user.UserId, "Token": token, "Type": kind})
+		}
+	}()
+	preference := ""
+	if len(languages) > 0 {
+		preference = languages[0]
+	}
+	subject, body, plain, err := renderVerificationMail(user, email, site, site+path+"?token="+url.QueryEscape(token), preference, kind)
+	if err != nil {
 		return "", errors.New("mailTemplateInvalid")
 	}
-	id, err := this.QueueEmail(user.UserId.Hex(), email, subject, body)
+	id, err := this.queueEmail(user.UserId.Hex(), email, subject, body, plain)
 	accepted = err == nil
 	return id, err
 }
@@ -301,7 +305,7 @@ func (this *EmailService) renderEmail(subject, body string, values map[string]in
 	return
 }
 
-// Bulk methods synchronously report queue acceptance; Celery performs delivery.
+// Bulk methods synchronously report queue acceptance; Asynq performs delivery.
 // Never leave queue failures hidden inside a detached goroutine.
 func (this *EmailService) SendEmailToUsers(users []info.User, subject, body string) (bool, string) {
 	if len(users) == 0 {

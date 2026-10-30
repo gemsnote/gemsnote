@@ -11,7 +11,7 @@ services:
 
   gemsnote:
     environment:
-      GEMSNOTE_MAIL_REDIS_URL: redis://mail-redis:6379/0
+      GEMSNOTE_MAIL_REDIS_URL: redis://redis:6379/0
     build: .
     image: gemsnote:1.0.0
     container_name: gemsnote
@@ -30,7 +30,7 @@ services:
       - ./files:/opt/gemsnote/files
       - ./public/upload:/opt/gemsnote/public/upload
 
-  mail-redis:
+  redis:
     image: redis:7-alpine
     profiles: [mail]
     restart: unless-stopped
@@ -45,12 +45,15 @@ services:
 
   mail-worker:
     profiles: [mail]
-    build: ./mail-worker
+    stop_grace_period: 45s
+    entrypoint: ["/opt/gemsnote/docker-entry-mail-worker.sh"]
+    build: .
+    image: gemsnote:1.0.0
     restart: unless-stopped
     environment:
-      GEMSNOTE_MAIL_REDIS_URL: redis://mail-redis:6379/0
+      GEMSNOTE_MAIL_REDIS_URL: redis://redis:6379/0
     depends_on:
-      mail-redis:
+      redis:
         condition: service_healthy
 
 volumes:

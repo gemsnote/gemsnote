@@ -32,19 +32,25 @@ RUN cp conf/app.conf-default conf/app.conf
 # Generate the Revel application entrypoint, then build the server rather than
 # the Revel command-line helper in app/cmd.
 RUN go run ./app/cmd build . /tmp/gemsnote-revel-build prod && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /gemsnote -ldflags="-s -w" ./app/tmp
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /gemsnote -ldflags="-s -w" ./app/tmp && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /gemsnote-mail-worker -ldflags="-s -w" ./mail-worker
 
 RUN REVEL_DIR="$(go list -m -f '{{.Dir}}' github.com/revel/revel)" && \
     mkdir -p /runtime/github.com/revel/revel && \
     cp -R "$REVEL_DIR/conf" "$REVEL_DIR/templates" /runtime/github.com/revel/revel/
 
-# Stage 2: Runtime image
+# Stage 3: Shared server and mail-worker runtime
 FROM alpine:3.22
 
 LABEL maintainer="raptor<raptor.zh@gmail.com>"
 
 # Install ca-certificates for HTTPS connections and timezone data
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata su-exec && \
+    addgroup -S -g 10001 worker && adduser -S -D -u 10001 -G worker worker
+
+COPY --from=builder /gemsnote-mail-worker /opt/gemsnote/gemsnote-mail-worker
+COPY scripts/docker-entry-server.sh scripts/docker-entry-mail-worker.sh /opt/gemsnote/
+RUN chmod 755 /opt/gemsnote/docker-entry-*.sh
 
 WORKDIR /opt/gemsnote
 
@@ -68,4 +74,5 @@ EXPOSE 9000
 # Set working directory to where the app needs to run
 WORKDIR /opt/gemsnote
 
-CMD ["/opt/gemsnote/gemsnote", "-importPath", "github.com/gemsnote/gemsnote", "-srcPath", "/opt/gemsnote/runtime", "-runMode", "prod"]
+ENTRYPOINT ["/opt/gemsnote/docker-entry-server.sh"]
+CMD []

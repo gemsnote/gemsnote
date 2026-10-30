@@ -2,7 +2,8 @@
 import {computed,onMounted,onUnmounted,ref} from 'vue'
 import {request} from '../api'
 import {t} from '../i18n'
-const props=defineProps<{userId:string;currentEmail:string}>()
+const props=defineProps<{userId:string;currentEmail:string;pendingEmail?:string}>()
+const emit=defineEmits<{pending:[email:string]}>()
 const email=ref(''),password=ref(''),state=ref(''),error=ref(''),taskId=ref(''),busy=ref(false)
 let timer:ReturnType<typeof setTimeout>|undefined
 const abort=new AbortController()
@@ -32,7 +33,7 @@ async function send(current=false){
  busy.value=true;error.value='';state.value=''
  try{
   const result=await request('/web/emailChange',current?{current:true}:{email:email.value.trim(),pwd:password.value},{signal:abort.signal})
-  password.value='';taskId.value=result.TaskId;state.value='queued';remember();timer=setTimeout(check,1000)
+  emit('pending',result.PendingEmail||'');password.value='';taskId.value=result.TaskId;state.value='queued';remember();timer=setTimeout(check,1000)
  }catch(e){if(!abort.signal.aborted){error.value=e instanceof Error?e.message:String(e);busy.value=false}}
 }
 onMounted(()=>{try{taskId.value=sessionStorage.getItem(key)||''}catch{};if(taskId.value)void check()})
@@ -40,6 +41,7 @@ onUnmounted(()=>{clearTimeout(timer);abort.abort()})
 </script>
 <template>
  <div class="email-verification">
+  <p v-if="pendingEmail" class="pending-email">{{t('待验证的新邮箱')}}：<strong>{{pendingEmail}}</strong></p>
   <p class="muted">{{t('修改邮箱需要验证新地址。验证成功前，继续使用当前邮箱登录。')}}</p>
   <form @submit.prevent="send()">
    <label>{{t('新邮箱')}}<input v-model="email" type="email" required :disabled="busy||!!taskId" autocomplete="email"></label>

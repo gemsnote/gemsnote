@@ -381,3 +381,42 @@ func (c Api2) AdminFlag() revel.Result {
 	}
 	return c.RenderJSON(info.Re{Ok: ok, Msg: msg})
 }
+
+// AdminResendVerification always uses the account's stored current address.
+func (c Api2) AdminResendVerification() revel.Result {
+	if c.Request.Method != "POST" {
+		c.Response.Status = 405
+		return c.RenderJSON(info.Re{Ok: false, Msg: "methodNotAllowed"})
+	}
+	if !configService.IsAdmin(c.GetUserId()) {
+		c.Response.Status = 403
+		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
+	}
+	var p struct {
+		UserID string `json:"userId"`
+	}
+	if err := c.body(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	if !bson.IsObjectIdHex(p.UserID) {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "userNotExists"})
+	}
+	user := userService.GetUserInfo(p.UserID)
+	if user.UserId == "" {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "userNotExists"})
+	}
+	if !user.Available() {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "userDisabled"})
+	}
+	if user.Verified {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "emailAlreadyVerified"})
+	}
+	if userService.PendingEmail(user) != "" {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "emailChangePending"})
+	}
+	id, err := emailService.QueueVerification(user, user.Email, info.TokenActiveEmail, c.Request.Header.Get("Accept-Language"))
+	if err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
+	}
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "TaskId": id, "State": "queued"})
+}

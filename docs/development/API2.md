@@ -36,7 +36,15 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 
 ### 用户角色
 
-管理端创建账号：`POST /api2/web/adminRegister`，参数 `username`、`email`、`pwd` 均必填（当前接受表单参数）。用户名至少 4 位，仅限英文字母、数字、下划线、连字符，按小写保存和检查重复；可使用用户名或邮箱登录。Web 自动生成 12 位高强度初始密码并明文展示，可重新生成和复制；服务端仅保存密码哈希。
+管理端创建账号：`POST /api2/web/adminRegister`，参数 `username`、`email` 必填（当前接受表单参数），不接受管理员指定初始密码。用户名至少 4 位，仅限英文字母、数字、下划线、连字符，按小写保存和检查重复。创建后账号没有可登录密码，返回 `Ok`、`UserId`、`TaskId`、`MailError`；`Ok:true` 表示账号已创建，非空 `MailError` 表示验证邮件未能入队，不应重复创建账号。管理员可通过 `/api2/user/emailStatus` 携带 `taskId`、`userId` 查询投递结果；普通用户只能查询自己的邮件任务。
+
+管理员可调用 `POST /api2/admin/resendVerification`，JSON 参数为 `{"userId":"<用户 ID>"}`，向账号当前未验证邮箱重发邮件。仅管理员可调用；拒绝不存在、已禁用、已验证或正在更换邮箱的账号，复用每账号 60 秒发送间隔。返回 `TaskId` 供查询投递结果。创建及重发验证邮件按请求头 `Accept-Language` 选择中英文内置模板，语言在入队时固定。
+
+新用户点击验证邮件，通过 `POST /api2/web/verifyEmail` 验证后，返回短期设置密码凭据 `ResetToken`；Web 跳转至 `/findPassword/:token?setup=1`，由用户设置并确认密码。设置密码仍调用 `/api2/auth/password/reset`。凭据有效期为 2 小时，仅用于尚未设置密码且邮箱已验证的账号，成功后立即失效；重复打开验证链接可继续未完成的设置，但不会延长有效期。已有密码的账号正常验证邮箱时 `ResetToken` 为空。未收到邮件或设置凭据过期，可通过找回密码重新获取邮件；通过恢复邮件设置密码也会将当前邮箱标记为已验证。服务端仅保存密码哈希。
+
+验证／密码设置链接失败返回明确错误码：`verificationLinkMissing`（缺少参数）、`verificationLinkInvalid`（记录不存在、已使用、已被替换、用途或账号状态不匹配）、`verificationLinkExpired`（确实超时）、`verificationLinkNotYetValid`（服务端时钟早于记录时间）、`userDisabled`（账号被禁用）。无效链接提示用户检查站点地址和最新邮件，不将“在另一实例找不到记录”报告为超时。
+
+邮箱状态：`Email` 为当前生效地址，`Verified` 仅表示该地址是否已验证。API2 的 `/bootstrap`（`User`）、`/user/info` 和管理员用户列表额外返回 `PendingEmail`：有效改邮箱验证记录中的新地址，没有待验证地址时为空字符串。新旧邮箱分别保存在用户记录和持久化验证记录中，不依赖浏览器缓存。验证成功前，旧邮箱继续用于登录、找回密码；成功后才一起更新 `Email` 和 `Verified=true` 并消费验证记录。验证记录过期后不再显示待验证地址，需要重新发送邮件。旧 `/api` 用户资料响应保持不变。
 
 不提供用户自行注册功能。账号只能由管理员通过 Web 用户管理创建；`/register`、`/doRegister`、`/api2/auth/register` 均不是公开注册入口。
 

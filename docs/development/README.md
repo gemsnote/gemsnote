@@ -38,7 +38,7 @@ GEMSNOTE_DISPOSABLE_API2=1 GEMSNOTE_API2_URL=http://127.0.0.1:19090 \
 - [快速开始](../QUICK_START.md)
 - [部署、测试与交付](../DEPLOYMENT.md)
 
-- [异步邮件与权限回归](../MAIL.md)：Celery 邮件任务、发送结果查询及管理员稳定身份。
+- [异步邮件与权限回归](../MAIL.md)：Asynq 邮件任务、发送结果查询及管理员稳定身份。
 
 角色权限回归：`npm --prefix frontend run test:admin-roles` 检查中英文管理界面和自己的角色按钮禁用。`scripts/test-admin-roles.py` 仅允许通过 `GEMSNOTE_DISPOSABLE_API2=1` 对临时 `127.0.0.1:19090` 实例执行，测试角色授权、撤销、自我降级拒绝和并发互相降级；它会修改测试管理员角色，禁止指向实际实例。
 
