@@ -39,5 +39,5 @@ mobile-app
 data/
 /release/
 
-/mail-worker/__pycache__/
-/mail-worker/.venv/
+/gemsnote-worker/__pycache__/
+/gemsnote-worker/.venv/

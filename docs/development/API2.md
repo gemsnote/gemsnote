@@ -60,7 +60,7 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 - `POST /api2/web/verifyEmail`：现有公开验证接口，表单 `token`、`change=true`，完成新邮箱验证后才修改邮箱；成功消费令牌，不可重复使用。
 - `GET /api2/bootstrap` 的 `IsAdmin` 按用户记录的 `Role=admin` 判断，不再依赖可修改的用户名；桌面端仍不提供管理界面。
 
-发送错误包括 `mailNotConfigured`、`mailQueueNotConfigured`、`mailQueueUnavailable`、`mailRateLimited`、`mailSiteURLInvalid`、`mailTemplateInvalid`、`mailTokenFailed`；投递错误包括 `mailAuthenticationFailed`、`mailRecipientRejected`、`mailConnectionFailed`、`mailDeliveryFailed`、`mailTaskExpired`。邮箱相同返回 `emailUnchanged`，密码不正确返回 `wrongPassword`。部署与状态语义见[异步邮件说明](../MAIL.md)。
+发送错误包括 `mailNotConfigured`、`mailQueueNotConfigured`、`mailQueueUnavailable`、`mailRateLimited`、`mailSiteURLInvalid`、`mailTemplateInvalid`、`mailTokenFailed`；投递错误包括 `mailAuthenticationFailed`、`mailRecipientRejected`、`mailConnectionFailed`、`mailDeliveryFailed`、`mailTaskExpired`。邮箱相同返回 `emailUnchanged`，密码不正确返回 `wrongPassword`。部署与状态语义见[后台任务服务部署](../DEPLOYMENT.md#后台任务服务)。
 
 ## 1.1.0 增加的部分
 

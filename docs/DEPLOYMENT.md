@@ -518,10 +518,116 @@ go test ./...
 
 推送与应用版本一致的 `MAJOR.MINOR.PATCH` Git 标签（如 `1.0.0`，不带 `v`）后，Actions 会构建 Release 包并发布同名 GHCR 多架构镜像，也可以手动指定已有 tag 发布。标签须指向包含新版工作流的提交；构建产物文件名仍使用 `-v<version>`。本地构建、tag 要求及发布产物详见[自动化构建与发布](development/RELEASE.md)。
 
-## 异步邮件服务
+## 后台任务服务
 
-邮箱验证、更换邮箱和找回密码由 Asynq + Redis 异步发送。Docker 使用 `--profile mail` 启动邮件服务；Release/源码部署需另行运行 worker。SMTP 配置、管理员入口和故障排查见[异步邮件部署](MAIL.md)。
+`gemsnote-worker` 是使用 Asynq 的独立 Go 后台进程，目前负责邮箱验证、更换邮箱和找回密码等邮件任务。服务端负责校验、渲染模板并入队，worker 通过 SMTP 投递。Redis 仅保存任务队列和发送状态，笔记及用户数据仍在业务数据库中。不启用 worker 不影响笔记功能，但新用户无法收到验证邮件，邮箱修改和找回密码也无法发送邮件。
 
-邮件容器与服务端使用同一个 Gemsnote 镜像，`mail-worker` 通过 `/opt/gemsnote/docker-entry-mail-worker.sh` 启动 Asynq，队列服务名为 `redis`。启用 `mail` profile 及旧部署切换步骤见 [邮件部署说明](MAIL.md#docker-部署)。
+### Docker 启动 worker
 
-用户状态字段随 1.3.0 数据库迁移自动增加，历史用户默认为 `A`（可用）。管理员可在 Web 用户管理中设为 `D`（禁用）；状态和角色独立保存。禁用会撤销登录与验证凭据，重新启用后必须重新登录，不会删除笔记数据。
+三个 Compose 文件都提供可选的 `mail` profile。使用 GHCR 镜像：
+
+```bash
+docker compose --profile mail up -d
+```
+
+这会增加 `redis` 和 `gemsnote-worker` 两个服务。`gemsnote` 和 `gemsnote-worker` 使用同一个 `ghcr.io/gemsnote/gemsnote:${GEMSNOTE_VERSION}` 镜像，分别运行在独立容器中。默认入口 `/opt/gemsnote/docker-entry-server.sh` 启动 Go 服务端；worker 通过 Compose 覆盖入口为 `/opt/gemsnote/docker-entry-gemsnote-worker.sh`，以非 root 用户启动 Asynq。两个容器都通过 `redis://redis:6379/0` 连接邮件队列。新版本发布前，本地测试使用源码 Compose：
+
+```bash
+docker compose -f docker-compose.postgres.yml --profile mail up -d --build
+```
+
+源码 MongoDB Compose 使用同样的 `--profile mail` 参数。Redis 不发布宿主机端口，任务队列使用独立的 `mail-redis-data` 卷持久化。排查发送失败：
+
+```bash
+docker compose --profile mail logs --tail=100 gemsnote-worker redis
+```
+
+源码部署时给这些命令加对应的 `-f` 参数。仅重建 Go 服务端镜像不会启动 Asynq，必须启用 `mail` profile。
+
+`mail` profile 在三个 Compose 文件中默认关闭。服务端和 worker 是两个独立容器，需同时使用同一版本镜像；worker 不挂载业务配置、附件或图片目录。其入口脚本以 UID 10001 运行，默认并发数为 2，Compose 停止宽限期为 45 秒。需要调整并发时，可为 `gemsnote-worker` 服务设置 `command: ["-concurrency", "4"]`。
+
+### Release 和源码启动 worker
+
+Release 包附带原生可执行文件 `bin/gemsnote-worker`（Windows 为 `.exe`），无需 Python 环境。准备 Redis，在 Release 解压目录运行：
+
+```bash
+export GEMSNOTE_MAIL_REDIS_URL='redis://127.0.0.1:6379/0'
+./bin/gemsnote-worker -concurrency 2
+```
+
+Windows PowerShell：
+
+```powershell
+$env:GEMSNOTE_MAIL_REDIS_URL = 'redis://127.0.0.1:6379/0'
+.\bin\gemsnote-worker.exe -concurrency 2
+```
+
+源码部署可在项目根目录运行 `go build -o /tmp/gemsnote-worker ./gemsnote-worker`，设置同一环境变量后执行该文件。`-concurrency` 默认为 2；worker 只需 Redis 和 SMTP，不连接业务数据库，也不读取 `app.conf`。
+
+将 worker 配置为系统服务长期运行。Go 服务端也必须配置同一个 `GEMSNOTE_MAIL_REDIS_URL`，或在 `conf/app.conf` 的全局配置段设置：
+
+```ini
+mail.redis_url=redis://127.0.0.1:6379/0
+```
+
+环境变量优先于配置文件。Redis 需专用于邮件队列，或使用独立数据库编号；可使用 `redis://:密码@主机:端口/数据库编号`。不要将 Redis 暴露到公网；其中短暂保存邮件正文、验证链接和 SMTP 凭据。敏感任务内容最多保存 10 分钟，发送完成后删除；发送状态保留 24 小时。Windows 可运行原生 Go worker，Redis 可部署在 Docker 或 Linux 主机。
+
+服务端读取 `mail.redis_url` 后需要重启；worker 始终通过自己的 `GEMSNOTE_MAIL_REDIS_URL` 环境变量连接 Redis。两者必须指向同一主机、端口和数据库编号。Linux/macOS 可由系统服务管理进程，Windows 可由服务管理工具启动 worker；`run.sh` / `run.bat` 只启动 Web 服务端。
+
+### SMTP 与站点地址
+
+管理员在 Web 笔记页面左下角点击头像 → **管理** → **站点与邮件**，填写站点 URL、SMTP 主机、端口、用户名、密码和 SSL。
+
+- 站点 URL 应是用户实际可以访问的 HTTPS 地址，用于生成验证链接。
+- SMTP 用户名同时作为发件地址，必须是有效邮箱。
+- SSL 开启表示隐式 TLS（通常为 465）；关闭表示使用 STARTTLS（通常为 587）。不允许明文传输 SMTP 密码。
+- 自建 CA 可为 worker 配置 `SSL_CERT_FILE`；不要关闭证书验证。
+- 账号页发送验证邮件可以检查完整发送链路。入队成功不等于送达收件箱；`sent` 表示 SMTP 服务器已接受邮件，仍可能进入垃圾邮件或随后退信。
+
+验证邮件语言跟随触发操作时的界面语言。新账号及当前邮箱验证链接有效 48 小时，修改邮箱链接有效 2 小时；新用户验证邮箱后设置密码的凭据有效 2 小时。站点地址必须指向生成验证记录的同一实例，错误地址会让链接在另一个实例被报告为无效。用户操作见[快速开始](QUICK_START.md#账号与邮箱)。
+
+### 发送状态与故障排查
+
+页面显示 `queued`（排队）、`sending`（发送中）、`sent`（SMTP 已接受）和 `failed`（失败）。账号页可重新查询发送结果；管理员也能查看自己管理的账号的邮件任务。查看 worker 日志时可用任务 ID 对应页面结果。
+
+| 错误或现象 | 检查内容 |
+| --- | --- |
+| `mailQueueNotConfigured` | 服务端的 Redis 环境变量或 `mail.redis_url` 是否已配置。 |
+| `mailQueueUnavailable` | Redis 是否运行，两端连接地址、密码、数据库编号及容器网络是否一致。 |
+| `mailNotConfigured` | 管理页面的 SMTP 主机、端口、用户名和密码是否完整。 |
+| `mailConnectionFailed` | worker 到 SMTP 的网络、端口与 SSL 模式、证书和自建 CA 配置。 |
+| `mailAuthenticationFailed` | SMTP 用户名、密码或邮件服务商授权凭据。 |
+| `mailRecipientRejected` | 收件地址及服务商的收件人限制。 |
+| `mailDeliveryFailed` | SMTP 投递失败或中断后的结果不确定；检查日志后由用户手动重发。 |
+| 长时间排队或 `mailTaskExpired` | 是否启用了 `mail` profile、worker 是否运行并连接到同一 Redis、任务是否超过 10 分钟。 |
+
+敏感任务内容最多保留 10 分钟，处理完成后删除；发送状态保留 24 小时。整个 SMTP 会话限时 30 秒。SMTP 失败不自动重发，Redis 基础设施错误最多重试 3 次；若进程中断后无法确认邮件是否已投递，将标记失败供用户手动重发，避免自动重复投递。每个账号发送验证邮件有 60 秒间隔限制。
+
+管理员创建账号成功但邮件发送失败时，不要重复创建用户。修复配置后，在用户管理点击“邮箱未验证”确认重发，或让用户使用登录页的“找回密码”。邮件已被 SMTP 接受仍可能进入垃圾邮件或发生后续退信。
+
+### 从旧任务服务升级
+
+Asynq 与 Celery 的任务协议不兼容。先暂停创建账号、发送验证邮件等入队操作，保持旧 worker 运行直至旧任务处理完成，再同时升级服务端和 worker；不要混用新旧版本。无法处理的旧任务不会自动转入新队列，升级后通过页面重新发送。
+
+切换时停止旧 Compose 项目，避免旧 `mail-redis` 与新 `redis` 同时使用同一个数据卷。以下以源码 PostgreSQL 部署为例：
+
+```bash
+docker compose -f docker-compose.postgres.yml --profile mail down --remove-orphans
+docker compose -f docker-compose.postgres.yml --profile mail up -d --build
+```
+
+GHCR 部署使用 `docker compose --profile mail down --remove-orphans`，随后 `docker compose --profile mail pull` 和 `docker compose --profile mail up -d`。保持原来的项目名和部署目录，不要使用 `down -v`；服务名改为 `redis`，已有 `mail-redis-data` 卷名保留，避免丢失队列。此操作会短暂停止服务。
+
+此前的 `mail-worker` 服务现已改名为 `gemsnote-worker`，可执行文件统一为 `gemsnote-worker`，入口脚本为 `docker-entry-gemsnote-worker.sh`。已使用 Asynq 的实例只需更新部署配置、重新构建或拉取镜像，再执行 `docker compose --profile mail up -d --remove-orphans`（源码部署加对应 `-f` 和 `--build`）；这会移除旧服务容器。邮件队列、Redis 数据卷和 `GEMSNOTE_MAIL_REDIS_URL` 配置不变，未处理的 Asynq 任务可继续消费。Release 部署需同步更新系统服务中的程序路径。
+
+## 管理员与用户状态
+
+Web 的“头像 → 管理 → 用户管理”列出每位用户的角色，可将其他用户设为“管理员”或“普通用户”。新建用户默认为普通用户。用户管理还可设置账号状态：`A`（可用）或 `D`（禁用）。管理员不能禁用自己；禁用后登录、已有会话及验证链接失效，重新启用需重新登录，笔记数据保留。
+
+管理员不能将自己改为普通用户：界面禁用自己的角色下拉框，服务端也强制拒绝此请求。其他管理员可以撤销该用户的权限，下一次管理请求立即按最新角色检查。
+
+升级到 1.2.0 时自动增加用户角色字段。首次初始化沿用已有 `adminUserId`，或按 `adminUsername` 定位原管理员。若旧管理员已改名且未保存 ID，只有在所有旧全局配置均指向同一个有效拥有者、该账号没有明确角色且当前没有管理员时，才按该拥有者 ID 恢复管理员；配置拥有者缺失或不一致时不会猜测。只有没有角色的旧账号才会被初始化为管理员。此后以用户记录中的角色为准，改用户名或邮箱不改变角色，重启也不会重新提升已被降为普通用户的账号。
+
+若旧配置无法唯一识别原管理员（拥有者缺失、不一致或账号不存在），启动日志会报告管理员初始化失败。此时需在 `conf/app.conf` 中设置正确的 `adminUsername` 或 `adminUserId=<24 位用户 ID>`，用于初始化原管理员。配置不再是长期权限白名单，也不能覆盖已有明确角色。
+
+用户状态字段随 1.3.0 数据库迁移自动增加，历史用户默认为 `A`（可用），角色字段与状态字段独立保存。用户邀请和邮箱操作见[快速开始](QUICK_START.md#管理员创建用户)，接口合同见 [API2](development/API2.md)。

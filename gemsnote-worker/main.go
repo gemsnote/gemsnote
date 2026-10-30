@@ -14,7 +14,7 @@ func main() {
 	concurrency := flag.Int("concurrency", 2, "Maximum concurrent mail tasks")
 	flag.Parse()
 	if *concurrency < 1 || flag.NArg() != 0 {
-		log.Fatal("usage: gemsnote-mail-worker [-concurrency N]")
+		log.Fatal("usage: gemsnote-worker [-concurrency N]")
 	}
 	client, err := mailqueue.NewRedis(os.Getenv("GEMSNOTE_MAIL_REDIS_URL"))
 	if err != nil {
@@ -28,6 +28,6 @@ func main() {
 	mux := asynq.NewServeMux()
 	mux.Handle(mailqueue.TaskType, &mailqueue.Handler{Redis: client})
 	if err := server.Run(mux); err != nil {
-		log.Fatal("mail worker stopped")
+		log.Fatal("gemsnote-worker stopped")
 	}
 }
