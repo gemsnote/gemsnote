@@ -420,3 +420,18 @@ func (c Api2) AdminResendVerification() revel.Result {
 	}
 	return c.RenderJSON(map[string]interface{}{"Ok": true, "TaskId": id, "State": "queued"})
 }
+
+// MoveSharedNote changes only the recipient's personal placement.
+func (c Api2) MoveSharedNote() revel.Result {
+	var p struct {
+		NoteID     string `json:"noteId"`
+		NotebookID string `json:"notebookId"`
+	}
+	if err := c.body(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	if err := shareService.PlaceReceivedNote(c.GetUserId(), p.NoteID, p.NotebookID); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
+	}
+	return c.RenderJSON(info.Re{Ok: true})
+}

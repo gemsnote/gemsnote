@@ -111,6 +111,7 @@ POST    /api2/noteContentHistory/listHistories   Api2.Histories
 # Browser-only mutation endpoints (session authentication).
 POST    /api2/note/deleteNote                   Note.DeleteNote
 POST    /api2/note/deleteTrash                  Note.DeleteTrash
+POST    /api2/shared/move                         Api2.MoveSharedNote
 POST    /api2/note/moveNote                     Note.MoveNote
 POST    /api2/note/copyNote                     Note.CopyNote
 POST    /api2/note/copySharedNote               Note.CopySharedNote

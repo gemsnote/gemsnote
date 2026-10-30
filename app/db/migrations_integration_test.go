@@ -3,8 +3,6 @@ package db
 import (
 	"os"
 	"testing"
-
-	appversion "github.com/gemsnote/gemsnote/app/version"
 )
 
 func TestMongoMigrationVersionPersistence(t *testing.T) {
@@ -54,13 +52,15 @@ func assertMigrationVersion(t *testing.T, database Database) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	count := 0
-	for _, applied := range versions {
-		if applied == appversion.Current {
-			count++
+	for _, item := range migrations {
+		count := 0
+		for _, applied := range versions {
+			if applied == item.id {
+				count++
+			}
 		}
-	}
-	if count != 1 {
-		t.Fatalf("database has %d records for version %s; versions: %#v", count, appversion.Current, versions)
+		if count != 1 {
+			t.Fatalf("database has %d records for migration %s; migrations: %#v", count, item.id, versions)
+		}
 	}
 }

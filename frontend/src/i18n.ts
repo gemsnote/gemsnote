@@ -7,6 +7,7 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ 'noteNotSynced':'Sync this note before managing sharing.', 'notebookNotSynced':'Sync the destination notebook before moving or copying a shared note.', '我共享的':'Shared by me', '已共享给：':'Shared with: ', 'sharingLoadFailed':'Could not load sharing information.',
  "verificationLinkMissing":"Required verification link parameters are missing. Copy the complete link from the email and try again.",
  "verificationLinkInvalid":"This link is invalid or no longer active. It may have been used, replaced by a newer email, or opened on a different server. Check the site address and use the complete link from the latest email.",
  "verificationLinkExpired":"This link has expired. Request a new verification or password reset email.",
@@ -267,6 +268,7 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ 'sharingLoadFailed':'无法加载共享信息，请重试', 'noteNotSynced':'请先同步这篇笔记，再管理共享', 'notebookNotSynced':'请先同步目标笔记本，再移动或复制共享笔记',
  "verificationLinkMissing":"验证链接缺少必要参数。请从邮件中复制完整链接后重试。",
  "verificationLinkInvalid":"此链接无效或已失效，可能已使用、被新邮件替换，或指向了不同的服务端。请确认邮件中的站点地址与当前实例一致，并使用最新邮件中的完整链接。",
  "verificationLinkExpired":"此链接已超过有效期。请重新获取验证邮件或密码重置邮件。",

@@ -60,10 +60,10 @@ services:
       timeout: 3s
       retries: 10
 
-  mail-worker:
+  gemsnote-worker:
     profiles: [mail]
     stop_grace_period: 45s
-    entrypoint: ["/opt/gemsnote/docker-entry-mail-worker.sh"]
+    entrypoint: ["/opt/gemsnote/docker-entry-gemsnote-worker.sh"]
     image: ghcr.io/gemsnote/gemsnote:${GEMSNOTE_VERSION:-1.0.0}
     restart: unless-stopped
     environment:

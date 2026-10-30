@@ -6,18 +6,36 @@
 | --- | --- |
 | 接口前缀 | `/api2` |
 | 使用方 | Web、新桌面客户端和 Flutter 移动客户端 |
-| 当前版本 | `1.3.0`；`1.0.0` 为首个定稿版本 |
-| 版本来源 | [app/version/version.go](../../app/version/version.go)，同时用于服务端版本响应和数据库迁移 |
+| 当前版本 | `1.1.0`；`1.0.0` 为首个定稿版本 |
+| 版本来源 | [app/version/version.go](../../app/version/version.go)，用于服务端发布版本和 API 版本响应；数据库迁移使用独立标识 |
 | 路由与编码 | [conf/routes](../../conf/routes)、[Web 请求实现](../../frontend/src/api.ts)及对应控制器 |
 | Legacy 接口 | 旧 `/api` 继续保留，详见 [LEGACY_API.md](LEGACY_API.md) |
 
-本文按 1.3.0、1.2.0、1.1.0、1.0.0 的顺序介绍新增与保留的接口。
-1.3.0 保留较早版本的既有调用方式，`min_version` 仍为空。
+本文按 1.1.0 增加的部分、1.0.0 原来的部分介绍接口。
+1.1.0 仍在持续开发，稳定后由维护者明确指定下一个发布版本；功能与数据库调整不自动提升发布版本号。`min_version` 仍为空。
 接口前缀不代表统一的编码格式：JSON、表单和 multipart 必须按各端点要求使用。
 API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配路由补充别名。
 认证、上传及文件访问的安全约束见 [API 安全审查与回归](API_SECURITY.md)。
 
-## 1.3.0 增加的部分
+## 1.1.0 增加的部分
+
+### 共享导航与接收者笔记本归属
+
+`GET /api2/bootstrap`（以及 `/api2/web/bootstrap`）增加 `Sharing`：
+
+- `Recipients`：当前用户共享出去的有效笔记，按接收者去重分组；每项为 `{UserId, Username, NoteIds}`。包含直接共享、笔记本共享和用户组共享，不返回对方的邮箱等私有资料。用于“我共享的”列表，以及笔记信息栏的“已共享给”。
+- `Placements`：当前接收者的 `{原文笔记ID: 自己的目标笔记本ID}` 映射。仅返回仍有阅读权限、且目标笔记本仍有效的记录。
+- `PlacedShares`：上述已归类共享笔记的元数据，包含 `IsShared:true`、`Perm:0`；`NotebookId` 为接收者自己的归属。Web 可将它们合并到对应笔记本和所有笔记列表，按 `NoteId` 去重。原有 `TotalNotes`、`NumberNotes` 仍只计自己的笔记；界面展示的数量额外加上有效归类共享笔记。
+
+`POST /api2/shared/move` 使用 JSON：`{"noteId":"<原文 ID>","notebookId":"<接收者自己的笔记本 ID>"}`。成功返回 `{"Ok":true}`。调用者必须是拥有当前阅读权限的接收者，目标必须是调用者有效的个人笔记本；拒绝移动自己的原文、无权限的原文、回收站笔记和他人的目标笔记本。该操作只写接收者归属，不更新原文、作者笔记本、USN 或修改时间，也不赋予编辑权限。
+
+`POST /api2/document` 打开收到的共享时返回 `Writable:false`，`Note` 增加 `IsShared:true`、`Perm:0`，若已归类则 `NotebookId` 使用接收者的归属。原作者打开同一笔记仍看到原来的笔记本。复制继续使用 `POST /api2/note/copySharedNote`，生成由接收者拥有、可独立编辑的新笔记；移动和复制是不同操作。
+
+`POST /api2/shared/snapshots` 的创建响应也附带 `Sharing`，用于客户端随完整共享快照更新导航缓存；不改变快照分页条目和 `Total` 的定义。撤销共享后，服务端不再返回归类条目，已复制的独立笔记不受影响。离线缓存的权限更新仍须等客户端联网同步。
+
+数据库启动时幂等执行 `shared-note-placements` 迁移，创建 `shared_note_placements`，以用户 ID 和原文笔记 ID 作为唯一键。旧 `/api` 和旧 Web 控制器的响应结构不增加上述字段；原文的 `notes.notebook_id` 不变。已有迁移表中的数字标识（包括 `1.2.0`、`1.3.0`）继续保留，仅作为内部迁移标识，不表示发布过这些版本。
+
+回归：在一次性本地 PostgreSQL/API2 实例中运行 `scripts/test-sharing-navigation.py`（要求 `GEMSNOTE_DISPOSABLE_API2=1`、`GEMSNOTE_TEST_PG_CONTAINER=gemsnote-api2-test-...`；可用 `GEMSNOTE_API2_URL` 指定本机地址）。此脚本创建测试数据，不能对实际部署实例运行。界面回归为 `node frontend/tests/shared-notes.mjs`。
 
 ### 用户启用状态
 
@@ -31,8 +49,6 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 - PostgreSQL 的角色、状态修改及登录会话写入共享事务锁，防止并发禁用后写回有效 token，或并发禁用／降级清空所有可用管理员。
 
 旧 `/api` 保留请求格式和用户 JSON 字段，但同样拒绝被禁用的账号；没有给旧用户 JSON 增加 `Flag` 字段。桌面／移动客户端离线缓存不是服务端权限的一部分，服务端禁用不会远程删除已经下载的数据。
-
-## 1.2.0 增加的部分
 
 ### 用户角色
 
@@ -60,9 +76,7 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 - `POST /api2/web/verifyEmail`：现有公开验证接口，表单 `token`、`change=true`，完成新邮箱验证后才修改邮箱；成功消费令牌，不可重复使用。
 - `GET /api2/bootstrap` 的 `IsAdmin` 按用户记录的 `Role=admin` 判断，不再依赖可修改的用户名；桌面端仍不提供管理界面。
 
-发送错误包括 `mailNotConfigured`、`mailQueueNotConfigured`、`mailQueueUnavailable`、`mailRateLimited`、`mailSiteURLInvalid`、`mailTemplateInvalid`、`mailTokenFailed`；投递错误包括 `mailAuthenticationFailed`、`mailRecipientRejected`、`mailConnectionFailed`、`mailDeliveryFailed`、`mailTaskExpired`。邮箱相同返回 `emailUnchanged`，密码不正确返回 `wrongPassword`。部署与状态语义见[异步邮件说明](../MAIL.md)。
-
-## 1.1.0 增加的部分
+发送错误包括 `mailNotConfigured`、`mailQueueNotConfigured`、`mailQueueUnavailable`、`mailRateLimited`、`mailSiteURLInvalid`、`mailTemplateInvalid`、`mailTokenFailed`；投递错误包括 `mailAuthenticationFailed`、`mailRecipientRejected`、`mailConnectionFailed`、`mailDeliveryFailed`、`mailTaskExpired`。邮箱相同返回 `emailUnchanged`，密码不正确返回 `wrongPassword`。部署与状态语义见[后台任务服务部署](../DEPLOYMENT.md#后台任务服务)。
 
 本版本增加笔记本创建幂等、图片上传回执和安全清理：
 
@@ -147,7 +161,7 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
   "Ok": true,
   "Token": "...",
   "User": {"UserId": "...", "Username": "admin", "Email": "...", "Verified": true, "Logo": "..."},
-  "Server": {"Name": "gemsnote", "Version": "1.3.0", "MinVersion": ""}
+  "Server": {"Name": "gemsnote", "Version": "1.1.0", "MinVersion": ""}
 }
 ```
 
@@ -244,6 +258,6 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 ### 版本策略
 
 `/api` 是 legacy 接口，当前版本不会移除。API2 `1.0.0` 已定稿，后续合同变更须升级版本。
-新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.3.0","min_version":""}`，
+新客户端通过 `/api2/system/version` 获取 `{"server":"gemsnote","version":"1.1.0","min_version":""}`，
 或使用登录响应的 `Server` 字段（注意两者字段大小写不同）。当未来设置 `min_version`
 后，低于该版本的客户端需提示升级；空值表示保留旧 Leanote 客户端兼容性。

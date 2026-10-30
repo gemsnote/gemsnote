@@ -2,26 +2,23 @@ package db
 
 import (
 	"fmt"
-	"sort"
-	"strconv"
-	"strings"
 
-	appversion "github.com/gemsnote/gemsnote/app/version"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
 type migration struct {
-	version string
-	up      func(Database) error
+	id string
+	up func(Database) error
 }
 
-// migrations must contain every database change in ascending version order.
-// Version 1.0.0 establishes the migration baseline for existing Leanote and
-// Gemsnote databases; it intentionally makes no changes to business data.
+// Migrations run in declaration order and have stable IDs independent of the
+// application release. Keep the existing numeric IDs (including 1.2.0/1.3.0)
+// so databases already containing them remain usable with release 1.1.0.
+// New migrations use descriptive IDs; no release bump is needed for a schema change.
 var migrations = []migration{
-	{version: "1.0.0", up: func(Database) error { return nil }},
-	{version: "1.1.0", up: func(database Database) error {
+	{id: "1.0.0", up: func(Database) error { return nil }},
+	{id: "1.1.0", up: func(database Database) error {
 		if postgres, ok := database.(*PostgresDatabase); ok {
 			_, err := postgres.db.Exec(`ALTER TABLE files
 				ADD COLUMN IF NOT EXISTS upload_state TEXT NOT NULL DEFAULT '',
@@ -39,14 +36,14 @@ var migrations = []migration{
 		}
 		return nil // MongoDB documents need no backfill; absent state is protected.
 	}},
-	{version: "1.2.0", up: func(database Database) error {
+	{id: "1.2.0", up: func(database Database) error {
 		if postgres, ok := database.(*PostgresDatabase); ok {
 			_, err := postgres.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT ''`)
 			return err
 		}
 		return nil
 	}},
-	{version: "1.3.0", up: func(database Database) error {
+	{id: "1.3.0", up: func(database Database) error {
 		if postgres, ok := database.(*PostgresDatabase); ok {
 			_, err := postgres.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS flag TEXT NOT NULL DEFAULT 'A' CHECK (flag IN ('A','D'))`)
 			return err
@@ -57,60 +54,46 @@ var migrations = []migration{
 		}
 		return nil
 	}},
+	{id: "shared-note-placements", up: func(database Database) error {
+		if postgres, ok := database.(*PostgresDatabase); ok {
+			_, err := postgres.db.Exec(`CREATE TABLE IF NOT EXISTS shared_note_placements (
+                user_id CHAR(24) NOT NULL, note_id CHAR(24) NOT NULL,
+                notebook_id CHAR(24) NOT NULL, PRIMARY KEY(user_id,note_id))`)
+			return err
+		}
+		return nil
+	}},
 }
 
 func migrate(database Database) error {
-	appliedVersions, err := database.AppliedMigrations()
+	appliedIDs, err := database.AppliedMigrations()
 	if err != nil {
-		return fmt.Errorf("read database version: %w", err)
+		return fmt.Errorf("read database migrations: %w", err)
 	}
-	applied := make(map[string]bool, len(appliedVersions))
-	for _, migrationVersion := range appliedVersions {
-		applied[migrationVersion] = true
-		if compareVersions(migrationVersion, appversion.Current) > 0 {
-			return fmt.Errorf("database version %s is newer than application version %s", migrationVersion, appversion.Current)
+	supported := make(map[string]bool, len(migrations))
+	for _, item := range migrations {
+		if item.id == "" || supported[item.id] {
+			return fmt.Errorf("invalid or duplicate migration ID %q", item.id)
 		}
+		supported[item.id] = true
 	}
-
-	ordered := append([]migration(nil), migrations...)
-	sort.Slice(ordered, func(i, j int) bool {
-		return compareVersions(ordered[i].version, ordered[j].version) < 0
-	})
-	for _, item := range ordered {
-		if compareVersions(item.version, appversion.Current) > 0 || applied[item.version] {
+	applied := make(map[string]bool, len(appliedIDs))
+	for _, id := range appliedIDs {
+		if !supported[id] {
+			return fmt.Errorf("database migration %s is not supported by this application", id)
+		}
+		applied[id] = true
+	}
+	for _, item := range migrations {
+		if applied[item.id] {
 			continue
 		}
 		if err := item.up(database); err != nil {
-			return fmt.Errorf("migrate database to %s: %w", item.version, err)
+			return fmt.Errorf("apply database migration %s: %w", item.id, err)
 		}
-		if err := database.RecordMigration(item.version); err != nil {
-			return fmt.Errorf("record database version %s: %w", item.version, err)
+		if err := database.RecordMigration(item.id); err != nil {
+			return fmt.Errorf("record database migration %s: %w", item.id, err)
 		}
 	}
 	return nil
-}
-
-func compareVersions(left, right string) int {
-	leftParts := versionParts(left)
-	rightParts := versionParts(right)
-	for i := 0; i < 3; i++ {
-		if leftParts[i] < rightParts[i] {
-			return -1
-		}
-		if leftParts[i] > rightParts[i] {
-			return 1
-		}
-	}
-	return 0
-}
-
-func versionParts(value string) [3]int {
-	value = strings.TrimPrefix(value, "v")
-	value = strings.SplitN(value, "-", 2)[0]
-	parts := strings.Split(value, ".")
-	var result [3]int
-	for i := 0; i < len(parts) && i < len(result); i++ {
-		result[i], _ = strconv.Atoi(parts[i])
-	}
-	return result
 }

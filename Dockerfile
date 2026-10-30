@@ -33,13 +33,13 @@ RUN cp conf/app.conf-default conf/app.conf
 # the Revel command-line helper in app/cmd.
 RUN go run ./app/cmd build . /tmp/gemsnote-revel-build prod && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -o /gemsnote -ldflags="-s -w" ./app/tmp && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /gemsnote-mail-worker -ldflags="-s -w" ./mail-worker
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /gemsnote-worker -ldflags="-s -w" ./gemsnote-worker
 
 RUN REVEL_DIR="$(go list -m -f '{{.Dir}}' github.com/revel/revel)" && \
     mkdir -p /runtime/github.com/revel/revel && \
     cp -R "$REVEL_DIR/conf" "$REVEL_DIR/templates" /runtime/github.com/revel/revel/
 
-# Stage 3: Shared server and mail-worker runtime
+# Stage 3: Shared server and gemsnote-worker runtime
 FROM alpine:3.22
 
 LABEL maintainer="raptor<raptor.zh@gmail.com>"
@@ -48,8 +48,8 @@ LABEL maintainer="raptor<raptor.zh@gmail.com>"
 RUN apk --no-cache add ca-certificates tzdata su-exec && \
     addgroup -S -g 10001 worker && adduser -S -D -u 10001 -G worker worker
 
-COPY --from=builder /gemsnote-mail-worker /opt/gemsnote/gemsnote-mail-worker
-COPY scripts/docker-entry-server.sh scripts/docker-entry-mail-worker.sh /opt/gemsnote/
+COPY --from=builder /gemsnote-worker /opt/gemsnote/gemsnote-worker
+COPY scripts/docker-entry-server.sh scripts/docker-entry-gemsnote-worker.sh /opt/gemsnote/
 RUN chmod 755 /opt/gemsnote/docker-entry-*.sh
 
 WORKDIR /opt/gemsnote

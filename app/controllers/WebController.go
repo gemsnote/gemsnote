@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/lea"
 	"github.com/gemsnote/gemsnote/app/service"
@@ -57,7 +58,19 @@ func (c Web) Bootstrap() revel.Result {
 			PendingEmail string
 		}{currentUser, userService.PendingEmail(currentUser)}
 	}
-	return c.RenderJSON(map[string]interface{}{"Ok": true, "User": profile, "IsAdmin": configService.IsAdmin(c.GetUserId()), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()})
+	var sharing *service.SharingNavigation
+	if isAPI2Request(c.Controller) {
+		var err error
+		sharing, err = shareService.Navigation(userId)
+		if err != nil {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "sharingLoadFailed"})
+		}
+	}
+	response := map[string]interface{}{"Ok": true, "User": profile, "IsAdmin": configService.IsAdmin(c.GetUserId()), "Notebooks": notebookService.GetNotebooks(userId), "SharedNotebooks": notebooks, "SharedUsers": users, "Tags": tags, "TotalNotes": noteService.CountNote(userId), "TotalStarred": starredCount, "Version": configService.GetVersion()}
+	if sharing != nil {
+		response["Sharing"] = sharing
+	}
+	return c.RenderJSON(response)
 }
 
 func (c Web) RequireSession() revel.Result {
@@ -120,6 +133,19 @@ func (c Web) Document(noteId string) revel.Result {
 	if note.NoteId == "" || note.IsDeleted || (note.UserId.Hex() != c.GetUserId() && !shareService.HasReadPerm(note.UserId.Hex(), c.GetUserId(), noteId)) {
 		c.Response.Status = 403
 		return c.RenderJSON(info.Re{Ok: false, Msg: "noAuth"})
+	}
+	if isAPI2Request(c.Controller) && note.UserId.Hex() != c.GetUserId() {
+		placements, err := db.SharedPlacements(c.GetUserId())
+		if err != nil {
+			return c.RenderJSON(info.Re{Ok: false, Msg: "sharingLoadFailed"})
+		}
+		if target := placements[noteId]; bson.IsObjectIdHex(target) {
+			book := notebookService.GetNotebook(target, c.GetUserId())
+			if book.NotebookId != "" && !book.IsDeleted && !book.IsTrash {
+				note.NotebookId = book.NotebookId
+			}
+		}
+		return c.RenderJSON(map[string]interface{}{"Note": service.PlacedSharedNote{Note: note, IsShared: true}, "Content": noteService.GetNoteContent(noteId, note.UserId.Hex()).Content, "Writable": false})
 	}
 	return c.RenderJSON(map[string]interface{}{"Note": note, "Content": noteService.GetNoteContent(noteId, note.UserId.Hex()).Content, "Writable": !note.IsTrash && note.UserId.Hex() == c.GetUserId()})
 }

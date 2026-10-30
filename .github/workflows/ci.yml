@@ -48,7 +48,7 @@ jobs:
       - name: Test Asynq mail delivery
         run: |
           python -m venv "$RUNNER_TEMP/mail-test-venv"
-          "$RUNNER_TEMP/mail-test-venv/bin/pip" install -r mail-worker/tests/requirements.txt
+          "$RUNNER_TEMP/mail-test-venv/bin/pip" install -r gemsnote-worker/tests/requirements.txt
           MAIL_TEST_VENV="$RUNNER_TEMP/mail-test-venv" bash scripts/test-mail-queue.sh
 
       - name: Generate Revel entrypoint

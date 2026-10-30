@@ -44,12 +44,12 @@ npm run build --prefix frontend
 go run ./app/cmd build . "$revel_stage" prod
 
 binary_name=gemsnote
-worker_name=gemsnote-mail-worker
+worker_name=gemsnote-worker
 migration_name=gemsnote-migrate
 if [[ $target_os == windows ]]; then
   binary_name=gemsnote.exe
   migration_name=gemsnote-migrate.exe
-  worker_name=gemsnote-mail-worker.exe
+  worker_name=gemsnote-worker.exe
 fi
 
 mkdir -p "$stage_dir/gemsnote/bin" \
@@ -65,7 +65,7 @@ CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
 
 CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
   go build -trimpath -ldflags="-s -w" \
-  -o "$stage_dir/gemsnote/bin/$worker_name" ./mail-worker
+  -o "$stage_dir/gemsnote/bin/$worker_name" ./gemsnote-worker
 
 cp -R conf messages public app/views mongodb_backup database docs \
   "$stage_dir/gemsnote/"

@@ -1,33 +1,62 @@
 package db
 
 import (
+	"strings"
 	"testing"
-
-	appversion "github.com/gemsnote/gemsnote/app/version"
 )
 
-func TestMigrationListEndsAtCurrentVersion(t *testing.T) {
-	if len(migrations) == 0 {
-		t.Fatal("migration list is empty")
-	}
-	if got := migrations[len(migrations)-1].version; got != appversion.Current {
-		t.Fatalf("latest migration is %s, application version is %s", got, appversion.Current)
-	}
+type migrationTestDatabase struct {
+	Database
+	applied  []string
+	recorded []string
 }
 
-func TestCompareVersions(t *testing.T) {
-	tests := []struct {
-		left, right string
-		want        int
-	}{
-		{"1.0.0", "1.0.0", 0},
-		{"1.0.1", "1.0.0", 1},
-		{"1.2.0", "1.10.0", -1},
-		{"v2.0.0", "1.9.9", 1},
+func (d *migrationTestDatabase) AppliedMigrations() ([]string, error) {
+	return append([]string{}, d.applied...), nil
+}
+func (d *migrationTestDatabase) RecordMigration(id string) error {
+	d.applied = append(d.applied, id)
+	d.recorded = append(d.recorded, id)
+	return nil
+}
+
+func TestMigrationsIndependentOfReleaseVersion(t *testing.T) {
+	// Earlier development builds stored these numeric IDs. They remain valid
+	// even though the application release stays at 1.1.0.
+	database := &migrationTestDatabase{applied: []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0"}}
+	if err := migrate(database); err != nil {
+		t.Fatal(err)
 	}
-	for _, test := range tests {
-		if got := compareVersions(test.left, test.right); got != test.want {
-			t.Errorf("compareVersions(%q, %q) = %d, want %d", test.left, test.right, got, test.want)
+	if len(database.recorded) != 1 || database.recorded[0] != "shared-note-placements" {
+		t.Fatalf("unexpected migrations: %v", database.recorded)
+	}
+	if err := migrate(database); err != nil {
+		t.Fatal(err)
+	}
+	if len(database.recorded) != 1 {
+		t.Fatal("migration ran twice")
+	}
+}
+func TestUnknownDatabaseMigrationRejected(t *testing.T) {
+	database := &migrationTestDatabase{applied: []string{"future-schema-change"}}
+	if err := migrate(database); err == nil || !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unexpected result: %v", err)
+	}
+	if len(database.recorded) != 0 {
+		t.Fatal("modified unsupported database")
+	}
+}
+func TestFreshDatabaseRunsMigrationsInDeclarationOrder(t *testing.T) {
+	database := &migrationTestDatabase{}
+	if err := migrate(database); err != nil {
+		t.Fatal(err)
+	}
+	if len(database.recorded) != len(migrations) {
+		t.Fatalf("missing migrations: %v", database.recorded)
+	}
+	for i, item := range migrations {
+		if database.recorded[i] != item.id {
+			t.Fatalf("wrong order: %v", database.recorded)
 		}
 	}
 }

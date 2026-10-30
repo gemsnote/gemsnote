@@ -46,3 +46,22 @@ python3 scripts/test-api-security.py
 归档内容、恶意图片拒绝、内网请求拒绝及密码找回令牌用途。没有测试 MongoDB；
 PDF 的凭据与命令构造已修复，未将外部 wkhtmltopdf 渲染器视为完成沙箱或渗透测试。
 本记录是代码审查与定向回归结果，不等同于全量安全认证或生产环境渗透测试。
+
+## Web 认证回归
+
+Web 认证回归使用 `frontend/tests/web-auth.mjs`，连接带内置种子的独立临时
+PostgreSQL/API2 实例（仅限 `127.0.0.1:19090`），验证旧 Cookie、过期/撤销 token、
+Bearer 登录和页面刷新。显式确认目标是一次性环境后运行：
+
+```sh
+GEMSNOTE_DISPOSABLE_API2=1 GEMSNOTE_API2_URL=http://127.0.0.1:19090 \
+  npm run test:web-auth --prefix frontend
+```
+
+不要将该用例指向实际使用的服务；测试会创建和撤销该临时实例的登录会话。
+
+## 管理员角色与状态回归
+
+角色权限回归：`npm --prefix frontend run test:admin-roles` 检查中英文管理界面和自己的角色按钮禁用。`scripts/test-admin-roles.py` 仅允许通过 `GEMSNOTE_DISPOSABLE_API2=1` 对临时 `127.0.0.1:19090` 实例执行，测试角色授权、撤销、自我降级拒绝和并发互相降级；它会修改测试管理员角色，禁止指向实际实例。
+
+用户状态回归：`scripts/test-user-flags.py` 在上述临时 API2 实例中验证禁用、恢复、禁止自我禁用、Cookie／API token 撤销和并发操作；需设置 `GEMSNOTE_DISPOSABLE_API2=1` 和临时 PostgreSQL 容器名 `GEMSNOTE_TEST_PG_CONTAINER=gemsnote-api2-test-<PID>-<随机数>`。禁止对实际实例执行。中英文状态按钮由 `npm --prefix frontend run test:admin-roles` 覆盖。

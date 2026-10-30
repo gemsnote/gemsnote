@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS share_notes (
  id CHAR(24) PRIMARY KEY, user_id CHAR(24) NOT NULL, to_user_id CHAR(24), to_group_id CHAR(24), to_group JSONB,
  note_id CHAR(24) NOT NULL, perm INTEGER NOT NULL DEFAULT 0, created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS shared_note_placements (
+ user_id CHAR(24) NOT NULL, note_id CHAR(24) NOT NULL, notebook_id CHAR(24) NOT NULL,
+ PRIMARY KEY(user_id,note_id)
+);
+
 CREATE TABLE IF NOT EXISTS has_share_notes (
  id CHAR(24) PRIMARY KEY, user_id CHAR(24) NOT NULL, to_user_id CHAR(24) NOT NULL, seq INTEGER NOT NULL DEFAULT 0,
  UNIQUE (user_id, to_user_id)

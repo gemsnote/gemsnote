@@ -50,6 +50,10 @@ func (c ApiShared) CreateSnapshot() revel.Result {
 	if len(items) > maxSharedSnapshotItems {
 		return c.RenderJSON(map[string]interface{}{"Ok": false, "Msg": "snapshotTooLarge"})
 	}
+	navigation, navErr := shareService.Navigation(c.getUserId())
+	if navErr != nil {
+		return c.RenderJSON(map[string]interface{}{"Ok": false, "Msg": "sharingLoadFailed"})
+	}
 	now := time.Now().UTC()
 	expiresAt := now.Add(sharedSnapshotLifetime)
 	snapshotId := NewGuid()
@@ -71,7 +75,7 @@ func (c ApiShared) CreateSnapshot() revel.Result {
 	}
 	sharedSnapshots.items[snapshotId] = materializedSharedSnapshot{UserId: c.getUserId(), ExpiresAt: expiresAt, Items: items}
 	sharedSnapshots.Unlock()
-	return c.RenderJSON(map[string]interface{}{"Ok": true, "SnapshotId": snapshotId, "ExpiresAt": expiresAt, "Total": len(items)})
+	return c.RenderJSON(map[string]interface{}{"Ok": true, "SnapshotId": snapshotId, "ExpiresAt": expiresAt, "Total": len(items), "Sharing": navigation})
 }
 
 func (c ApiShared) SnapshotItems(snapshotId, pageToken string) revel.Result {

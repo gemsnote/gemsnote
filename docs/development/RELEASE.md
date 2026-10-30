@@ -6,8 +6,9 @@
 
 1. 安装前端锁定依赖，运行 Vitest、类型检查和生产构建；
 2. 下载 Go 模块依赖并运行 `go test ./...`；
-3. 生成 Revel 服务端入口并编译；
-4. 构建 Docker 镜像。
+3. 使用临时 Redis、本地 TLS SMTP fixture 和真实 `gemsnote-worker` 执行邮件集成测试；
+4. 生成 Revel 服务端入口并编译；
+5. 构建包含服务端与 `gemsnote-worker` 的 Docker 镜像。
 
 数据库集成测试仍需显式提供临时 MongoDB/PostgreSQL，普通 CI 中未配置数据库的集成测试会按测试代码约定自动跳过。
 
@@ -29,7 +30,7 @@ git push origin 1.0.0
 5. 根据提交记录生成 Release Notes 并创建 GitHub Release；
 6. 同时向 GitHub Container Registry（GHCR）推送包含 `linux/amd64` 和 `linux/arm64` 的镜像，镜像标签为 `ghcr.io/gemsnote/gemsnote:<版本号>`，例如 `ghcr.io/gemsnote/gemsnote:1.0.0`。GitHub Release 与镜像发布都在版本校验和发布包构建通过后执行。
 
-GHCR 的 Gemsnote 镜像同时包含服务端与 Asynq 邮件 worker，分别使用 `docker-entry-server.sh` 和 `docker-entry-mail-worker.sh` 启动；发布工作流只构建、推送这一种多架构镜像。Compose 的 `mail-worker` 与 `gemsnote` 引用相同镜像版本。
+GHCR 的 Gemsnote 镜像同时包含服务端与 Asynq 邮件 worker，分别使用 `docker-entry-server.sh` 和 `docker-entry-gemsnote-worker.sh` 启动；发布工作流只构建、推送这一种多架构镜像。Compose 的 `gemsnote-worker` 与 `gemsnote` 引用相同镜像版本。
 
 镜像发布使用工作流自带的 `GITHUB_TOKEN`，无需配置 Docker Hub 凭据。首次发布的 GHCR 包默认可能为私有；如需公开拉取，请在 GitHub 的包设置中将其可见性改为 Public。公开后可用 `docker pull ghcr.io/gemsnote/gemsnote:1.0.0` 拉取，Docker 会自动选择匹配主机架构的镜像。本流程只发布明确的版本标签，不更新 `latest`。
 
@@ -38,7 +39,15 @@ GHCR 的 Gemsnote 镜像同时包含服务端与 Asynq 邮件 worker，分别使
 新标签应指向包含此工作流的发布提交。旧 `v` 前缀标签不会触发当前发布流程，
 无需删除或移动它们。构建产物文件名仍保留 `-v<version>`，与 Git/GHCR 标签是两回事。
 
-每个发布包都包含服务端、原生 `gemsnote-mail-worker` 邮件程序、Vue `frontend/dist`、MongoDB/PostgreSQL 迁移工具、配置、页面资源、数据库 Schema、初始数据和文档；运行发布包不需要安装 Node.js。
+每个发布包都包含服务端、原生 `gemsnote-worker` 邮件程序、Vue `frontend/dist`、MongoDB/PostgreSQL 迁移工具、配置、页面资源、数据库 Schema、初始数据和文档；运行发布包不需要安装 Node.js。
+
+## gemsnote-worker 发布要求
+
+`scripts/build-release.sh` 从 `./gemsnote-worker` 编译后台进程，和服务端使用相同目标平台：Linux/macOS 发布包包含 `bin/gemsnote-worker`，Windows 发布包包含 `bin/gemsnote-worker.exe`。无需单独指定 worker 版本，运行时不依赖 Python；CI 的 Python 仅用于 SMTP 测试 fixture。
+
+Dockerfile 同时编译服务端和 worker，运行镜像仅复制可执行文件与必要资源。`gemsnote` 服务使用 `/opt/gemsnote/docker-entry-server.sh`，`gemsnote-worker` 服务使用 `/opt/gemsnote/docker-entry-gemsnote-worker.sh`；两者引用同一 GHCR 镜像和版本，不发布独立 worker 镜像。
+
+Release 中的 `run.sh` / `run.bat` 只启动服务端，worker 需另行运行；Docker 则通过 `--profile mail` 启用 worker 和 Redis。运行与升级见[后台任务服务部署](../DEPLOYMENT.md#后台任务服务)。发布前除基础检查外，应执行[worker 邮件回归](WORKER.md#worker-与账号回归测试)，确认包内包含目标平台的 worker、镜像入口可执行、队列发送及失败状态正常。
 
 ## 发布新版本
 
@@ -75,9 +84,9 @@ scripts/build-release.sh linux amd64 "$PWD/release"
 scripts/build-release.sh <goos> <goarch> <绝对输出目录>
 ```
 
-可用目标包括 `linux amd64`、`linux arm64`、`windows amd64`、`darwin amd64` 和 `darwin arm64`。POSIX 目标生成 `.tar.gz`，Windows 目标生成 `.zip`。输出目录必须使用绝对路径，因为 Windows 打包阶段会切换到临时目录。脚本会构建 Vue、生成 Revel 生产入口，并编译服务端、`gemsnote-migrate` 迁移工具和 `gemsnote-mail-worker` 邮件程序；脚本直接读取 `app/version/version.go` 中的 `Current`，不接受版本参数；定义缺失、重复或不符合 `MAJOR.MINOR.PATCH` 时立即失败。脚本本身不执行测试，发布前仍需运行上述测试。GitHub Actions 保留 tag 与代码版本的一致性校验。
+可用目标包括 `linux amd64`、`linux arm64`、`windows amd64`、`darwin amd64` 和 `darwin arm64`。POSIX 目标生成 `.tar.gz`，Windows 目标生成 `.zip`。输出目录必须使用绝对路径，因为 Windows 打包阶段会切换到临时目录。脚本会构建 Vue、生成 Revel 生产入口，并编译服务端、`gemsnote-migrate` 迁移工具和 `gemsnote-worker` 邮件程序；脚本直接读取 `app/version/version.go` 中的 `Current`，不接受版本参数；定义缺失、重复或不符合 `MAJOR.MINOR.PATCH` 时立即失败。脚本本身不执行测试，发布前仍需运行上述测试。GitHub Actions 保留 tag 与代码版本的一致性校验。
 
-发布包包含服务端、迁移工具、`frontend/dist`、配置、数据库 Schema、初始数据和文档，运行时不需要 Node.js。包内通过 `run.sh`（Linux/macOS）或 `run.bat`（Windows）启动。发布前应检查包内 `conf`，不要带入本地密码、`.env` 或运行时数据；`files/` 不会打包，`public/upload` 为空目录。
+发布包包含服务端、迁移工具、`gemsnote-worker`、`frontend/dist`、配置、数据库 Schema、初始数据和文档，运行时不需要 Node.js。包内通过 `run.sh`（Linux/macOS）或 `run.bat`（Windows）启动。发布前应检查包内 `conf`，不要带入本地密码、`.env` 或运行时数据；`files/` 不会打包，`public/upload` 为空目录。
 
 启动前编辑 `conf/app.conf`，配置数据库连接并修改 `app.secret`。全新 PostgreSQL 数据库按部署方式执行 Schema 和 seed；MongoDB 不会自动导入 BSON，需要先按 [部署、测试与交付](../DEPLOYMENT.md) 恢复或连接数据库。已有数据库不会因重新构建 Release 而重置 seed 或密码。
 
