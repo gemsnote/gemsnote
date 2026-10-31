@@ -11,6 +11,7 @@ import brandMark from '../assets/gemsnote_s.png'
 import RichEditor from '../components/RichEditor.vue'
 import NotebookPicker from '../components/NotebookPicker.vue'
 import TagInput from '../components/TagInput.vue'
+import ShareRecipientInput from '../components/ShareRecipientInput.vue'
 import ImportDialog from '../components/ImportDialog.vue'
 import type {ImportJob} from '../importJob'
 import {language,t,formatDate} from '../i18n'
@@ -47,6 +48,8 @@ let layoutReady=false
 function updateCompact(){compact.value=window.innerWidth<=1100}
 const imageInput=ref<HTMLInputElement>(),attachInput=ref<HTMLInputElement>(),sharedQueueMsg=ref('')
 const isSharedNote=computed(()=>!!current.value&&(!!current.value.Note.IsShared||current.value.Note.UserId!==boot.value.User?.UserId))
+const shareBusy=ref(false)
+const shareSuggestions=computed<string[]>(()=>[...(boot.value.Sharing?.Suggestions||[]),...(boot.value.Sharing?.Recipients||[])].map((u:any)=>u.Username).filter(Boolean))
 const sharedRecipients=computed(()=>(boot.value.Sharing?.Recipients||[]).filter((u:any)=>u.NoteIds?.includes(current.value?.Note.NoteId)).map((u:any)=>u.Username).join(', '))
 const placedShares=computed<any[]>(()=>boot.value.Sharing?.PlacedShares||[])
 const totalNotes=computed(()=>Number(boot.value.TotalNotes||0)+placedShares.value.length)
@@ -186,7 +189,7 @@ async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remov
 async function remove(){if(!current.value||!await confirmAction(t(own.value?(trash.value?'永久删除这篇笔记？此操作不可撤销。':'将笔记放入回收站？'):'从共享列表移除这篇笔记？')))return;try{if(own.value&&trash.value)await request('/note/deleteTrash',{noteId:current.value.Note.NoteId});else if(own.value)await request('/note/deleteNote',{noteIds:[current.value.Note.NoteId],isShared:false});else await request('/share/deleteShareNoteBySharedUser',{noteId:current.value.Note.NoteId,fromUserId:current.value.Note.UserId});dirty.value=false;current.value=null;await bootstrap();await load()}catch(e){error.value=String(e)}}
 async function restore(){try{await request('/web/restore',{noteId:current.value.Note.NoteId});current.value=null;await bootstrap();await load()}catch(e){error.value=String(e)}}
 async function move(copy=false){if(!await flush()||!destination.value)return;try{const noteId=current.value.Note.NoteId;if(copy&&isSharedNote.value)await request('/note/copySharedNote',{noteIds:[noteId],notebookId:destination.value,fromUserId:current.value.Note.UserId});else if(isSharedNote.value)await request('/shared/move',{noteId,notebookId:destination.value});else await request(copy?'/note/copyNote':'/note/moveNote',{noteIds:[noteId],notebookId:destination.value});panel.value='';await bootstrap();await load();await open(noteId)}catch(e){error.value=String(e)}}
-async function share(){try{const result=await request('/share/addShareNote',{noteId:current.value.Note.NoteId,emails:[shareEmail.value],perm:0});const failures=Object.values(result).filter((r:any)=>!r.Ok);if(failures.length)throw new Error(JSON.stringify(failures));shareEmail.value='';await bootstrap();await showShare()}catch(e){error.value=String(e)}}
+async function share(){if(shareBusy.value||!shareEmail.value.trim())return;shareBusy.value=true;try{const result=await request('/share/addShareNote',{noteId:current.value.Note.NoteId,emails:[shareEmail.value.trim()],perm:0});const failures=Object.values(result).filter((r:any)=>!r.Ok);if(failures.length)throw new Error(JSON.stringify(failures));shareEmail.value='';await bootstrap();await showShare()}catch(e){error.value=String(e)}finally{shareBusy.value=false}}
 async function showShare(){panel.value='share';try{const r=await request('/web/shareMembers',{noteId:current.value.Note.NoteId});members.value=r.Users||[]}catch(e){error.value=String(e)}}
 async function revoke(id:string){try{await request('/share/deleteShareNote',{noteId:current.value.Note.NoteId,toUserId:id});await bootstrap();await showShare()}catch(e){error.value=String(e)}}
 async function history(){panel.value='history';try{histories.value=await request('/noteContentHistory/listHistories',{noteId:current.value.Note.NoteId})||[]}catch(e){error.value=String(e)}}
@@ -420,9 +423,8 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <template v-if="panel==='share'">
 <h2>{{t('共享笔记')}}</h2>
 <form @submit.prevent="share">
-<label>{{t('对方邮箱')}}<input v-model="shareEmail" type="email" required>
-</label>
-<button>{{t('添加共享')}}</button>
+<label>{{t('用户名或邮箱')}}<ShareRecipientInput v-model="shareEmail" :suggestions="shareSuggestions" :disabled="shareBusy"/></label>
+<button :disabled="shareBusy||!shareEmail.trim()">{{t('添加共享')}}</button>
 </form>
 <p v-for="m in members" :key="m.ToUserId">{{m.Email}} · {{t('只读')}} <button v-if="!m.NotebookHasShared" @click="revoke(m.ToUserId)">{{t('取消共享')}}</button>
 </p>

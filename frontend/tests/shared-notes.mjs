@@ -8,6 +8,7 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:900}})
   await page.addInitScript(l=>localStorage.setItem('gemsnote:language',l),lang)
   let moved=false,copied=false
+  const shares=[]
   const requests=[]
   const own={NoteId:'own',NotebookId:'mine',UserId:'me',Title:'My rich text',IsMarkdown:false,UpdatedTime:'2026-10-30T10:00:00Z'}
   const received={NoteId:'shared',NotebookId:'remote',UserId:'author',Title:'Shared Markdown',IsMarkdown:true,UpdatedTime:'2026-10-30T09:00:00Z',Perm:0,IsShared:true}
@@ -16,7 +17,7 @@ try {
    const body=route.request().postData()||''
    let data={Ok:true}
    switch(path){
-    case '/api2/bootstrap':data={Desktop:desktop,User:{UserId:'me',Username:'me'},Notebooks:[{NotebookId:'mine',Title:'My notebook',NumberNotes:copied?2:1}],Tags:[],TotalNotes:copied?2:1,SharedNotebooks:{author:[{IsDefault:true,Title:'Author shares'}]},Sharing:{Recipients:[{UserId:'reader',Username:'Reader Alice',NoteIds:['own']}],Placements:moved?{shared:'mine'}:{},PlacedShares:moved?[{...received,NotebookId:'mine'}]:[]}};break
+    case '/api2/bootstrap':data={Desktop:desktop,User:{UserId:'me',Username:'me'},Notebooks:[{NotebookId:'mine',Title:'My notebook',NumberNotes:copied?2:1}],Tags:[],TotalNotes:copied?2:1,SharedNotebooks:{author:[{IsDefault:true,Title:'Author shares'}]},Sharing:{Suggestions:[{UserId:'past',Username:'past-reader',NoteIds:[]}],Recipients:[{UserId:'reader',Username:'Reader Alice',NoteIds:['own']}],Placements:moved?{shared:'mine'}:{},PlacedShares:moved?[{...received,NotebookId:'mine'}]:[]}};break
     case '/api2/notes':data=[own];break
     case '/api2/share/listShareNotes':data=[received];break
     case '/api2/document':{
@@ -24,6 +25,11 @@ try {
      data={Note:id==='own'?own:received,Content:id==='own'?'<p>own body</p>':'# Read only content',Writable:id==='own'};break
     }
     case '/api2/attachments':data={List:[]};break
+    case '/api2/web/shareMembers':data={Users:[]};break
+    case '/api2/share/addShareNote':{
+     const params=new URLSearchParams(body);const identity=params.get('emails[0]');shares.push(identity);data={[identity]:{Ok:true}};break
+    }
+
     case '/api2/shared/move':requests.push({path,body:JSON.parse(body)});moved=true;break
     case '/api2/note/copySharedNote':requests.push({path,body:Object.fromEntries(new URLSearchParams(body))});copied=true;break
     case '/api2/web/downloadStatus':data={Running:false};break
@@ -33,6 +39,21 @@ try {
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/note/own`)
   await expect(page.locator('.note-info-line')).toContainText('Reader Alice')
   await expect(page.locator('.note-format')).toHaveText('RT')
+  await page.locator('.toolbar-actions').getByRole('button',{name:lang==='zh-CN'?'共享':'Share',exact:true}).click()
+  const recipient=page.getByRole('combobox',{name:lang==='zh-CN'?'用户名或邮箱':'Username or email'})
+  await recipient.fill('past')
+  await expect(page.getByRole('option',{name:'past-reader',exact:true})).toBeVisible()
+  await recipient.press('ArrowDown');await recipient.press('Enter')
+  await expect(recipient).toHaveValue('past-reader');expect(shares).toEqual([])
+  await page.getByRole('dialog').getByRole('button',{name:lang==='zh-CN'?'添加共享':'Share',exact:true}).click()
+  await expect.poll(()=>shares.length).toBe(1);expect(shares[0]).toBe('past-reader')
+  await recipient.fill('Reader');await page.getByRole('option',{name:'Reader Alice',exact:true}).click()
+  await expect(recipient).toHaveValue('Reader Alice')
+  await recipient.fill(' reader@example.test ')
+  await page.getByRole('dialog').getByRole('button',{name:lang==='zh-CN'?'添加共享':'Share',exact:true}).click()
+  await expect.poll(()=>shares.length).toBe(2);expect(shares[1]).toBe('reader@example.test')
+  await page.getByRole('dialog').getByRole('button',{name:lang==='zh-CN'?'关闭':'Close',exact:true}).click()
+
   await page.getByRole('button',{name:/Reader Alice/}).click()
   await expect(page.locator('.note-list h2')).toHaveText('Reader Alice')
   await page.getByRole('button',{name:'♧ Author shares',exact:true}).click()

@@ -23,6 +23,7 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 
 `GET /api2/bootstrap`（以及 `/api2/web/bootstrap`）增加 `Sharing`：
 
+- `Suggestions`：当前账号已有共享记录中的接收者（并合并仍有效的共享接收者），每项为 `{UserId, Username, NoteIds:[]}`，按用户名排序并去重。取消单篇共享后仍可作为再次共享的候选；删除/禁用的账号不返回。仅暴露用户名，不提供全站搜索或接收者邮箱。
 - `Recipients`：当前用户共享出去的有效笔记，按接收者去重分组；每项为 `{UserId, Username, NoteIds}`。包含直接共享、笔记本共享和用户组共享，不返回对方的邮箱等私有资料。用于“我共享的”列表，以及笔记信息栏的“已共享给”。
 - `Placements`：当前接收者的 `{原文笔记ID: 自己的目标笔记本ID}` 映射。仅返回仍有阅读权限、且目标笔记本仍有效的记录。
 - `PlacedShares`：上述已归类共享笔记的元数据，包含 `IsShared:true`、`Perm:0`；`NotebookId` 为接收者自己的归属。Web 可将它们合并到对应笔记本和所有笔记列表，按 `NoteId` 去重。原有 `TotalNotes`、`NumberNotes` 仍只计自己的笔记；界面展示的数量额外加上有效归类共享笔记。
@@ -34,6 +35,8 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 `POST /api2/shared/snapshots` 的创建响应也附带 `Sharing`，用于客户端随完整共享快照更新导航缓存；不改变快照分页条目和 `Total` 的定义。撤销共享后，服务端不再返回归类条目，已复制的独立笔记不受影响。离线缓存的权限更新仍须等客户端联网同步。
 
 数据库启动时幂等执行 `shared-note-placements` 迁移，创建 `shared_note_placements`，以用户 ID 和原文笔记 ID 作为唯一键。旧 `/api` 和旧 Web 控制器的响应结构不增加上述字段；原文的 `notes.notebook_id` 不变。已有迁移表中的数字标识（包括 `1.2.0`、`1.3.0`）继续保留，仅作为内部迁移标识，不表示发布过这些版本。
+
+`POST /api2/share/addShareNote` 的表单字段仍为 `noteId`、`emails[0]`（可多个）及 `perm`；`emails` 为保留的字段名，API2 现在同时接受用户名或邮箱，去掉首尾空白并忽略大小写。响应继续按提交的字符串返回 `{Ok, Msg, Id}`。禁止共享给自己、禁用或不存在的账号，且只能共享本人有效笔记；共享权限始终为只读。`/api2/web/shareMembers` 和 `/api2/share/deleteShareNote` 也使用表单编码，后者返回 JSON 布尔值。旧 `/api` 行为不变。
 
 回归：在一次性本地 PostgreSQL/API2 实例中运行 `scripts/test-sharing-navigation.py`（要求 `GEMSNOTE_DISPOSABLE_API2=1`、`GEMSNOTE_TEST_PG_CONTAINER=gemsnote-api2-test-...`；可用 `GEMSNOTE_API2_URL` 指定本机地址）。此脚本创建测试数据，不能对实际部署实例运行。界面回归为 `node frontend/tests/shared-notes.mjs`。
 

@@ -18,6 +18,14 @@ type Share struct {
 // 添加共享note
 func (c Share) AddShareNote(noteId string, emails []string, perm int) revel.Result {
 	status := make(map[string]info.Re, len(emails))
+	if isAPI2Request(c.Controller) {
+		for _, identity := range emails {
+			ok, msg, id := shareService.AddShareNoteByIdentity(noteId, c.GetUserId(), identity)
+			status[identity] = info.Re{Ok: ok, Msg: msg, Id: id}
+		}
+		return c.RenderJSON(status)
+	}
+
 	// 自己不能给自己添加共享
 	myEmail := c.GetEmail()
 	for _, email := range emails {
@@ -111,7 +119,7 @@ func (c Share) ListNotebookShareUserInfo(notebookId string) revel.Result {
 	return c.RenderTemplate("share/note_notebook_share_user_infos.html")
 }
 
-//------------
+// ------------
 // 改变share note 权限
 func (c Share) UpdateShareNotePerm(noteId string, perm int, toUserId string) revel.Result {
 	return c.RenderJSON(shareService.UpdateShareNotePerm(noteId, perm, c.GetUserId(), toUserId))
@@ -122,7 +130,7 @@ func (c Share) UpdateShareNotebookPerm(notebookId string, perm int, toUserId str
 	return c.RenderJSON(shareService.UpdateShareNotebookPerm(notebookId, perm, c.GetUserId(), toUserId))
 }
 
-//---------------
+// ---------------
 // 删除share note
 func (c Share) DeleteShareNote(noteId string, toUserId string) revel.Result {
 	return c.RenderJSON(shareService.DeleteShareNote(noteId, c.GetUserId(), toUserId))

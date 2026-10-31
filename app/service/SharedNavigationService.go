@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
@@ -20,6 +21,7 @@ type PlacedSharedNote struct {
 	Perm     int
 }
 type SharingNavigation struct {
+	Suggestions  []SharingRecipient
 	Recipients   []SharingRecipient
 	Placements   map[string]string
 	PlacedShares []PlacedSharedNote
@@ -31,7 +33,7 @@ func (s *ShareService) Navigation(userID string) (*SharingNavigation, error) {
 	if !bson.IsObjectIdHex(userID) {
 		return nil, fmt.Errorf("invalid user")
 	}
-	result := &SharingNavigation{Recipients: []SharingRecipient{}, Placements: map[string]string{}, PlacedShares: []PlacedSharedNote{}}
+	result := &SharingNavigation{Suggestions: s.shareSuggestions(userID), Recipients: []SharingRecipient{}, Placements: map[string]string{}, PlacedShares: []PlacedSharedNote{}}
 	placements, err := db.SharedPlacements(userID)
 	if err != nil {
 		return nil, err
@@ -123,7 +125,7 @@ func (s *ShareService) Navigation(userID string) (*SharingNavigation, error) {
 	}
 	if len(userIDs) > 0 {
 		var users []info.User
-		db.ListByQWithFields(db.Users, bson.M{"_id": bson.M{"$in": userIDs}}, []string{"_id", "Username"}, &users)
+		db.ListByQWithFields(db.Users, bson.M{"_id": bson.M{"$in": userIDs}, "Flag": bson.M{"$ne": info.FlagDisabled}}, []string{"_id", "Username"}, &users)
 		for _, user := range users {
 			recipient := SharingRecipient{UserId: user.UserId.Hex(), Username: user.Username, NoteIds: []string{}}
 			for id := range byUser[user.UserId] {
@@ -134,6 +136,17 @@ func (s *ShareService) Navigation(userID string) (*SharingNavigation, error) {
 		}
 	}
 	sort.Slice(result.Recipients, func(i, j int) bool { return result.Recipients[i].Username < result.Recipients[j].Username })
+	seen := map[string]bool{}
+	for _, u := range result.Suggestions {
+		seen[u.UserId] = true
+	}
+	for _, u := range result.Recipients {
+		if !seen[u.UserId] {
+			result.Suggestions = append(result.Suggestions, SharingRecipient{UserId: u.UserId, Username: u.Username, NoteIds: []string{}})
+		}
+	}
+	sort.Slice(result.Suggestions, func(i, j int) bool { return result.Suggestions[i].Username < result.Suggestions[j].Username })
+
 	return result, nil
 }
 
@@ -172,4 +185,56 @@ func (s *ShareService) PlaceReceivedNote(userID, noteID, notebookID string) erro
 		return fmt.Errorf("invalidNotebook")
 	}
 	return db.SetSharedPlacement(userID, note.NoteId.Hex(), book.NotebookId.Hex())
+}
+
+// Suggestions are scoped to this owner's existing sharing relationships. They
+// never enumerate the user directory or disclose recipient email addresses.
+func (s *ShareService) shareSuggestions(ownerID string) []SharingRecipient {
+	result := []SharingRecipient{}
+	var history []info.HasShareNote
+	db.ListByQ(db.HasShareNotes, bson.M{"UserId": bson.ObjectIdHex(ownerID)}, &history)
+	seen := map[bson.ObjectId]bool{}
+	ids := []bson.ObjectId{}
+	for _, row := range history {
+		if row.ToUserId.Valid() && row.ToUserId.Hex() != ownerID && !seen[row.ToUserId] {
+			seen[row.ToUserId] = true
+			ids = append(ids, row.ToUserId)
+		}
+	}
+	if len(ids) == 0 {
+		return result
+	}
+	var users []info.User
+	db.ListByQWithFields(db.Users, bson.M{"_id": bson.M{"$in": ids}, "Flag": bson.M{"$ne": info.FlagDisabled}}, []string{"_id", "Username"}, &users)
+	for _, user := range users {
+		if user.Username != "" {
+			result = append(result, SharingRecipient{UserId: user.UserId.Hex(), Username: user.Username, NoteIds: []string{}})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Username < result[j].Username })
+	return result
+}
+
+// API2 accepts a username or email in the existing emails array. Legacy actions
+// keep their original email-only behavior and response shape.
+func (s *ShareService) AddShareNoteByIdentity(resourceID, ownerID, identity string) (bool, string, string) {
+	if !bson.IsObjectIdHex(resourceID) || !bson.IsObjectIdHex(ownerID) {
+		return false, "noAuth", ""
+	}
+	note := noteService.GetNote(resourceID, ownerID)
+	if note.NoteId == "" || note.IsDeleted || note.IsTrash {
+		return false, "noAuth", ""
+	}
+	identity = strings.TrimSpace(identity)
+	if identity == "" {
+		return false, "无该用户", ""
+	}
+	user := userService.GetUserInfoByName(identity)
+	if !user.UserId.Valid() || user.Flag == info.FlagDisabled {
+		return false, "无该用户", ""
+	}
+	if user.UserId.Hex() == ownerID {
+		return false, "不能分享给自己", ""
+	}
+	return s.AddShareNoteToUserId(resourceID, 0, ownerID, user.UserId.Hex())
 }

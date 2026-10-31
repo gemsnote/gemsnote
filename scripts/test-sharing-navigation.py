@@ -32,6 +32,22 @@ note=secrets.token_hex(12)
 original=api('/api2/save',{'noteId':note,'notebookId':book,'title':'Shared original','content':'# original','isNew':True,'isMarkdown':True,'tags':'shared'},at)
 share=api('/api2/share/addShareNote',{'noteId':note,'emails[0]':'reader@example.test','perm':0},at,True)
 assert share['reader@example.test']['Ok'],share
+# API2 accepts names (case-insensitive, trimmed) without changing response keys.
+byname=api('/api2/share/addShareNote',{'noteId':note,'emails[0]':' Reader ','perm':1},at,True)
+assert byname[' Reader ']['Ok'] and byname[' Reader ']['Id']==uid,byname
+assert not api('/api2/share/addShareNote',{'noteId':note,'emails[0]':'ADMIN'},at,True)['ADMIN']['Ok']
+assert not api('/api2/share/addShareNote',{'noteId':note,'emails[0]':admin['User']['Email']},at,True)[admin['User']['Email']]['Ok']
+assert not api('/api2/share/addShareNote',{'noteId':note,'emails[0]':'missing-user'},at,True)['missing-user']['Ok']
+assert not api('/api2/share/addShareNote',{'noteId':note,'emails[0]':'reader'},rt,True)['reader']['Ok']
+suggestions=api('/api2/bootstrap',token=at)['Sharing']['Suggestions']
+assert [u['Username'] for u in suggestions].count('reader')==1,suggestions
+assert all('Email' not in u for u in suggestions)
+assert not api('/api2/bootstrap',token=rt)['Sharing']['Suggestions']
+sql(f"UPDATE users SET flag='D' WHERE id='{uid}'")
+assert not api('/api2/share/addShareNote',{'noteId':note,'emails[0]':'reader'},at,True)['reader']['Ok']
+assert all(u['UserId']!=uid for u in api('/api2/bootstrap',token=at)['Sharing']['Suggestions'])
+sql(f"UPDATE users SET flag='A' WHERE id='{uid}'")
+
 out=api('/api2/bootstrap',token=at)['Sharing']['Recipients']
 assert any(u['UserId']==uid and u['Username']=='reader' and note in u['NoteIds'] for u in out),out
 received=api('/api2/document',{'noteId':note},rt)
@@ -58,6 +74,8 @@ snapshot=api('/api2/shared/snapshots',{},rt)
 assert snapshot['Sharing']['Placements'][note]==target
 assert api('/api2/share/deleteShareNote',{'noteId':note,'toUserId':uid},at,True)
 assert not api('/api2/bootstrap',token=rt)['Sharing']['PlacedShares']
+assert any(u['UserId']==uid for u in api('/api2/bootstrap',token=at)['Sharing']['Suggestions'])
+assert not api('/api2/bootstrap',token=at)['Sharing']['Recipients']
 assert call('/api2/document',{'noteId':note},rt)[0]==403
 assert not api('/api2/shared/move',{'noteId':note,'notebookId':target},rt)['Ok']
 assert api('/api2/document',{'noteId':copyid},rt)['Content']=='# editable copy'
@@ -66,4 +84,4 @@ group=secrets.token_hex(12)
 sql(f"INSERT INTO groups(id,user_id,title) VALUES('{group}','{owner}','Readers'); INSERT INTO group_users(id,group_id,user_id) VALUES('{secrets.token_hex(12)}','{group}','{uid}'); INSERT INTO share_notebooks(id,user_id,to_group_id,notebook_id) VALUES('{secrets.token_hex(12)}','{owner}','{group}','{book}')")
 assert any(note in u['NoteIds'] for u in api('/api2/bootstrap',token=at)['Sharing']['Recipients'])
 assert api('/api2/document',{'noteId':note},rt)['Writable'] is False
-print('PASS shared navigation, recipient placement, owner isolation, independent copy, revocation, group/notebook grants')
+print('PASS username/email sharing, scoped historical suggestions, shared navigation, recipient placement, owner isolation, independent copy, revocation, group/notebook grants')

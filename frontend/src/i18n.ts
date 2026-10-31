@@ -7,6 +7,7 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ "用户名或邮箱":"Username or email", "已共享过的用户":"Previously shared users",
  'noteNotSynced':'Sync this note before managing sharing.', 'notebookNotSynced':'Sync the destination notebook before moving or copying a shared note.', '我共享的':'Shared by me', '已共享给：':'Shared with: ', 'sharingLoadFailed':'Could not load sharing information.',
  "verificationLinkMissing":"Required verification link parameters are missing. Copy the complete link from the email and try again.",
  "verificationLinkInvalid":"This link is invalid or no longer active. It may have been used, replaced by a newer email, or opened on a different server. Check the site address and use the complete link from the latest email.",
