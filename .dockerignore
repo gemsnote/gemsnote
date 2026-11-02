@@ -24,6 +24,7 @@ release/
 package/
 node_modules/
 frontend/dist/
+frontend/public/assets/mermaid/
 frontend/test-results/
 frontend/playwright-report/
 public/upload/

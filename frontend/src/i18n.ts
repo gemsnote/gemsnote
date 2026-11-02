@@ -7,6 +7,9 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ 'Mermaid 图表':'Mermaid diagram', '图表无法渲染，请检查语法或图表大小。':'Unable to render diagram. Check the syntax or diagram size.',
+ '正在绘制图表…':'Rendering diagram…', '放大图表':'Enlarge diagram', '图表源码':'Diagram source', '缩放':'Zoom',
+
  "用户名或邮箱":"Username or email", "已共享过的用户":"Previously shared users",
  'noteNotSynced':'Sync this note before managing sharing.', 'notebookNotSynced':'Sync the destination notebook before moving or copying a shared note.', '我共享的':'Shared by me', '已共享给：':'Shared with: ', 'sharingLoadFailed':'Could not load sharing information.',
  "verificationLinkMissing":"Required verification link parameters are missing. Copy the complete link from the email and try again.",

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import {ref,computed,onMounted,onBeforeUnmount,watch} from 'vue'
 import {useRoute,useRouter,onBeforeRouteLeave} from 'vue-router'
-import {marked} from 'marked'
-import DOMPurify from 'dompurify'
+import NotePreview from '../components/NotePreview.vue'
 import {request,objectId,upload} from '../api'
 import {htmlToRtf} from '../richDocument'
 import {hugoMarkdown,notebookZip,exportName,base64Bytes} from '../noteExport'
@@ -100,7 +99,6 @@ const sorted=computed(()=>[...notes.value].sort((a,b)=>{
  return (sortAsc.value?result:-result)||String(a.NoteId||'').localeCompare(String(b.NoteId||''))
 }))
 function setSort(field:'UpdatedTime'|'Title',ascending:boolean){sort.value=field;sortAsc.value=ascending;if(sortMenu.value)sortMenu.value.open=false}
-const html=computed(()=>DOMPurify.sanitize(current.value?.Note.IsMarkdown?String(marked.parse(content.value,{async:false})):content.value))
 const writable=computed(()=>!!current.value?.Writable&&!restoringHistory.value)
 const own=computed(()=>current.value?.Note.UserId===boot.value.User?.UserId)
 const syncPending=computed(()=>dirty.value||!!boot.value.PendingChanges)
@@ -402,8 +400,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <span v-if="sharedRecipients" :title="sharedRecipients">{{t('已共享给：')}}{{sharedRecipients}}</span>
 <span class="note-id" :title="current.Note.NoteId">{{current.Note.NoteId}}</span>
 </div>
-<div v-if="preview||!writable" class="rendered" v-html="html" @error.capture="imageUnavailable">
-</div>
+<NotePreview v-if="preview||!writable" :key="current.Note.NoteId" :content="content" :markdown="current.Note.IsMarkdown" @error.capture="imageUnavailable"/>
 <RichEditor v-else-if="!current.Note.IsMarkdown" :key="`${current.Note.NoteId}:${language}`" v-model="content" @update:model-value="changed"/>
 <textarea v-else v-model="content" class="content-editor" @input="changed" :aria-label="t(current.Note.IsMarkdown?'Markdown 正文':'HTML 正文')" spellcheck="false">
 </textarea>

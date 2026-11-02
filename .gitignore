@@ -41,3 +41,6 @@ data/
 
 /gemsnote-worker/__pycache__/
 /gemsnote-worker/.venv/
+
+# Built offline Mermaid renderer (source: frontend/mermaid)
+/frontend/public/assets/mermaid/

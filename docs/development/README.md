@@ -16,6 +16,7 @@
 ## Web 与 UI
 
 - [统一 UI 设计](UI.md)：Web 界面结构与交互设计。
+- [Mermaid 预览](MERMAID.md)：Markdown 图表语法、离线资源、安全限制和回归检查。
 - [桌面客户端文档](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/DEVELOPMENT.md)：客户端开发、缓存与同步；[桌面 UI](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/UI.md) 与 [Release 构建](https://github.com/gemsnote/gemsnote-desktop/blob/main/docs/RELEASE.md) 在客户端仓库维护。
 
 ## 后台任务
