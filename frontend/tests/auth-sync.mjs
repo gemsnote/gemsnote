@@ -16,8 +16,8 @@ let browser
 try {
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) })
   for (const language of ['zh-CN', 'en-US']) {
-    for (const scenario of ['cached', 'fresh', 'cache-discovered', 'skip']) {
-      const hasCache = scenario === 'cached' || scenario === 'skip'
+    for (const scenario of ['cached', 'fresh', 'cache-discovered', 'skip', 'cancel']) {
+      const hasCache = scenario === 'cached' || scenario === 'skip' || scenario === 'cancel'
       const page = await browser.newPage()
       const resets = []
       let loggedIn = false
@@ -40,6 +40,12 @@ try {
       }, {language, hasNativeEvents: scenario === 'cached'})
       await page.route('**/api2/**', async route => {
         const path = new URL(route.request().url()).pathname
+        if (path === '/api2/web/cancelSync') {
+          expect(new URLSearchParams(route.request().postData()).get('runId')).toBe('42')
+          await route.fulfill({json:{Ok:true,Cancelled:true}})
+          await resets.at(-1).fulfill({json:{Ok:true,Cancelled:true,Full:true,Reset:true}})
+          return
+        }
         if (path === '/api2/web/resetSync') {
           // Leave the request pending so the UI is checked before any server
           // response or native progress event (including a slow preflight).
@@ -95,12 +101,21 @@ try {
       expect(firstReset.get('initial')).toBe(hasCache ? null : 'true')
       // Real completed counts keep moving without Wails events. Unknown
       // totals render an indeterminate bar instead of a frozen fake percent.
-      snapshot = { Running: true, Mode: 'reset', Stage: 'notes', Current: 7, Total: 0, Percent: 40 }
+      snapshot = { Running: true, RunID:42, Mode: 'reset', Stage: 'notes', Current: 7, Total: 0, Percent: 40 }
       await expect(progress.locator('.sync-completed')).toContainText(chinese ? '已完成 7 项' : 'Completed 7 items')
       snapshot = { ...snapshot, Current: 21 }
       await expect(progress.locator('.sync-completed')).toContainText(chinese ? '已完成 21 项' : 'Completed 21 items')
       expect(polls).toBeGreaterThan(0)
       await expect(progress).toContainText(chinese ? '正在同步笔记' : 'Synchronizing notes')
+      if (scenario === 'cancel') {
+        await progress.getByRole('button',{name:chinese?'取消同步':'Cancel sync',exact:true}).click()
+        await expect(progress).toHaveCount(0)
+        await expect(page).toHaveURL(`${baseURL}/note`)
+        await expect(page.getByRole('alert')).toHaveCount(0)
+        console.log(`PASS login reset cancellation: ${language}`)
+        await page.close()
+        continue
+      }
       if (scenario === 'cached') {
         snapshot = { Running: true, Mode: 'reset', Stage: 'images', Current: 3, Total: 10, Percent: 89 }
         await page.evaluate(value => window.emitTestWailsEvent('sync-progress', value), snapshot)
@@ -117,7 +132,7 @@ try {
         await resets[0].fulfill({ json: { Ok: false, Msg: hasCache ? 'TLS handshake timeout' : 'confirmationRequired' } })
         await expect(progress).toHaveCount(0)
         await expect(choice).toBeVisible()
-        if (hasCache) await expect(choice.getByRole('alert')).toContainText('TLS handshake timeout')
+        if (hasCache) await expect(choice.getByRole('alert')).toContainText(chinese?'连接服务器或读取数据超时':'Connecting to the server or reading data timed out')
         else await expect(choice.getByRole('alert')).toHaveCount(0)
         await choice.getByRole('button', { name: chinese ? '重新同步' : 'Reset and sync', exact: true }).click()
         await expect(progress).toBeVisible()

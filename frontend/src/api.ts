@@ -1,4 +1,5 @@
 import {language,t} from './i18n'
+import {ApiError} from './errors'
 
 export type Params = Record<string, string | number | boolean | string[] | undefined>
 // All browser data calls use the versioned API namespace.  The server keeps
@@ -29,12 +30,12 @@ export async function request<T = any>(path: string, params?: Params, options?: 
   const core = target === '/api2/auth/login' || target === '/api2/auth/session' || target === '/api2/auth/password/request' || target === '/api2/auth/password/reset' || target === '/api2/notes' || target === '/api2/star' || target === '/api2/document' || target === '/api2/save' || target === '/api2/restore' || target === '/api2/admin/data' || target === '/api2/attachments' || target === '/api2/attachments/delete'
   const jsonBody = target === '/api2/shared/move' || target === '/api2/admin/resendVerification' || target === '/api2/desktop/exportFile' || target === '/api2/admin/flag' || target === '/api2/admin/role' || core || target === '/api2/notebook/moveNotebook'
   const token=getToken()
-  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', signal:options?.signal, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }), ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined })
+  const response = await fetch(target, { method: params ? 'POST' : 'GET', credentials: 'same-origin', signal:options?.signal, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }), ...(jsonBody ? {'Content-Type':'application/json'} : {}) }, body: params ? (jsonBody ? JSON.stringify(params) : body) : undefined }).catch((error:unknown)=>{if(error instanceof Error&&error.name==='AbortError')throw error;throw new ApiError('networkUnavailable')})
   const data = await response.json().catch(() => null)
   if (data === null) throw new Error(response.ok ? t('响应不是有效 JSON [{path}]',{path:target}) : t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
   if (!response.ok || data === false || data?.Ok === false) {
     if (data?.Msg === 'NOTLOGIN') {setToken('');window.dispatchEvent(new Event('session-expired'))}
-    throw new Error(data?.Msg ? t(data.Msg) : t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
+    throw data?.Msg ? new ApiError(String(data.Msg)) : new Error(t('请求失败 ({status}) [{path}]',{status:response.status,path:target}))
   }
   if(target==='/api2/auth/login'&&typeof data?.Token==='string')setToken(data.Token)
   if(target==='/api2/logout'||target==='/api2/auth/logout')setToken('')
@@ -56,8 +57,8 @@ export async function upload(path: string, file: File, params: Record<string, st
   Object.entries(params).forEach(([key, value]) => body.append(key, value))
   const target = api2Path(path)
   const token=getToken()
-  const response = await fetch(target, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }) }, body })
+  const response = await fetch(target, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept-Language': language.value, ...(token?{'Authorization':`Bearer ${token}`}:{ }) }, body }).catch((error:unknown)=>{if(error instanceof Error&&error.name==='AbortError')throw error;throw new ApiError('networkUnavailable')})
   const data = await response.json().catch(() => null)
-  if (!response.ok || !data || data.Ok === false) throw new Error(data?.Msg ? t(data.Msg) : t('上传失败 ({status}) [{path}]',{status:response.status,path:target}))
+  if (!response.ok || !data || data.Ok === false) throw data?.Msg ? new ApiError(String(data.Msg)) : new Error(t('上传失败 ({status}) [{path}]',{status:response.status,path:target}))
   return data
 }

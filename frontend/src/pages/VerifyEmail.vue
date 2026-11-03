@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage} from '../errors'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { request } from '../api'
@@ -16,7 +17,7 @@ onMounted(async () => {
     if(result.ResetToken){await router.replace({path:`/findPassword/${encodeURIComponent(result.ResetToken)}`,query:{setup:'1'}});return}
     message.value = t('邮箱 {email} 验证成功，请重新登录。', {email:result.Email})
   } catch (error) {
-    message.value = String(error)
+    message.value = errorMessage(error)
   }
 })
 </script>

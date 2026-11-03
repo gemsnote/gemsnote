@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage} from '../errors'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { request } from '../api'
@@ -22,10 +23,10 @@ async function checkVerification(userId:string){
  try{
   const status=await request('/user/emailStatus',{userId,taskId:task.taskId},{signal:mailAbort.signal})
   if(verification.value[userId]!==task)return
-  task.state=status.State;task.error=status.Error?t(status.Error):''
+  task.state=status.State;task.error=status.Error?errorMessage(status.Error):''
   if(status.State==='queued'||status.State==='sending')verificationTimers.set(userId,setTimeout(()=>checkVerification(userId),2000))
   else verificationTimers.delete(userId)
- }catch(error){if(!mailAbort.signal.aborted){task.state='failed';task.error=String(error)}}
+ }catch(error){if(!mailAbort.signal.aborted){task.state='failed';task.error=errorMessage(error)}}
 }
 async function resendVerification(target:any){
  if(resendBusy.value||target.Verified||target.Flag==='D'||['queued','sending'].includes(verification.value[target.UserId]?.state))return
@@ -36,7 +37,7 @@ async function resendVerification(target:any){
   const result=await request('/api2/admin/resendVerification',{userId:target.UserId},{signal:mailAbort.signal})
   verification.value[target.UserId]={state:'queued',error:'',taskId:result.TaskId}
   verificationTimers.set(target.UserId,setTimeout(()=>checkVerification(target.UserId),1000))
- }catch(error){if(!mailAbort.signal.aborted)verification.value[target.UserId]={state:'failed',error:String(error),taskId:''}}
+ }catch(error){if(!mailAbort.signal.aborted)verification.value[target.UserId]={state:'failed',error:errorMessage(error),taskId:''}}
  finally{resendBusy.value=false}
 }
 
@@ -48,7 +49,7 @@ async function saveSettings(){
   await request('/web/adminSettings',{...data.value.Settings})
   data.value.Settings.emailPassword=''
   settingsResult.value='设置已保存'
- }catch(error){settingsError.value=error instanceof Error?error.message:String(error)}
+ }catch(error){settingsError.value=errorMessage(error)}
  finally{settingsSaving.value=false}
 }
 
@@ -64,9 +65,9 @@ async function checkInvitation() {
  try {
   const status=await request('/user/emailStatus',{taskId:item.taskId,userId:item.userId},{signal:mailAbort.signal})
   if(created.value!==item)return
-  item.state=status.State;item.error=status.Error||''
+  item.state=status.State;item.error=status.Error?errorMessage(status.Error):''
   if(status.State==='queued'||status.State==='sending')mailTimer=setTimeout(checkInvitation,2000)
- }catch(error){if(!mailAbort.signal.aborted&&created.value===item){item.state='failed';item.error=String(error)}}
+ }catch(error){if(!mailAbort.signal.aborted&&created.value===item){item.state='failed';item.error=errorMessage(error)}}
 }
 async function createUser() {
  if(creating.value)return
@@ -75,22 +76,22 @@ async function createUser() {
   const name=username.value.trim(),address=email.value.trim()
   const result=await request('/web/adminRegister',{username:name,email:address})
   clearTimeout(mailTimer)
-  created.value={username:name,email:address,userId:result.UserId,taskId:result.TaskId,state:result.MailError?'failed':'queued',error:result.MailError||''}
+  created.value={username:name,email:address,userId:result.UserId,taskId:result.TaskId,state:result.MailError?'failed':'queued',error:result.MailError?errorMessage(result.MailError):''}
   username.value='';email.value=''
   message.value=t('用户已创建，请用户通过验证邮件设置密码。')
   if(result.TaskId)mailTimer=setTimeout(checkInvitation,1000)
   await load()
- }catch(error){message.value=String(error)}
+ }catch(error){message.value=errorMessage(error)}
  finally{creating.value=false}
 }
 
 async function load() {
   try { data.value = await request('/web/adminData', { keywords: keywords.value, page: page.value }) }
-  catch (error) { message.value = String(error) }
+  catch (error) { message.value = errorMessage(error) }
 }
 async function action(path: string, params: any) {
   try { await request(path, params); message.value = t('操作成功'); await load() }
-  catch (error) { message.value = String(error) }
+  catch (error) { message.value = errorMessage(error) }
 }
 async function setRole(target:any,event:Event){
  const select=event.target as HTMLSelectElement
@@ -102,7 +103,7 @@ async function setRole(target:any,event:Event){
   target.Role=role
   message.value=t('操作成功')
   await load()
- }catch(error){message.value=String(error)}
+ }catch(error){message.value=errorMessage(error)}
  finally{select.value=target.Role;roleBusy.value=false}
 }
 async function setFlag(target:any){
@@ -111,7 +112,7 @@ async function setFlag(target:any){
  try{await action('/api2/admin/flag',{userId:target.UserId,flag:target.Flag==='D'?'A':'D'})}
  finally{roleBusy.value=false}
 }
-onMounted(async()=>{try{const bootstrap=await request('/web/bootstrap');if(bootstrap.Desktop){await router.replace('/note');return}user.value=bootstrap.User||{};await load()}catch(error){message.value=String(error)}})
+onMounted(async()=>{try{const bootstrap=await request('/web/bootstrap');if(bootstrap.Desktop){await router.replace('/note');return}user.value=bootstrap.User||{};await load()}catch(error){message.value=errorMessage(error)}})
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage} from '../errors'
 import {computed,onBeforeUnmount,ref,shallowRef} from 'vue'
 import {objectId,request} from '../api'
 import type {Params} from '../api'
@@ -16,7 +17,7 @@ const complete=computed(()=>!!job.value&&done.value===job.value.steps.length)
 const pending=computed(()=>busy.value||!!job.value&&!complete.value)
 defineExpose({pending})
 function cancelWorker(){worker?.terminate();worker=undefined;clearTimeout(timer)}
-function message(e:unknown){return e instanceof ImportError?t(e.key):String(e)}
+function message(e:unknown){return errorMessage(e)}
 async function selected(file:File){
  if(busy.value||job.value)return
  const token=++sequence;cancelWorker();source.value=undefined;error.value='';reading.value=true
@@ -28,7 +29,7 @@ async function selected(file:File){
   worker=new Worker(new URL('../markdownImport.worker.ts',import.meta.url),{type:'module'})
   timer=setTimeout(()=>{cancelWorker();error.value=t('解析文件超时，请缩小文件后重试');reading.value=false},15000)
   worker.onerror=()=>{cancelWorker();error.value=t('无法解析文件，请重新选择');reading.value=false}
-  worker.onmessage=({data})=>{cancelWorker();reading.value=false;if(data.error){error.value=t(data.error);return}source.value=data.source;name.value=data.source.title;if(!data.source.zip&&!destination.value)destination.value=props.items[0]?.NotebookId||''}
+  worker.onmessage=({data})=>{cancelWorker();reading.value=false;if(data.error){error.value=errorMessage(data.error);return}source.value=data.source;name.value=data.source.title;if(!data.source.zip&&!destination.value)destination.value=props.items[0]?.NotebookId||''}
   worker.postMessage({name:file.name,bytes},[bytes.buffer])
  }catch(e){if(token===sequence){error.value=message(e);reading.value=false}}
 }

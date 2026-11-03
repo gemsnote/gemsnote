@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage,errorCode} from '../errors'
 import {ref,computed,onMounted,onBeforeUnmount,watch} from 'vue'
 import {useRoute,useRouter,onBeforeRouteLeave} from 'vue-router'
 import NotePreview from '../components/NotePreview.vue'
@@ -32,16 +33,16 @@ async function imported(job:ImportJob,complete:boolean){
   const seen=new Set<string>()
   while(parent&&!seen.has(parent)){seen.add(parent);expandedNotebooks.value.add(parent);parent=notebooks.value.find(n=>n.NotebookId===parent)?.ParentNotebookId}
   if(complete){notebookSearch.value='';await select(job.rootId);if(job.noteId)await open(job.noteId)}else await load()
- }catch(e){error.value=String(e)}
+ }catch(e){error.value=errorMessage(e)}
 }
 const mobileNotesVisible=ref(false)
 const tagInput=ref<InstanceType<typeof TagInput>>()
 const tagSearch=ref('')
 const filteredTags=computed(()=>{const key=tagSearch.value.trim().toLocaleLowerCase();const result=[...(boot.value.Tags||[])].filter((tag:any)=>String(tag.Tag).toLocaleLowerCase().includes(key)).sort((a:any,b:any)=>(Number(b.Count)||0)-(Number(a.Count)||0)||String(a.Tag).localeCompare(String(b.Tag),language.value,{numeric:true,sensitivity:'base'})||String(a.Tag).localeCompare(String(b.Tag)));return key?result:result.slice(0,10)})
-async function refreshTags(){try{const data=await request('/web/bootstrap');if(data.User?.UserId===boot.value.User?.UserId)boot.value.Tags=data.Tags||[]}catch(e){error.value=t('笔记已保存，但标签列表刷新失败：{error}',{error:String(e)})}}
+async function refreshTags(){try{const data=await request('/web/bootstrap');if(data.User?.UserId===boot.value.User?.UserId)boot.value.Tags=data.Tags||[]}catch(e){error.value=t('笔记已保存，但标签列表刷新失败：{error}',{error:errorMessage(e)})}}
 const movingBook=ref(''),bookDestination=ref(''),movingBookBusy=ref(false)
 function showBookMove(id:string){bookMenu.value='';movingBook.value=id;bookDestination.value=notebooks.value.find(n=>n.NotebookId===id)?.ParentNotebookId||''}
-async function moveBook(){if(movingBookBusy.value)return;movingBookBusy.value=true;try{await request('/notebook/moveNotebook',{notebookId:movingBook.value,parentNotebookId:bookDestination.value});movingBook.value='';await bootstrap()}catch(e){error.value=String(e)}finally{movingBookBusy.value=false}}
+async function moveBook(){if(movingBookBusy.value)return;movingBookBusy.value=true;try{await request('/notebook/moveNotebook',{notebookId:movingBook.value,parentNotebookId:bookDestination.value});movingBook.value='';await bootstrap()}catch(e){error.value=errorMessage(e)}finally{movingBookBusy.value=false}}
 const sortMenu=ref<HTMLDetailsElement>()
 let layoutReady=false
 function updateCompact(){compact.value=window.innerWidth<=1100}
@@ -55,9 +56,9 @@ const totalNotes=computed(()=>Number(boot.value.TotalNotes||0)+placedShares.valu
 const sharedCacheLabel=computed(()=>{if(!isSharedNote.value)return'';const state=current.value?.Note.CacheState as string|undefined;const at=current.value?.Note.CachedAt as string|undefined;switch(state){case 'ready':return at?t('离线缓存 {date}',{date:formatDate(at)}):t('离线缓存');case 'stale':return t('缓存待更新');case 'pending':return t('未下载，请先同步');case 'revoked':return t('已撤销访问');default:return''}})
 function cacheStateLabel(a:any){switch(a.CacheState){case 'ready':return t('已缓存');case 'pending':return t('未下载');case 'failed':return t('下载失败');case 'missing':return t('文件已丢失');default:return''}}
 const retryingAttachment=ref('')
-async function retryAttachment(attachId:string){if(retryingAttachment.value)return;retryingAttachment.value=attachId;try{await request('/desktop/attachments/retry',{attachId});if(current.value)await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}finally{retryingAttachment.value=''}}
+async function retryAttachment(attachId:string){if(retryingAttachment.value)return;retryingAttachment.value=attachId;try{await request('/desktop/attachments/retry',{attachId});if(current.value)await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=errorMessage(e)}finally{retryingAttachment.value=''}}
 function imageUnavailable(event:Event){const img=event.target;if(!(img instanceof HTMLImageElement)||img.dataset.unavailable)return;img.dataset.unavailable='true';img.alt=t('图片无法加载');img.title=t('图片无法加载');img.style.maxWidth='160px';img.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" rx="6" fill="#edf1ee"/><path d="M25 55V25h40v30H25l12-14 10 10 8-8 10 12M75 25v18m0 7v4" fill="none" stroke="#52665c" stroke-width="3"/></svg>')}
-async function queueSharedDownload(attachId:string){try{await request('/attach/queueSharedDownload',{attachId});sharedQueueMsg.value=t('已加入离线下载队列，稍后自动下载');attachmentsFor(current.value?.Note.NoteId||'')}catch(e){error.value=String(e)}}
+async function queueSharedDownload(attachId:string){try{await request('/attach/queueSharedDownload',{attachId});sharedQueueMsg.value=t('已加入离线下载队列，稍后自动下载');attachmentsFor(current.value?.Note.NoteId||'')}catch(e){error.value=errorMessage(e)}}
 let saveTimer:ReturnType<typeof setTimeout>|undefined,searchTimer:ReturnType<typeof setTimeout>|undefined,loadId=0,notesLoadId=0,savePromise:Promise<boolean>|undefined
 const runtimeUnsubscribers:Array<()=>void>=[]
 function compareBooks(a:any,b:any){return String(a.Title||'').localeCompare(String(b.Title||''),language.value,{sensitivity:'base',numeric:true})||String(a.NotebookId||'').localeCompare(String(b.NotebookId||''))}
@@ -147,14 +148,14 @@ async function load(){
   if(sharingRecipient.value){const ids=new Set((boot.value.Sharing?.Recipients||[]).find((u:any)=>u.UserId===sharingRecipient.value)?.NoteIds||[]);all.splice(0,all.length,...all.filter(n=>ids.has(n.NoteId)))}
   const key=search.value.trim().toLocaleLowerCase()
   notes.value=sharedOwner.value&&key?all.filter(n=>`${n.Title||''} ${n.Desc||''}`.toLocaleLowerCase().includes(key)):all
- }catch(e){if(token===notesLoadId)error.value=String(e)}
+ }catch(e){if(token===notesLoadId)error.value=errorMessage(e)}
 }
 function runSearch(){clearTimeout(searchTimer);starred.value=false;void load()}
 function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(runSearch,300)}
-async function setStar(n:any){if(sharedOwner.value||n.IsShared)return;try{const next=!n.IsStar;await request('/web/star',{noteId:n.NoteId,starred:next});n.IsStar=next;boot.value.TotalStarred=Math.max(0,Number(boot.value.TotalStarred||0)+(next?1:-1));if(boot.value.Desktop)boot.value.PendingChanges=true;if(starred.value)await load()}catch(e){error.value=String(e)}}
-async function attachmentsFor(noteId:string){try{const r:any=await request('/attach/getAttachs',{noteId});if(current.value?.Note.NoteId===noteId)attachments.value=r.List||[]}catch(e){if(current.value?.Note.NoteId===noteId){attachments.value=[];error.value=String(e)}}}
+async function setStar(n:any){if(sharedOwner.value||n.IsShared)return;try{const next=!n.IsStar;await request('/web/star',{noteId:n.NoteId,starred:next});n.IsStar=next;boot.value.TotalStarred=Math.max(0,Number(boot.value.TotalStarred||0)+(next?1:-1));if(boot.value.Desktop)boot.value.PendingChanges=true;if(starred.value)await load()}catch(e){error.value=errorMessage(e)}}
+async function attachmentsFor(noteId:string){try{const r:any=await request('/attach/getAttachs',{noteId});if(current.value?.Note.NoteId===noteId)attachments.value=r.List||[]}catch(e){if(current.value?.Note.NoteId===noteId){attachments.value=[];error.value=errorMessage(e)}}}
 async function refreshDocument(){if(!current.value)return;current.value=await request('/web/document',{noteId:current.value.Note.NoteId})}
-async function open(id:string){if(!await flush())return;const token=++loadId;try{const doc=await request('/web/document',{noteId:id});if(token!==loadId)return;preview.value=true;current.value=doc;mobileNotesVisible.value=false;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;panel.value='';await attachmentsFor(id);await router.replace(`/note/${id}`)}catch(e){error.value=String(e)}}
+async function open(id:string){if(!await flush())return;const token=++loadId;try{const doc=await request('/web/document',{noteId:id});if(token!==loadId)return;preview.value=true;current.value=doc;mobileNotesVisible.value=false;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;panel.value='';await attachmentsFor(id);await router.replace(`/note/${id}`)}catch(e){error.value=errorMessage(e)}}
 async function select(id='',owner='',isTrash=false,isStar=false,recipient=''){if(!await flush())return;clearTimeout(searchTimer);showNotes();notebook.value=id;sharedOwner.value=owner;sharingRecipient.value=recipient;trash.value=isTrash;starred.value=isStar;search.value='';tagFilter.value='';bookMenu.value='';await load();sidebar.value=false}
 async function selectTag(tag:string){if(!await flush())return;clearTimeout(searchTimer);showNotes();notebook.value='';sharedOwner.value='';sharingRecipient.value='';trash.value=false;starred.value=false;search.value='';tagFilter.value=tag;await load();sidebar.value=false}
 function hasChildren(n:any){return Array.isArray(n.Subs)&&n.Subs.length>0}
@@ -177,20 +178,20 @@ async function save():Promise<boolean>{
  const id=current.value.Note.NoteId,snapshot={title:title.value,content:content.value,tags:tags.value,isMarkdown:!!current.value.Note.IsMarkdown}
  const tagsChanged=snapshot.tags!==(current.value.Note.Tags||[]).join(',')
  saving.value=true;error.value=''
- savePromise=(async()=>{try{const doc=await request('/web/save',{noteId:id,usn:current.value.Note.Usn,...snapshot});if(current.value?.Note.NoteId===id){current.value=doc;dirty.value=title.value!==snapshot.title||content.value!==snapshot.content||tags.value!==snapshot.tags}if(boot.value.Desktop)boot.value.PendingChanges=true;if(tagsChanged)await refreshTags();await load();return true}catch(e){const message=e instanceof Error?e.message:String(e);error.value=(message==='conflict'||message===t('conflict'))?t('此笔记已在其他端修改。请先导出本地内容，再重新加载笔记。'):message;return false}finally{saving.value=false;savePromise=undefined}})()
+ savePromise=(async()=>{try{const doc=await request('/web/save',{noteId:id,usn:current.value.Note.Usn,...snapshot});if(current.value?.Note.NoteId===id){current.value=doc;dirty.value=title.value!==snapshot.title||content.value!==snapshot.content||tags.value!==snapshot.tags}if(boot.value.Desktop)boot.value.PendingChanges=true;if(tagsChanged)await refreshTags();await load();return true}catch(e){const message=errorMessage(e);error.value=(errorCode(e)==='conflict'||message===t('conflict'))?t('此笔记已在其他端修改。请先导出本地内容，再重新加载笔记。'):message;return false}finally{saving.value=false;savePromise=undefined}})()
  return savePromise
 }
 async function flush(){tagInput.value?.commit();clearTimeout(saveTimer);if(!await save())return false;return dirty.value?save():true}
-async function create(markdown:boolean){if(!await flush())return;let id=notebook.value||(!sharedOwner.value?notebooks.value[0]?.NotebookId:'');if(!id&&!sharedOwner.value){await addBook();id=notebooks.value[0]?.NotebookId}if(!id){error.value=t('请先选择一个可编辑的共享笔记本');return}try{const doc=await request('/web/save',{noteId:objectId(),notebookId:id,ownerId:sharedOwner.value,title:t('未命名笔记'),content:'',tags:'',isNew:true,isMarkdown:markdown});await bootstrap();await load();await open(doc.Note.NoteId)}catch(e){error.value=String(e)}}
-async function addBook(parentNotebookId=''){const name=await promptText(t(parentNotebookId?'子笔记本名称':'笔记本名称'));if(!name)return;bookMenu.value='';try{await request('/notebook/addNotebook',{notebookId:objectId(),title:name,parentNotebookId});await bootstrap()}catch(e){error.value=String(e)}}
-async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remove){if(!await confirmAction(t('删除此笔记本？请先移动其中的笔记。')))return;await request('/notebook/deleteNotebook',{notebookId:id});if(notebook.value===id)notebook.value=''}else{const name=await promptText(t('笔记本名称'),notebooks.value.find(n=>n.NotebookId===id)?.Title);if(!name)return;await request('/notebook/updateNotebookTitle',{notebookId:id,title:name})}await bootstrap();await load()}catch(e){error.value=String(e)}}
-async function remove(){if(!current.value||!await confirmAction(t(own.value?(trash.value?'永久删除这篇笔记？此操作不可撤销。':'将笔记放入回收站？'):'从共享列表移除这篇笔记？')))return;try{if(own.value&&trash.value)await request('/note/deleteTrash',{noteId:current.value.Note.NoteId});else if(own.value)await request('/note/deleteNote',{noteIds:[current.value.Note.NoteId],isShared:false});else await request('/share/deleteShareNoteBySharedUser',{noteId:current.value.Note.NoteId,fromUserId:current.value.Note.UserId});dirty.value=false;current.value=null;await bootstrap();await load()}catch(e){error.value=String(e)}}
-async function restore(){try{await request('/web/restore',{noteId:current.value.Note.NoteId});current.value=null;await bootstrap();await load()}catch(e){error.value=String(e)}}
-async function move(copy=false){if(!await flush()||!destination.value)return;try{const noteId=current.value.Note.NoteId;if(copy&&isSharedNote.value)await request('/note/copySharedNote',{noteIds:[noteId],notebookId:destination.value,fromUserId:current.value.Note.UserId});else if(isSharedNote.value)await request('/shared/move',{noteId,notebookId:destination.value});else await request(copy?'/note/copyNote':'/note/moveNote',{noteIds:[noteId],notebookId:destination.value});panel.value='';await bootstrap();await load();await open(noteId)}catch(e){error.value=String(e)}}
-async function share(){if(shareBusy.value||!shareEmail.value.trim())return;shareBusy.value=true;try{const result=await request('/share/addShareNote',{noteId:current.value.Note.NoteId,emails:[shareEmail.value.trim()],perm:0});const failures=Object.values(result).filter((r:any)=>!r.Ok);if(failures.length)throw new Error(JSON.stringify(failures));shareEmail.value='';await bootstrap();await showShare()}catch(e){error.value=String(e)}finally{shareBusy.value=false}}
-async function showShare(){panel.value='share';try{const r=await request('/web/shareMembers',{noteId:current.value.Note.NoteId});members.value=r.Users||[]}catch(e){error.value=String(e)}}
-async function revoke(id:string){try{await request('/share/deleteShareNote',{noteId:current.value.Note.NoteId,toUserId:id});await bootstrap();await showShare()}catch(e){error.value=String(e)}}
-async function history(){panel.value='history';try{histories.value=await request('/noteContentHistory/listHistories',{noteId:current.value.Note.NoteId})||[]}catch(e){error.value=String(e)}}
+async function create(markdown:boolean){if(!await flush())return;let id=notebook.value||(!sharedOwner.value?notebooks.value[0]?.NotebookId:'');if(!id&&!sharedOwner.value){await addBook();id=notebooks.value[0]?.NotebookId}if(!id){error.value=t('请先选择一个可编辑的共享笔记本');return}try{const doc=await request('/web/save',{noteId:objectId(),notebookId:id,ownerId:sharedOwner.value,title:t('未命名笔记'),content:'',tags:'',isNew:true,isMarkdown:markdown});await bootstrap();await load();await open(doc.Note.NoteId)}catch(e){error.value=errorMessage(e)}}
+async function addBook(parentNotebookId=''){const name=await promptText(t(parentNotebookId?'子笔记本名称':'笔记本名称'));if(!name)return;bookMenu.value='';try{await request('/notebook/addNotebook',{notebookId:objectId(),title:name,parentNotebookId});await bootstrap()}catch(e){error.value=errorMessage(e)}}
+async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remove){if(!await confirmAction(t('删除此笔记本？请先移动其中的笔记。')))return;await request('/notebook/deleteNotebook',{notebookId:id});if(notebook.value===id)notebook.value=''}else{const name=await promptText(t('笔记本名称'),notebooks.value.find(n=>n.NotebookId===id)?.Title);if(!name)return;await request('/notebook/updateNotebookTitle',{notebookId:id,title:name})}await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
+async function remove(){if(!current.value||!await confirmAction(t(own.value?(trash.value?'永久删除这篇笔记？此操作不可撤销。':'将笔记放入回收站？'):'从共享列表移除这篇笔记？')))return;try{if(own.value&&trash.value)await request('/note/deleteTrash',{noteId:current.value.Note.NoteId});else if(own.value)await request('/note/deleteNote',{noteIds:[current.value.Note.NoteId],isShared:false});else await request('/share/deleteShareNoteBySharedUser',{noteId:current.value.Note.NoteId,fromUserId:current.value.Note.UserId});dirty.value=false;current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
+async function restore(){try{await request('/web/restore',{noteId:current.value.Note.NoteId});current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
+async function move(copy=false){if(!await flush()||!destination.value)return;try{const noteId=current.value.Note.NoteId;if(copy&&isSharedNote.value)await request('/note/copySharedNote',{noteIds:[noteId],notebookId:destination.value,fromUserId:current.value.Note.UserId});else if(isSharedNote.value)await request('/shared/move',{noteId,notebookId:destination.value});else await request(copy?'/note/copyNote':'/note/moveNote',{noteIds:[noteId],notebookId:destination.value});panel.value='';await bootstrap();await load();await open(noteId)}catch(e){error.value=errorMessage(e)}}
+async function share(){if(shareBusy.value||!shareEmail.value.trim())return;shareBusy.value=true;try{const result=await request('/share/addShareNote',{noteId:current.value.Note.NoteId,emails:[shareEmail.value.trim()],perm:0});const failures=Object.values(result).filter((r:any)=>!r.Ok);if(failures.length)throw new Error(String((failures[0] as any).Msg||'sharingLoadFailed'));shareEmail.value='';await bootstrap();await showShare()}catch(e){error.value=errorMessage(e)}finally{shareBusy.value=false}}
+async function showShare(){panel.value='share';try{const r=await request('/web/shareMembers',{noteId:current.value.Note.NoteId});members.value=r.Users||[]}catch(e){error.value=errorMessage(e)}}
+async function revoke(id:string){try{await request('/share/deleteShareNote',{noteId:current.value.Note.NoteId,toUserId:id});await bootstrap();await showShare()}catch(e){error.value=errorMessage(e)}}
+async function history(){panel.value='history';try{histories.value=await request('/noteContentHistory/listHistories',{noteId:current.value.Note.NoteId})||[]}catch(e){error.value=errorMessage(e)}}
 async function restoreFullHistory(h:any){
  if(restoringHistory.value||!writable.value||!h.FilesComplete)return
  if(!await confirmAction(t('恢复此版本的正文、格式和附件？当前版本会保留在历史中。')))return
@@ -204,14 +205,14 @@ async function restoreFullHistory(h:any){
    if(current.value?.Note.NoteId===noteId){current.value=doc;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;await attachmentsFor(noteId);panel.value=''}
   }
   await load()
- }catch(e){error.value=String(e)}finally{restoringHistory.value=false}
+ }catch(e){error.value=errorMessage(e)}finally{restoringHistory.value=false}
 }
 function chooseImage(){imageInput.value?.click()}
 function chooseAttach(){attachInput.value?.click()}
 function appendUpload(value:string){content.value+=(content.value&& !content.value.endsWith('\n')?'\n':'')+value;changed()}
-async function uploadImage(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value)return;try{const result:any=await upload('/file/pasteImage',file,{noteId:current.value.Note.NoteId});if(!result.Id)throw new Error(result.Msg||t('图片上传失败'));const src='/api2/file/getImage?fileId='+encodeURIComponent(result.Id);appendUpload(current.value.Note.IsMarkdown?`![${file.name}](${src})`:`<img src="${src}" alt="${file.name}">`)}catch(e){error.value=String(e)}}
-async function uploadAttach(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value||!await flush())return;try{await upload('/attach/uploadAttach',file,{noteId:current.value.Note.NoteId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId);panel.value='attachments'}catch(e){error.value=String(e)}}
-async function deleteAttach(attachId:string){if(!await confirmAction(t('删除此附件？'))||!await flush())return;try{await request('/attach/deleteAttach',{attachId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=String(e)}}
+async function uploadImage(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value)return;try{const result:any=await upload('/file/pasteImage',file,{noteId:current.value.Note.NoteId});if(!result.Id)throw new Error(result.Msg||t('图片上传失败'));const src='/api2/file/getImage?fileId='+encodeURIComponent(result.Id);appendUpload(current.value.Note.IsMarkdown?`![${file.name}](${src})`:`<img src="${src}" alt="${file.name}">`)}catch(e){error.value=errorMessage(e)}}
+async function uploadAttach(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file||!current.value||!await flush())return;try{await upload('/attach/uploadAttach',file,{noteId:current.value.Note.NoteId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId);panel.value='attachments'}catch(e){error.value=errorMessage(e)}}
+async function deleteAttach(attachId:string){if(!await confirmAction(t('删除此附件？'))||!await flush())return;try{await request('/attach/deleteAttach',{attachId});await refreshDocument();await attachmentsFor(current.value.Note.NoteId)}catch(e){error.value=errorMessage(e)}}
 const exporting=ref(false),exportNotice=ref('')
 async function saveExport(filename:string,bytes:Uint8Array){
  if(boot.value.Desktop){
@@ -229,7 +230,7 @@ async function download(){
   if(!await flush())return
   const md=current.value.Note.IsMarkdown
   await saveExport(exportName(title.value)+(md?'.md':'.rtf'),new TextEncoder().encode(md?hugoMarkdown(current.value.Note,content.value,currentNotebookTitle.value):htmlToRtf(content.value,title.value)))
- }catch(e){error.value=t(e instanceof Error?e.message:String(e))}finally{exporting.value=false}
+ }catch(e){error.value=errorMessage(e)}finally{exporting.value=false}
 }
 async function downloadBook(id:string){
  bookMenu.value=''
@@ -255,7 +256,7 @@ async function downloadBook(id:string){
    }
   })
   await saveExport(exportName(book.Title,'notebook')+'.zip',bytes)
- }catch(e){error.value=t(e instanceof Error?e.message:String(e))}finally{exporting.value=false}
+ }catch(e){error.value=errorMessage(e)}finally{exporting.value=false}
 }
 
 function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value||importDialog.value?.pending){e.preventDefault();e.returnValue=''}}
@@ -263,7 +264,7 @@ function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sor
 function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
 function handleSyncResult(result:any){
  const value=result?.detail||result||{}
- if(value.Ok===false){error.value=String(value.Msg||t('同步失败'));return}
+ if(value.Ok===false){error.value=errorMessage(value.Msg||'syncFailed');return}
  if(value.Full)error.value=''
 }
 // Media is downloaded after reset-sync returns. Refresh only profile and
@@ -286,7 +287,7 @@ async function pollMedia(){
 }
 onMounted(()=>{mediaTimer=setTimeout(pollMedia,1000)})
 onBeforeUnmount(()=>{mediaUnmounted=true;clearTimeout(mediaTimer)})
-onMounted(async()=>{(window as any).__gemsnoteBeforeLogout=flush;(window as any).__gemsnoteBeforeReset=flush;(window as any).__gemsnoteAfterReset=()=>{dirty.value=false;current.value=null;loadId++;notesLoadId++};(window as any).__gemsnoteSyncNow=async()=>{if(!await flush())return false;if(!await bootstrap())return false;await load();return true};window.addEventListener('sync-result',handleSyncResult as EventListener);updateCompact();window.addEventListener('resize',updateCompact);window.addEventListener('beforeunload',leave);window.addEventListener('keydown',shortcut);window.addEventListener('pointerdown',closeBookMenu);const wails=(window as any).runtime;if(wails?.EventsOn){const offRevoked=wails.EventsOn('shared-notes-revoked',(ids:string[])=>{if(ids?.includes(current.value?.Note?.NoteId)){error.value=t('该共享笔记已被撤销访问权限');current.value=null;attachments.value=[]}});const offSync=wails.EventsOn('sync-finished',async(result:any)=>{handleSyncResult(result);if(result?.Reset){if(result?.Ok===false){dirty.value=false;current.value=null;try{if(await bootstrap())await load()}catch(e){error.value=String(e)}}return}try{if(!await bootstrap())return;await load();if(current.value&&!dirty.value){const noteId=current.value.Note.NoteId;const doc=await request('/web/document',{noteId});if(current.value?.Note.NoteId===noteId&&!dirty.value){current.value=doc;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',')}}}catch(e){error.value=String(e)}});if(typeof offRevoked==='function')runtimeUnsubscribers.push(offRevoked);if(typeof offSync==='function')runtimeUnsubscribers.push(offSync)}try{if(await bootstrap()){await load();if(route.params.noteId)await open(String(route.params.noteId))}}catch(e){error.value=String(e)}})
+onMounted(async()=>{(window as any).__gemsnoteBeforeLogout=flush;(window as any).__gemsnoteBeforeReset=flush;(window as any).__gemsnoteAfterReset=()=>{dirty.value=false;current.value=null;loadId++;notesLoadId++};(window as any).__gemsnoteSyncNow=async()=>{if(!await flush())return false;if(!await bootstrap())return false;await load();return true};window.addEventListener('sync-result',handleSyncResult as EventListener);updateCompact();window.addEventListener('resize',updateCompact);window.addEventListener('beforeunload',leave);window.addEventListener('keydown',shortcut);window.addEventListener('pointerdown',closeBookMenu);const wails=(window as any).runtime;if(wails?.EventsOn){const offRevoked=wails.EventsOn('shared-notes-revoked',(ids:string[])=>{if(ids?.includes(current.value?.Note?.NoteId)){error.value=t('该共享笔记已被撤销访问权限');current.value=null;attachments.value=[]}});const offSync=wails.EventsOn('sync-finished',async(result:any)=>{handleSyncResult(result);if(result?.Reset){if(result?.Ok===false){dirty.value=false;current.value=null;try{if(await bootstrap())await load()}catch(e){error.value=errorMessage(e)}}return}try{if(!await bootstrap())return;await load();if(current.value&&!dirty.value){const noteId=current.value.Note.NoteId;const doc=await request('/web/document',{noteId});if(current.value?.Note.NoteId===noteId&&!dirty.value){current.value=doc;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',')}}}catch(e){error.value=errorMessage(e)}});if(typeof offRevoked==='function')runtimeUnsubscribers.push(offRevoked);if(typeof offSync==='function')runtimeUnsubscribers.push(offSync)}try{if(await bootstrap()){await load();if(route.params.noteId)await open(String(route.params.noteId))}}catch(e){error.value=errorMessage(e)}})
 onBeforeUnmount(()=>{delete (window as any).__gemsnoteBeforeLogout;delete (window as any).__gemsnoteBeforeReset;delete (window as any).__gemsnoteAfterReset;delete (window as any).__gemsnoteSyncNow;clearTimeout(saveTimer);clearTimeout(searchTimer);stopResize?.();runtimeUnsubscribers.splice(0).forEach(unsubscribe=>unsubscribe());document.body.classList.remove('panel-resizing');window.removeEventListener('sync-result',handleSyncResult as EventListener);window.removeEventListener('resize',updateCompact);window.removeEventListener('beforeunload',leave);window.removeEventListener('keydown',shortcut);window.removeEventListener('pointerdown',closeBookMenu)})
 onBeforeRouteLeave(async(to)=>{if(to.path!=='/login'&&importDialog.value?.pending&&!await confirmAction(t('关闭后将无法继续本次导入，已导入内容会保留。确认关闭？')))return false;return await flush()})
 watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(String(id));else if(!id)flush().then(ok=>{if(ok)current.value=null})})

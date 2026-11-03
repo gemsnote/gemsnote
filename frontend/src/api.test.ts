@@ -27,6 +27,18 @@ describe('interface language',()=>{
 })
 describe('API2 adapter',()=>{
  beforeEach(()=>setLanguage('zh-CN'))
+ it('localizes failed desktop logins and network errors in the selected language',async()=>{
+  for(const [language,invalid,offline] of [['zh-CN','用户名或密码不正确。','无法连接服务器'],['en-US','Incorrect username or password.','Cannot connect to the server']] as const){
+   setLanguage(language)
+   vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({Ok:false,Msg:'wrongUsernameOrPassword'})}))
+   await expect(request('/api2/auth/session',{email:'tester',pwd:'wrong'})).rejects.toThrow(invalid)
+   vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({Ok:false,Msg:'Wrong username or password'})}))
+   await expect(request('/api2/auth/session',{email:'tester',pwd:'wrong'})).rejects.toThrow(invalid)
+   vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+   await expect(request('/api2/auth/session',{email:'tester',pwd:'wrong'})).rejects.toThrow(offline)
+  }
+ })
+
  it('restores a stable history version with an expected USN through API2',async()=>{
   const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({Ok:true})});vi.stubGlobal('fetch',fetch)
   await request('/noteContentHistory/restore',{noteId:'note',historyId:'stable',usn:12})
@@ -62,7 +74,7 @@ describe('API2 adapter',()=>{
  })
   it('does not treat an unsuccessful HTTP-200 write as saved',async()=>{
    vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({Ok:false,Msg:'conflict'})}))
-   await expect(request('/web/save',{})).rejects.toThrow('conflict')
+   await expect(request('/web/save',{})).rejects.toMatchObject({code:'conflict',message:t('conflict')})
   })
   it('uses the versioned JSON API for note writes', async()=>{
    const fetch=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({Ok:true})});vi.stubGlobal('fetch',fetch)

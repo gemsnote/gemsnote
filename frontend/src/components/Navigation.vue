@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage,errorCode} from '../errors'
 import {computed,onMounted,ref} from 'vue'
 import {request,resolveAvatarUrl} from '../api'
 import {language,languages,setLanguage,t} from '../i18n'
@@ -40,7 +41,7 @@ async function showAbout(){
   aboutOpen.value=true
   aboutLoading.value=true;aboutError.value=''
   try{aboutInfo.value=await request('/api2/desktop/about')}
-  catch(e){aboutError.value=e instanceof Error?e.message:String(e)}
+  catch(e){aboutError.value=errorMessage(e)}
   finally{aboutLoading.value=false}
 }
 onMounted(()=>updateNativeLanguage(language.value))
@@ -53,19 +54,20 @@ async function runSync(mode:'full'|'reset'='full'){
     if(mode==='reset'){
       const beforeReset=(window as any).__gemsnoteBeforeReset
       if(typeof beforeReset==='function'&&!await beforeReset())throw new Error(t('本地笔记保存失败，已取消重新同步'))
-      await request('/web/resetSync',{confirm:true})
-      window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:true,Full:true,Reset:true}}))
+      const result=await request('/web/resetSync',{confirm:true})
+      if(result.AlreadyRunning){window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:true,Full:true}}));return}
+      window.dispatchEvent(new CustomEvent('sync-result',{detail:{...result,Full:true,Reset:true}}))
       const afterReset=(window as any).__gemsnoteAfterReset
       if(typeof afterReset==='function')afterReset()
       location.href='/note'
       return
     }
-    await request('/web/fullSync',{})
-    window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:true,Full:true}}))
+    const result=await request('/web/fullSync',{})
+    window.dispatchEvent(new CustomEvent('sync-result',{detail:{...result,Full:true}}))
     emit('synced')
   }catch(e){
-    const message=e instanceof Error?e.message:String(e)
-    if(message!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:true,Reset:mode==='reset'}}))
+    const message=errorMessage(e)
+    if(errorCode(e)!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:true,Reset:mode==='reset'}}))
   }
   finally{syncing.value=false}
 }
@@ -79,8 +81,8 @@ async function runImmediateSync(){
     }else await request('/web/sync',{})
     emit('synced')
   }catch(e){
-    const message=e instanceof Error?e.message:String(e)
-    if(message!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
+    const message=errorMessage(e)
+    if(errorCode(e)!=='already syncing')window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
   }finally{syncing.value=false}
 }
 async function logout(event:MouseEvent){
@@ -92,7 +94,7 @@ async function logout(event:MouseEvent){
       await request('/web/logout',{})
       location.href='/login'
     }catch(e){
-      const message=e instanceof Error?e.message:String(e)
+      const message=errorMessage(e)
       window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
     }
     return
@@ -101,11 +103,11 @@ async function logout(event:MouseEvent){
     await request('/web/logout',{})
     location.href='/login'
   }catch(e){
-    const message=e instanceof Error?e.message:String(e)
-    if(message==='syncFailed'){
+    const message=errorMessage(e)
+    if(errorCode(e)==='syncFailed'){
       if(!await askLogoutChoice())return
       try{await request('/web/logout',{force:true});location.href='/login'}
-      catch(forceError){window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:forceError instanceof Error?forceError.message:String(forceError),Full:false}}))}
+      catch(forceError){window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:errorMessage(forceError),Full:false}}))}
       return
     }
     window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))

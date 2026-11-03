@@ -15,6 +15,7 @@ try {
     const chinese = language === 'zh-CN'
     let aboutFails = true, uploadCount = 0, createdCount = 0, deletedCount = 0
     const nativeDialogs = [], pageErrors = []
+    let fullSyncRequest,fullSyncRunning=false
     page.on('dialog', async dialog => { nativeDialogs.push(dialog.type()); await dialog.dismiss() })
     page.on('pageerror', error => pageErrors.push(error.message))
     await page.addInitScript(language => localStorage.setItem('gemsnote:language', language), language)
@@ -22,6 +23,14 @@ try {
       const path = new URL(route.request().url()).pathname
       let data
       switch (path) {
+        case '/api2/logout': data={Ok:false,Msg:'syncFailed'};break
+        case '/api2/web/fullSync': fullSyncRequest=route;fullSyncRunning=true;return
+        case '/api2/web/syncProgress': data={Running:fullSyncRunning,RunID:5,Mode:'full',Stage:'notes',Current:3};break
+        case '/api2/web/cancelSync':
+          expect(new URLSearchParams(route.request().postData()).get('runId')).toBe('5')
+          fullSyncRunning=false
+          await fullSyncRequest.fulfill({json:{Ok:true,Cancelled:true}})
+          data={Ok:true,Cancelled:true};break
         case '/api2/web/downloadStatus': data = { Running: false }; break
         case '/api2/bootstrap': data = { Desktop: true, Host: 'https://notes.example.test:2443', User: { UserId: 'user1', Username: 'tester', Email: 'tester@example.test' }, Notebooks: [], Tags: [] }; break
         case '/api2/notes': data = []; break
@@ -68,6 +77,24 @@ try {
     await about.getByRole('button', { name: chinese ? '重试' : 'Retry' }).click()
     for (const value of ['9.8.7-test', 'linux', 'amd64', 'go1.23.0']) await expect(about).toContainText(value)
     await about.getByRole('button', { name: chinese ? '关闭' : 'Close' }).click()
+
+    await page.getByRole('button',{name:chinese?'用户菜单':'User menu',exact:true}).click()
+    await page.getByRole('menuitem',{name:chinese?'同步':'Sync',exact:true}).click()
+    await page.getByRole('menuitem',{name:chinese?'完全同步':'Full sync',exact:true}).click()
+    const syncDialog=page.getByRole('dialog',{name:chinese?'完全同步':'Full sync',exact:true})
+    await expect(syncDialog).toBeVisible()
+    await syncDialog.getByRole('button',{name:chinese?'取消同步':'Cancel sync',exact:true}).click()
+    await expect(syncDialog).toHaveCount(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+
+    // Localized messages must not replace the code used to open logout confirmation.
+    await page.getByRole('button',{name:chinese?'用户菜单':'User menu',exact:true}).click()
+    await page.getByRole('menuitem',{name:chinese?'退出':'Sign out',exact:true}).click()
+    const logoutDialog=page.getByRole('dialog',{name:chinese?'退出登录':'Sign out',exact:true})
+    await expect(logoutDialog).toBeVisible()
+    await logoutDialog.getByRole('button',{name:chinese?'取消':'Cancel',exact:true}).click()
+    await expect(logoutDialog).toHaveCount(0)
+    await expect(page).toHaveURL(`${baseURL}/note`)
 
     // Prompt cancel/Escape must not create anything; submit must preserve input.
     const newBook = page.getByRole('button', { name: chinese ? '新建笔记本' : 'New notebook', exact: true })

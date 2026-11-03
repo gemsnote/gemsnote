@@ -7,6 +7,49 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ "httpFailure":"Request failed (HTTP {status}). Check the server and try again.",
+ "operationFailed":"The operation failed. Try again; if it persists, check the logs or contact your administrator.",
+ "operationCancelled":"The operation was cancelled.",
+ "certificateError":"Server certificate verification failed. Check the certificate and system clock.",
+ "localContentMissing":"The local note content cache is incomplete. Back up local edits before resetting and syncing.",
+ "localFileMissing":"A local file is missing. Restore it and try again.",
+ "databaseBusy":"The local database is busy. Please try again shortly.",
+ "connectionRefused":"Cannot connect to the server. Check that it is running and the address is correct.",
+ "requestTimeout":"Connecting to the server or reading data timed out. Check the network and try again.",
+ "createNotebookFailed":"Could not create the notebook. Please try again.",
+ "creationKeyDeleted":"The corresponding item was deleted. Create a new item.",
+ "creationKeyUnavailable":"This creation ID is already in use. Refresh and try again.",
+ "userExistsInGroup":"This user is already in the group.",
+ "forbiddenNotMyGroup":"You do not have permission to change this group.",
+ "notMyGroup":"You do not have permission to change this group.",
+ "groupHasUsers":"Remove the group members before deleting the group.",
+ "randomSourceUnavailable":"Unable to generate secure credentials. Please try again later.",
+ "uploadKeyConflict":"This upload conflicts with an existing upload. Select the file again.",
+ "uploadAlreadyCleaned":"This upload has expired. Select the file and upload it again.",
+ "updatePwdFailed":"Could not update the password. Please try again.",
+ "updateFailed":"Could not update. Please try again.",
+ "saveFailed":"Could not save. Please try again.",
+ "unsupported":"This feature is not supported by the server.",
+ "methodNotAllowed":"This request method is not supported. Update the client.",
+ "cannotShareSelf":"You cannot share with yourself.",
+ "sharedReadOnly":"This shared note is read-only. Copy it to your own notebook to edit.",
+ "sharedNotCached":"This shared note is not cached yet. Connect and sync first.",
+ "sharedHistoryUnsupported":"History is not available for shared notes.",
+ "sharedCacheUnavailable":"Offline shared-note caching is unavailable for this account.",
+ "copySharedFailed":"Could not copy the shared note. Refresh and try again.",
+ "avatarCacheFailed":"The avatar was uploaded, but its local cache could not be updated. Try again.",
+ "confirmationRequired":"This account has cached data. Confirm before resetting it.",
+ "resetSyncUnavailable":"Reset and sync is unavailable. Check that you are signed in to a server.",
+ "notebookHasChildren":"Move or delete the child notebooks first.",
+ "notebookHasNotes":"Move or delete the notes in this notebook first.",
+ "invalidParentNotebook":"Choose a valid parent notebook; this move is not allowed.",
+ "invalidNote":"The note is invalid or missing.",
+ "invalidId":"Invalid item ID. Refresh and try again.",
+ "noPermission":"Permission denied.",
+ "noTitle":"Enter a title.",
+ "noFile":"Select a file to upload.",
+ "fileNotFound":"The file was not found or is missing.",
+ "notExists":"The requested content was not found.",
  'Mermaid 图表':'Mermaid diagram', '图表无法渲染，请检查语法或图表大小。':'Unable to render diagram. Check the syntax or diagram size.',
  '正在绘制图表…':'Rendering diagram…', '放大图表':'Enlarge diagram', '图表源码':'Diagram source', '缩放':'Zoom',
 
@@ -248,6 +291,14 @@ const translations: Record<string, string> = {
   '响应不是有效 JSON [{path}]': 'Invalid JSON response [{path}]',
   '请求失败 ({status}) [{path}]': 'Request failed ({status}) [{path}]',
   '上传失败 ({status}) [{path}]': 'Upload failed ({status}) [{path}]',
+  '取消同步':'Cancel sync', '正在取消同步…':'Cancelling sync…',
+  '取消后保留已下载的数据；已清理的本地缓存不会恢复。':'Downloaded data is kept when you cancel; a cleared local cache cannot be restored.',
+  'tokenGenerationFailed':'Unable to create a login token. Please try again later.',
+  'wrongUsernameOrPassword':'Incorrect username or password.', 'password incorrect':'Incorrect password.',
+  'userNotExist':'Account not found.', 'invalidParams':"The request parameters are missing or invalid.",
+  'incompatibleServer':'This server does not support the required Gemsnote API2 login response.',
+  'serverError':'The server returned an invalid response. Check the server address and try again.',
+  'networkUnavailable':'Cannot connect to the server. Check the address and network connection.',
   'NOTLOGIN': 'Please sign in again', 'invalidRequest': 'Invalid request',
   'invalidJSON': 'Invalid JSON request', 'noAuth': 'Permission denied',
   'notFound': 'Not found', 'offline': 'Server unavailable',
@@ -272,6 +323,65 @@ export function setLanguage(next: Language) {
 }
 
 const historyErrorsZh: Record<string,string> = {
+ "httpFailure":"请求失败（HTTP {status}），请检查服务端后重试。",
+ "operationFailed":"操作失败，请重试；若仍失败，请查看日志或联系管理员。",
+ "operationCancelled":"操作已取消。",
+ "certificateError":"服务器证书验证失败，请检查证书和系统时间。",
+ "localContentMissing":"本地正文缓存不完整，请先备份本地修改，再重新同步。",
+ "localFileMissing":"本地文件已丢失，请恢复文件后重试。",
+ "databaseBusy":"本地数据库正忙，请稍后重试。",
+ "connectionRefused":"无法连接服务器，请确认服务端已启动且地址正确。",
+ "requestTimeout":"连接服务器或读取数据超时，请检查网络后重试。",
+ "createNotebookFailed":"创建笔记本失败，请重试。",
+ "creationKeyDeleted":"对应内容已被删除，请重新创建。",
+ "creationKeyUnavailable":"创建编号已被使用，请刷新后重试。",
+ "userExistsInGroup":"该用户已在此分组中。",
+ "forbiddenNotMyGroup":"没有权限修改此分组。",
+ "notMyGroup":"没有权限修改此分组。",
+ "groupHasUsers":"分组中仍有用户，请先移除成员。",
+ "randomSourceUnavailable":"无法生成安全凭据，请稍后重试。",
+ "uploadKeyConflict":"上传记录冲突，请重新选择文件上传。",
+ "uploadAlreadyCleaned":"上传记录已被清理，请重新选择文件上传。",
+ "updatePwdFailed":"修改密码失败，请重试。",
+ "updateFailed":"更新失败，请重试。",
+ "saveFailed":"保存失败，请重试。",
+ "unsupported":"当前服务端不支持此功能。",
+ "methodNotAllowed":"不支持此请求方式，请更新客户端。",
+ "cannotShareSelf":"不能共享给自己。",
+ "sharedReadOnly":"共享笔记只读，可以复制到自己的笔记本后编辑。",
+ "sharedNotCached":"共享笔记尚未缓存，请联网同步后重试。",
+ "sharedHistoryUnsupported":"共享笔记暂不支持查看历史版本。",
+ "sharedCacheUnavailable":"当前账号无法使用共享离线缓存。",
+ "copySharedFailed":"复制共享笔记失败，请刷新后重试。",
+ "avatarCacheFailed":"头像已上传，但本地缓存更新失败，请重试。",
+ "confirmationRequired":"此账号已有本地缓存，请确认后再重新同步。",
+ "resetSyncUnavailable":"当前账号无法重新同步，请确认已登录服务器。",
+ "syncFailed":"同步失败，请检查服务器连接后重试。",
+ "conflict":"内容已在其他端修改，请刷新后重试。",
+ "notebookIdNotExists":"笔记本不存在，请刷新后重试。",
+ "noteIdNotExists":"笔记不存在，请刷新后重试。",
+ "notebookHasChildren":"笔记本中仍有子笔记本，请先移动或删除子笔记本。",
+ "notebookHasNotes":"笔记本中仍有笔记，请先移动或删除其中的笔记。",
+ "invalidParentNotebook":"不能移动到该笔记本，请选择有效的父级笔记本。",
+ "invalidNotebook":"笔记本无效或不存在。",
+ "invalidNote":"笔记无效或不存在。",
+ "invalidId":"内容编号无效，请刷新后重试。",
+ "noPermission":"没有操作权限。",
+ "noTitle":"请输入标题。",
+ "noFile":"请选择要上传的文件。",
+ "fileNotFound":"文件不存在或已丢失。",
+ "notExists":"请求的内容不存在。",
+ "notFound":"请求的内容不存在。",
+ "invalidRequest":"请求无效，请刷新后重试。",
+ "invalidJSON":"请求数据格式不正确。",
+ tokenGenerationFailed:'无法创建登录凭据，请稍后重试。',
+ wrongUsernameOrPassword:'用户名或密码不正确。', 'password incorrect':'密码不正确。',
+ userNotExist:'账号不存在。', invalidParams:"请求参数不完整或无效。",
+ incompatibleServer:'此服务端不支持所需的 Gemsnote API2 登录响应，请检查服务端版本。',
+ serverError:'服务端返回了无效响应，请检查服务器地址后重试。',
+ offline:'无法连接服务器，请检查服务器地址和网络。', networkUnavailable:'无法连接服务器，请检查服务器地址和网络。',
+ NOTLOGIN:'登录状态已失效，请重新登录。',
+
  'sharingLoadFailed':'无法加载共享信息，请重试', 'noteNotSynced':'请先同步这篇笔记，再管理共享', 'notebookNotSynced':'请先同步目标笔记本，再移动或复制共享笔记',
  "verificationLinkMissing":"验证链接缺少必要参数。请从邮件中复制完整链接后重试。",
  "verificationLinkInvalid":"此链接无效或已失效，可能已使用、被新邮件替换，或指向了不同的服务端。请确认邮件中的站点地址与当前实例一致，并使用最新邮件中的完整链接。",
@@ -318,7 +428,24 @@ const historyErrorsZh: Record<string,string> = {
  historyRestoreFailed:'恢复失败，请重新加载笔记并检查历史记录后重试',
  historyNotFound:'此历史版本已不存在，请刷新列表',
 }
+// API2 authentication may return a server-localized sentence rather than
+// an error code. Normalize known responses so the client's language wins.
+const errorAliases: Record<string,string> = {
+ "no active user":"NOTLOGIN",
+ "该邮箱已注册":"emailAlreadyRegistered",
+ "GenerateHash error":"updatePwdFailed",
+ "oldPasswordError":"wrongPassword",
+ "笔记本下有子笔记本":"notebookHasChildren",
+ "笔记本下有笔记":"notebookHasNotes",
+ "不能分享给自己":"cannotShareSelf",
+ "userNotExists":"userNotExist",
+ "无该用户":"userNotExist",
+ 'Wrong username or password':'wrongUsernameOrPassword',
+ '用户名或密码错误':'wrongUsernameOrPassword',
+ '用户名或密码有误':'wrongUsernameOrPassword',
+}
 export function t(key: string, variables: Record<string, string | number> = {}): string {
+  key = errorAliases[key] || key
   const text = language.value === 'en-US' ? translations[key] || key : historyErrorsZh[key] || key
   return text.replace(/\{(\w+)\}/g, (_, name: string) => String(variables[name] ?? `{${name}}`))
 }
@@ -331,3 +458,18 @@ export function formatDate(value: string | number | Date): string {
 watch(language, value => {
   if (typeof document !== 'undefined') document.documentElement.lang = value
 }, { immediate: true })
+
+// Errors can arrive as a code, a translated server sentence, or an already
+// formatted UI message. Resolve only known text, never display an unknown
+// server body or a raw exception as a translated user-facing message.
+export function knownMessage(message: string): string | undefined {
+ if(Object.hasOwn(translations,message)||Object.hasOwn(historyErrorsZh,message)||Object.hasOwn(errorAliases,message))return t(message)
+ for(const [key,text] of [...Object.entries(translations),...Object.entries(historyErrorsZh)]){
+  for(const template of [text,key]){
+   const names:string[]=[]
+   const escaped=template.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\\\{(\w+)\\\}/g,(_,name)=>{names.push(name);return '([\\s\\S]*?)'})
+   const match=message.match(new RegExp('^'+escaped+'$'))
+   if(match)return t(key,Object.fromEntries(names.map((name,i)=>[name,match[i+1]])))
+  }
+ }
+}

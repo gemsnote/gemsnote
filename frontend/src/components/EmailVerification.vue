@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage,errorCode} from '../errors'
 import {computed,onMounted,onUnmounted,ref} from 'vue'
 import {request} from '../api'
 import {t} from '../i18n'
@@ -24,9 +25,9 @@ async function check(){
   const result=await request('/user/emailStatus',{taskId:taskId.value},{signal:abort.signal})
   state.value=result.State
   if(result.State==='sent'||result.State==='failed'){
-   error.value=result.Error?t(result.Error):'';taskId.value='';remember();busy.value=false
+   error.value=result.Error?errorMessage(result.Error):'';taskId.value='';remember();busy.value=false
   }else{timer=setTimeout(check,2000)}
- }catch(e){if(!abort.signal.aborted){error.value=e instanceof Error?e.message:String(e);busy.value=false; if(error.value===t('mailTaskNotFound')){state.value='failed';taskId.value='';remember()}}}
+ }catch(e){if(!abort.signal.aborted){error.value=errorMessage(e);busy.value=false; if(errorCode(e)==='mailTaskNotFound'){state.value='failed';taskId.value='';remember()}}}
 }
 async function send(current=false){
  if(busy.value||taskId.value)return
@@ -35,7 +36,7 @@ async function send(current=false){
  try{
   const result=await request('/web/emailChange',current?{current:true}:{email:email.value.trim(),pwd:password.value},{signal:abort.signal})
   emit('pending',result.PendingEmail||'');password.value='';taskId.value=result.TaskId;state.value='queued';remember();timer=setTimeout(check,1000)
- }catch(e){if(!abort.signal.aborted){error.value=e instanceof Error?e.message:String(e);busy.value=false}}
+ }catch(e){if(!abort.signal.aborted){error.value=errorMessage(e);busy.value=false}}
 }
 async function verifyCurrentEmail(){
  if(busy.value||taskId.value||confirming.value||props.verified)return

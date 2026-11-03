@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage} from './errors'
 import {computed,onBeforeUnmount,onMounted,ref} from 'vue'
 import {t} from './i18n'
 import AppDialog from './components/AppDialog.vue'
@@ -6,6 +7,7 @@ import {installLocalizedValidation} from './validation'
 import {request} from './api'
 
 const syncVisible=ref(false)
+const syncRunId=ref(0),cancelling=ref(false),cancelError=ref('')
 const syncStage=ref('start')
 const syncMode=ref<'full'|'reset'>('full')
 const syncCurrent=ref(0)
@@ -20,6 +22,7 @@ const completedText=computed(()=>syncTotal.value>0?t('已完成 {current} / {tot
 const indeterminate=computed(()=>syncTotal.value===0&&syncStage.value!=='done')
 
 function applyProgress(value:any){
+ if(value.RunID)syncRunId.value=Number(value.RunID)
  if(value.Mode==='full'||value.Mode==='reset')syncMode.value=value.Mode
  syncStage.value=String(value.Stage||'start')
  syncCurrent.value=Number(value.Current||0)
@@ -49,10 +52,18 @@ function showSyncProgress(event:any){
  if(!requested&&value.Running===false)return
  if(!requested&&syncVisible.value&&value.Mode&&value.Mode!==syncMode.value)return
  const opening=!syncVisible.value
- if(requested)awaitingRequest=true
+ if(requested){awaitingRequest=true;syncRunId.value=0;cancelling.value=false;cancelError.value=''}
  applyProgress(value)
  syncVisible.value=true
  if(opening||requested)startPolling()
+}
+async function cancelSync(){
+ if(cancelling.value||!syncRunId.value)return
+ cancelling.value=true;cancelError.value=''
+ try{
+  await request('/web/cancelSync',{runId:syncRunId.value})
+  // The owning full/reset request closes the dialog only after all writers stop.
+ }catch(e){cancelError.value=errorMessage(e);cancelling.value=false}
 }
 function finishSync(){
  syncVisible.value=false
@@ -89,9 +100,12 @@ onBeforeUnmount(()=>{
  <section v-if="syncVisible" class="sync-progress-backdrop" aria-live="polite">
   <div class="sync-progress-dialog" role="dialog" aria-modal="true" :aria-label="t(syncMode==='reset'?'重新同步':'完全同步')">
    <h2>{{t(syncMode==='reset'?'重新同步':'完全同步')}}</h2>
-   <p>{{stageText}}</p>
+   <p>{{cancelling?t('正在取消同步…'):stageText}}</p>
    <progress :value="indeterminate?undefined:syncPercent" max="100"></progress>
    <small v-if="syncCurrent>0||syncTotal>0" class="sync-completed">{{completedText}}</small>
+   <p v-if="syncMode==='reset'" class="muted">{{t('取消后保留已下载的数据；已清理的本地缓存不会恢复。')}}</p>
+   <p v-if="cancelError" role="alert" class="error">{{cancelError}}</p>
+   <div class="choice-dialog-actions"><button :disabled="cancelling||!syncRunId" @click="cancelSync">{{t(cancelling?'正在取消同步…':'取消同步')}}</button></div>
   </div>
  </section>
 </template>

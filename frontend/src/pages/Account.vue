@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {errorMessage} from '../errors'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { request, upload, resolveAvatarUrl } from '../api'
 import Navigation from '../components/Navigation.vue'
@@ -25,7 +26,7 @@ const addUserEmails = ref<Record<string, string>>({})
 const editingGroupId = ref('')
 const editingGroupTitle = ref('')
 
-function showError(error: unknown) { message.value = error instanceof Error ? error.message : String(error) }
+function showError(error: unknown) { message.value = errorMessage(error) }
 function owned(group: Group) { return group.UserId === user.value.UserId }
 async function loadGroups() {
   try {
@@ -77,7 +78,7 @@ async function updatePassword() {
     oldPwd.value = ''; pwd.value = ''; confirmPwd.value = ''
     await request('/web/logout', {})
     location.href = '/login'
-  } catch (error) { passwordError.value = error instanceof Error ? error.message : String(error) }
+  } catch (error) { passwordError.value = errorMessage(error) }
   finally { passwordSaving.value = false }
 }
 async function avatar(event: Event) {
