@@ -3,6 +3,8 @@ package member
 import (
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/revel/revel"
+	"gopkg.in/mgo.v2/bson"
+	"strings"
 )
 
 // 分组管理
@@ -35,24 +37,49 @@ func (c MemberGroup) UpdateGroupTitle(groupId, title string) revel.Result {
 func (c MemberGroup) DeleteGroup(groupId string) revel.Result {
 	re := info.NewRe()
 	re.Ok, re.Msg = groupService.DeleteGroup(c.GetUserId(), groupId)
-	return c.RenderRe(re)
+	return c.renderGroupResult(re)
 }
 
 // 添加用户
 func (c MemberGroup) AddUser(groupId, email string) revel.Result {
 	re := info.NewRe()
-	userInfo := userService.GetUserInfoByAny(email)
+	// Keep the wire field name for existing clients. API2 treats it as an
+	// identity, never as an ObjectId (a username can itself be 24 hex digits).
+	var userInfo info.User
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		if !bson.IsObjectIdHex(groupId) || !bson.IsObjectIdHex(c.GetUserId()) {
+			re.Msg = "notMyGroup"
+			return c.renderGroupResult(re)
+		}
+		identity := strings.TrimSpace(email)
+		if identity == "" {
+			re.Msg = "userNotExists"
+			return c.renderGroupResult(re)
+		}
+		userInfo = userService.GetUserInfoByName(identity)
+	} else {
+		userInfo = userService.GetUserInfoByAny(email)
+	}
 	if userInfo.UserId == "" {
 		re.Msg = "userNotExists"
 	} else {
 		re.Ok, re.Msg = groupService.AddUser(c.GetUserId(), groupId, userInfo.UserId.Hex())
 		re.Item = userInfo
 	}
-	return c.RenderRe(re)
+	return c.renderGroupResult(re)
 }
 
 func (c MemberGroup) DeleteUser(groupId, userId string) revel.Result {
 	re := info.NewRe()
 	re.Ok, re.Msg = groupService.DeleteUser(c.GetUserId(), groupId, userId)
+	return c.renderGroupResult(re)
+}
+
+// API2 clients choose their own locale. Preserve legacy server-side messages
+// only on the historical routes.
+func (c MemberGroup) renderGroupResult(re info.Re) revel.Result {
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		return c.RenderJSON(re)
+	}
 	return c.RenderRe(re)
 }

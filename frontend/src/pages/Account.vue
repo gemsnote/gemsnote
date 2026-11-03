@@ -22,7 +22,7 @@ const avatarInput = ref<HTMLInputElement>()
 const avatarSrc = computed(() => resolveAvatarUrl(user.value.Logo || ''))
 const groups = ref<Group[]>([])
 const newGroupTitle = ref('')
-const addUserEmails = ref<Record<string, string>>({})
+const addUserIdentities = ref<Record<string, string>>({})
 const editingGroupId = ref('')
 const editingGroupTitle = ref('')
 
@@ -106,9 +106,9 @@ async function deleteGroup(group: Group) {
   try { await request('/member/group/deleteGroup', { groupId: group.GroupId }); message.value = t('分组已删除'); await loadGroups() } catch (error) { showError(error) }
 }
 async function addUser(group: Group) {
-  const memberEmail = (addUserEmails.value[group.GroupId] || '').trim()
-  if (!memberEmail) { message.value = t('请输入用户邮箱'); return }
-  try { await request('/member/group/addUser', { groupId: group.GroupId, email: memberEmail }); addUserEmails.value[group.GroupId] = ''; message.value = t('用户已加入分组'); await loadGroups() } catch (error) { showError(error) }
+  const memberIdentity = (addUserIdentities.value[group.GroupId] || '').trim()
+  if (!memberIdentity) { message.value = t('请输入用户名或邮箱'); return }
+  try { await request('/member/group/addUser', { groupId: group.GroupId, email: memberIdentity }); addUserIdentities.value[group.GroupId] = ''; message.value = t('用户已加入分组'); await loadGroups() } catch (error) { showError(error) }
 }
 async function deleteUser(group: Group, member: GroupUser) {
   if (!await confirmAction(t('确定将 {name} 移出此分组吗？', {name:member.Email || member.Username}))) return
@@ -161,7 +161,7 @@ async function deleteUser(group: Group, member: GroupUser) {
           </header>
           <ul v-if="group.Users?.length" class="members"><li v-for="member in group.Users" :key="member.UserId"><span>{{ member.Username || member.Email }}</span><span class="muted">{{ member.Email }}</span><button v-if="owned(group)" class="danger" @click="deleteUser(group, member)">{{t('移除')}}</button></li></ul>
           <p v-else class="muted">{{t('暂无成员。')}}</p>
-          <form v-if="owned(group)" class="inline-form" @submit.prevent="addUser(group)"><input v-model="addUserEmails[group.GroupId]" type="email" :placeholder="t('已有用户的邮箱')" :aria-label="`${group.Title} · ${t('已有用户的邮箱')}`"><button>{{t('添加用户')}}</button></form>
+          <form v-if="owned(group)" class="inline-form" @submit.prevent="addUser(group)"><input v-model="addUserIdentities[group.GroupId]" type="text" autocomplete="off" autocapitalize="none" :spellcheck="false" :placeholder="t('已有用户的用户名或邮箱')" :aria-label="`${group.Title} · ${t('已有用户的用户名或邮箱')}`"><button>{{t('添加用户')}}</button></form>
         </article>
       </section>
     </main>

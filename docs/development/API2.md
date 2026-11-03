@@ -190,10 +190,17 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
 | POST | `/api2/save` | 新建或保存笔记；字段 `noteId`、`notebookId`、`ownerId`、`title`、`content`、`tags`、`isNew`、`isMarkdown`、`usn` |
 | POST | `/api2/star` | 设置星标；字段 `noteId`、`starred` |
 | POST | `/api2/restore` | 从回收站恢复；字段 `noteId` |
-| GET | `/api2/groups` | 当前用户分组 |
+| GET | `/api2/groups` | 当前用户创建及加入的分组，含成员列表 |
+| POST | `/api2/member/group/addGroup` | 创建分组，参数 `title` |
+| POST | `/api2/member/group/updateGroupTitle` | 修改分组名，参数 `groupId`、`title` |
+| POST | `/api2/member/group/deleteGroup` | 删除分组，参数 `groupId` |
+| POST | `/api2/member/group/addUser` | 添加成员，参数 `groupId`、`email`；`email` 字段接受用户名或邮箱，忽略首尾空白及大小写，以用户 ID 去重，不把 24 位十六进制用户名当作 ID |
+| POST | `/api2/member/group/deleteUser` | 移除成员，参数 `groupId`、`userId` |
 | POST | `/api2/admin/data` | 管理数据查询（JSON） |
 | POST | `/api2/attachments` | 附件列表（JSON） |
 | POST | `/api2/attachments/delete` | 删除附件（JSON） |
+
+已有分组的修改操作仅允许分组创建者执行，沿用表单参数。`addUser` 的 `email` 字段实际为“用户名或邮箱”，三端保留该字段名以保持协议一致。重复成员按用户 ID 判断。API2 分组错误返回 `userNotExists`、`userExistsInGroup`、`forbiddenNotMyGroup`、`notMyGroup` 等稳定 `Msg`，由客户端负责本地化；旧路径的消息行为不变。
 
 保存现有笔记时应显式发送 `isMarkdown`。省略该字段时保留现有格式；显式传 `false`
 仍表示富文本，可用于恢复富文本历史版本。新建笔记省略该字段时默认富文本。
