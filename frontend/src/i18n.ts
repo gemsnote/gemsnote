@@ -268,6 +268,7 @@ const translations: Record<string, string> = {
   '暂无共享内容': 'Nothing shared yet', '标签': 'Tags', '{count}篇笔记': '{count} notes',
   '调节我的空间宽度': 'Resize workspace', '排序方式': 'Sort by',
   '修改时间：降序': 'Modified: newest first', '修改时间：升序': 'Modified: oldest first',
+  '创建时间：降序': 'Created: newest first', '创建时间：升序': 'Created: oldest first',
   '标题：降序': 'Title: Z–A', '标题：升序': 'Title: A–Z',
   '我的空间': 'Workspace', '新建富文本笔记': 'New rich-text note',
   '新建 Markdown 笔记': 'New Markdown note', '隐藏笔记栏': 'Hide note list',

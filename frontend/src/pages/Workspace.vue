@@ -19,7 +19,7 @@ import {confirmAction,promptText} from '../dialogs'
 const restoringHistory=ref(false)
 const route=useRoute(),router=useRouter(),boot=ref<any>({}),notes=ref<any[]>([]),current=ref<any>(null),authenticated=ref(false)
 const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),trash=ref(false),starred=ref(false),sharedOwner=ref(''),sharingRecipient=ref('')
-const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
+const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'CreatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
 const importing=ref(false),importTarget=ref('')
@@ -96,10 +96,10 @@ const notesHeading=computed(()=>{
 const sorted=computed(()=>[...notes.value].sort((a,b)=>{
  const result=sort.value==='Title'
   ?String(a.Title||'').localeCompare(String(b.Title||''),language.value,{sensitivity:'base',numeric:true})
-  :(Date.parse(String(a.UpdatedTime||''))||0)-(Date.parse(String(b.UpdatedTime||''))||0)
+  :(Date.parse(String(a[sort.value]||''))||0)-(Date.parse(String(b[sort.value]||''))||0)
  return (sortAsc.value?result:-result)||String(a.NoteId||'').localeCompare(String(b.NoteId||''))
 }))
-function setSort(field:'UpdatedTime'|'Title',ascending:boolean){sort.value=field;sortAsc.value=ascending;if(sortMenu.value)sortMenu.value.open=false}
+function setSort(field:'UpdatedTime'|'CreatedTime'|'Title',ascending:boolean){sort.value=field;sortAsc.value=ascending;if(sortMenu.value)sortMenu.value.open=false}
 const writable=computed(()=>!!current.value?.Writable&&!restoringHistory.value)
 const own=computed(()=>current.value?.Note.UserId===boot.value.User?.UserId)
 const syncPending=computed(()=>dirty.value||!!boot.value.PendingChanges)
@@ -341,6 +341,8 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div class="note-sort-options" role="menu">
 <button type="button" role="menuitemradio" :aria-checked="sort==='UpdatedTime'&&!sortAsc" @click="setSort('UpdatedTime',false)">{{t('修改时间：降序')}}</button>
 <button type="button" role="menuitemradio" :aria-checked="sort==='UpdatedTime'&&sortAsc" @click="setSort('UpdatedTime',true)">{{t('修改时间：升序')}}</button>
+<button type="button" role="menuitemradio" :aria-checked="sort==='CreatedTime'&&!sortAsc" @click="setSort('CreatedTime',false)">{{t('创建时间：降序')}}</button>
+<button type="button" role="menuitemradio" :aria-checked="sort==='CreatedTime'&&sortAsc" @click="setSort('CreatedTime',true)">{{t('创建时间：升序')}}</button>
 <button type="button" role="menuitemradio" :aria-checked="sort==='Title'&&!sortAsc" @click="setSort('Title',false)">{{t('标题：降序')}}</button>
 <button type="button" role="menuitemradio" :aria-checked="sort==='Title'&&sortAsc" @click="setSort('Title',true)">{{t('标题：升序')}}</button>
 </div>
