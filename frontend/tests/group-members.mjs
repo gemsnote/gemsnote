@@ -8,13 +8,14 @@ const executablePath=['/usr/bin/google-chrome','/usr/bin/chromium'].find(existsS
 const browser=await chromium.launch({headless:true,...(executablePath?{executablePath}:{})})
 try {
  for(const desktop of [false,true]) for(const lang of ['zh-CN','en-US']) {
-  const page=await browser.newPage({locale:lang,viewport:{width:1280,height:1000}})
+  const page=await browser.newPage({locale:lang,viewport:{width:1280,height:700}})
   await page.addInitScript(lang=>localStorage.setItem('gemsnote:language',lang),lang)
-  const members=[], submitted=[]
+  const members=[], submitted=[],errors=[]
+  page.on('pageerror',error=>errors.push(error.message))
   await page.route('**/api2/**',async route=>{
    const path=new URL(route.request().url()).pathname
    let data={Ok:true}
-   if(path==='/api2/bootstrap')data={User:{UserId:'owner',Username:'owner',Email:'owner@example.test'},Desktop:desktop,IsAdmin:false,Notebooks:[],Tags:[],SharedNotebooks:{}}
+   if(path==='/api2/bootstrap')data={User:{UserId:'owner',Username:'owner',Email:'owner@example.test'},Desktop:desktop,Host:'https://notes.example.test',IsAdmin:false,Notebooks:[],Tags:[],SharedNotebooks:{}}
    if(path==='/api2/groups')data=[{GroupId:'mine',UserId:'owner',Title:'My group',Users:members},{GroupId:'others',UserId:'other',Title:'Other group',Users:[]}]
    if(path==='/api2/member/group/addUser'){
     expect(route.request().method()).toBe('POST')
@@ -27,6 +28,11 @@ try {
    await route.fulfill({json:data})
   })
   await page.goto(base+'/user/account')
+  const profile=page.locator('.profile-card')
+  await page.getByRole('button',{name:lang==='zh-CN'?'更新用户名':'Update username',exact:true}).click()
+  await expect(profile.getByRole('status')).toHaveText(lang==='zh-CN'?'已更新':'Updated')
+  const bounds=await Promise.all(['.server-address input','.profile-card','.password-card','.groups'].map(selector=>page.locator(selector).boundingBox()))
+  for(const box of bounds){expect(Math.abs(box.x-bounds[0].x)).toBeLessThan(1);expect(Math.abs(box.width-bounds[0].width)).toBeLessThan(1)}
   const group=page.locator('.group').filter({has:page.getByRole('heading',{name:'My group'})})
   const input=group.locator('input')
   const button=group.getByRole('button',{name:lang==='zh-CN'?'添加用户':'Add user',exact:true})
@@ -36,15 +42,23 @@ try {
   await expect.poll(()=>submitted).toEqual(['Alice'])
   await expect(group.locator('.members li')).toHaveCount(1)
   await expect(input).toHaveValue('')
+  await expect(group.getByRole('status')).toHaveText(lang==='zh-CN'?'用户已加入分组':'User added to group')
   await input.fill('alice@example.test');await button.click()
-  await expect(page.getByRole('status')).toHaveText(lang==='zh-CN'?'该用户已在此分组中。':'This user is already in the group.')
+  await expect(group.getByRole('alert')).toHaveText(lang==='zh-CN'?'该用户已在此分组中。':'This user is already in the group.')
   await expect(group.locator('.members li')).toHaveCount(1)
+  await expect(group.getByRole('alert')).toBeInViewport()
+  const buttonBounds=await button.boundingBox(), messageBounds=await group.getByRole('alert').boundingBox()
+  expect(messageBounds.y).toBeGreaterThanOrEqual(buttonBounds.y+buttonBounds.height)
+  expect(messageBounds.y-buttonBounds.y-buttonBounds.height).toBeLessThan(24)
+  await expect(page.locator('.settings > [role=alert], .settings > [role=status]')).toHaveCount(0)
+  await expect(profile.getByRole('status')).toHaveText(lang==='zh-CN'?'已更新':'Updated')
   await input.fill(' second@example.test ');await button.click()
   await expect(group.locator('.members li')).toHaveCount(2)
   await input.fill('   ');await button.click()
-  await expect(page.getByRole('status')).toHaveText(lang==='zh-CN'?'请输入用户名或邮箱':'Enter a username or email')
+  await expect(group.getByRole('alert')).toHaveText(lang==='zh-CN'?'请输入用户名或邮箱':'Enter a username or email')
   expect(submitted).toEqual(['Alice','alice@example.test','second@example.test'])
   await expect(page.locator('.group').filter({has:page.getByRole('heading',{name:'Other group'})}).locator('input')).toHaveCount(0)
+  expect(errors).toEqual([])
   await page.close()
   console.log(`PASS group identity form, duplicates, counts, permissions; desktop=${desktop}; lang=${lang}`)
  }
