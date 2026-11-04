@@ -187,6 +187,8 @@ const translations: Record<string, string> = {
   '管理': 'Administration', '账号': 'Account', '退出': 'Sign out',
   '关于': 'About', '关于珠玑笔记': 'About Gemsnote', '版本': 'Version', '平台': 'Platform',
   '运行环境': 'Runtime',
+  '服务端名称': 'Server name', '服务端版本': 'Server version', '最低客户端版本': 'Minimum client version', '未限制': 'No minimum',
+  '服务端版本信息不完整': 'The server returned incomplete version information',
   '正在加载…': 'Loading…', '无法读取应用信息': 'Could not load application information', '重试': 'Retry',
   '选择文件': 'Choose file', '未选择文件': 'No file selected', '选择图片': 'Choose image', '选择附件': 'Choose attachment',
   '请填写此字段。': 'Please fill out this field.', '请输入有效的邮箱地址。': 'Please enter a valid email address.',

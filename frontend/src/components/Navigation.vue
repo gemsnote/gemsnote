@@ -15,6 +15,8 @@ const resetPrompt=ref(false)
 const aboutOpen=ref(false)
 const aboutLoading=ref(false),aboutError=ref('')
 const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
+const serverInfo=ref({server:'',version:'',min_version:''})
+const serverAddress=location.origin
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
@@ -40,7 +42,14 @@ async function showAbout(){
   close()
   aboutOpen.value=true
   aboutLoading.value=true;aboutError.value=''
-  try{aboutInfo.value=await request('/api2/desktop/about')}
+  try{
+    if(desktop.value){aboutInfo.value=await request('/api2/desktop/about')}
+    else{
+      const info=await request('/api2/system/version')
+      if(typeof info?.server!=='string'||!info.server||typeof info?.version!=='string'||!info.version||typeof info?.min_version!=='string')throw new Error(t('服务端版本信息不完整'))
+      serverInfo.value=info
+    }
+  }
   catch(e){aboutError.value=errorMessage(e)}
   finally{aboutLoading.value=false}
 }
@@ -134,7 +143,7 @@ async function logout(event:MouseEvent){
         <div v-if="languageOpen" class="language-options" role="menu" :aria-label="t('语言')">
           <button v-for="item in languages" :key="item.code" role="menuitemradio" :aria-checked="language===item.code" @click="chooseLanguage(item.code)"><span>{{item.name}}</span><span v-if="language===item.code" aria-hidden="true">✓</span></button>
         </div>
-        <button v-if="desktop" class="about-trigger" role="menuitem" @click="showAbout">{{t('关于')}}</button>
+        <button class="about-trigger" role="menuitem" @click="showAbout">{{t('关于')}}</button>
         <a href="/api2/logout" role="menuitem" @click="logout">{{t('退出')}}</a>
       </div>
     </div>
@@ -167,10 +176,16 @@ async function logout(event:MouseEvent){
         <p>{{t('日积字句，终得珠玑。')}}</p>
         <p v-if="aboutLoading" role="status">{{t('正在加载…')}}</p>
         <p v-else-if="aboutError" class="error" role="alert">{{t('无法读取应用信息')}}: {{aboutError}}</p>
-        <dl v-else>
+        <dl v-else-if="desktop">
           <div><dt>{{t('版本')}}</dt><dd>{{aboutInfo.Version||'—'}}</dd></div>
           <div><dt>{{t('平台')}}</dt><dd>{{aboutInfo.Platform}} / {{aboutInfo.Arch}}</dd></div>
           <div><dt>{{t('运行环境')}}</dt><dd>{{aboutInfo.Runtime}}</dd></div>
+        </dl>
+        <dl v-else>
+          <div><dt>{{t('服务端名称')}}</dt><dd>{{serverInfo.server}}</dd></div>
+          <div><dt>{{t('服务端版本')}}</dt><dd>{{serverInfo.version}}</dd></div>
+          <div><dt>{{t('服务器地址')}}</dt><dd>{{serverAddress}}</dd></div>
+          <div><dt>{{t('最低客户端版本')}}</dt><dd>{{serverInfo.min_version||t('未限制')}}</dd></div>
         </dl>
         <div class="choice-dialog-actions"><button v-if="aboutError" @click="showAbout">{{t('重试')}}</button><button class="primary" @click="aboutOpen=false">{{t('关闭')}}</button></div>
       </div>
