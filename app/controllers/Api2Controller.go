@@ -54,7 +54,7 @@ func (c Api2) TokenLogin() revel.Result {
 		"Ok":     true,
 		"Token":  token,
 		"User":   info.ApiUser{UserId: user.UserId.Hex(), Username: user.Username, Email: user.Email, Verified: user.Verified, Logo: user.Logo},
-		"Server": map[string]string{"Name": "gemsnote", "Version": appversion.Current, "MinVersion": ""},
+		"Server": map[string]string{"Name": "gemsnote", "Version": appversion.API, "MinVersion": appversion.MinimumClient},
 	})
 }
 

@@ -14,7 +14,7 @@ type ApiSystem struct {
 func (c ApiSystem) Version() revel.Result {
 	return c.RenderJSON(map[string]string{
 		"server":      "gemsnote",
-		"version":     appversion.Current,
-		"min_version": "",
+		"version":     appversion.API,
+		"min_version": appversion.MinimumClient,
 	})
 }
