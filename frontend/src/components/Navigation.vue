@@ -21,17 +21,22 @@ const serverAddress=location.origin
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
+// Desktop builds inject their canonical api/VERSION while compiling this
+// shared SPA. This is authoritative even when WebKit exposes an HTTP-like URL
+// and generated Wails bindings are unavailable.
+const packagedDesktopVersion=String(import.meta.env.VITE_GEMSNOTE_DESKTOP_VERSION||'').trim()
 // The shared UI is also served by Wails through an HTTP-compatible asset
 // bridge, so neither location.protocol nor generated window.go bindings are a
 // reliable runtime discriminator.  The local bridge owns this endpoint and
 // the server deliberately does not; use that capability as the authority.
-const runtimeDesktop=ref(location.protocol==='wails:'||!!(window as any).go?.main?.App)
+const runtimeDesktop=ref(!!packagedDesktopVersion||location.protocol==='wails:'||!!(window as any).go?.main?.App)
 const desktop=computed(()=>!!props.desktop||runtimeDesktop.value)
 const syncing=ref(false)
 
 async function loadDesktopAbout(){
   const info=await request('/api2/desktop/about')
   if(typeof info?.Version!=='string'||!info.Version)throw new Error(t('无法读取应用信息'))
+  if(packagedDesktopVersion)info.Version=packagedDesktopVersion
   aboutInfo.value=info
   runtimeDesktop.value=true
   return info

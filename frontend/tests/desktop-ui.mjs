@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url'
 import { preview } from 'vite'
 
 // Exercise the shared frontend without window.go bindings or a real server.
-const server = await preview({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, preview: { host: '127.0.0.1', port: 0 } })
+// Release verification may point this test at desktop-app/frontend after the
+// canonical Desktop version has been injected by build-frontend.sh.
+const frontendRoot = process.env.GEMSNOTE_FRONTEND_ROOT || fileURLToPath(new URL('..', import.meta.url))
+const expectedClientVersion = process.env.GEMSNOTE_EXPECT_CLIENT_VERSION || '9.8.7-test'
+const server = await preview({ root: frontendRoot, configFile: false, preview: { host: '127.0.0.1', port: 0 } })
 const baseURL = `http://127.0.0.1:${server.httpServer.address().port}`
 const executablePath = [process.env.GEMSNOTE_CHROMIUM_PATH, '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'].find(path => path && existsSync(path))
 let browser
@@ -82,7 +86,7 @@ try {
       await about.getByRole('button', { name: chinese ? '重试' : 'Retry' }).click()
     }
     await expect(about.locator('dt')).toHaveText([chinese ? '客户端版本' : 'Client version', chinese ? '平台' : 'Platform', chinese ? '运行环境' : 'Runtime', chinese ? '服务端版本' : 'Server version'])
-    for (const value of ['9.8.7-test', 'linux', 'amd64', 'go1.23.0', '1.1.0-server']) await expect(about).toContainText(value)
+    for (const value of [expectedClientVersion, 'linux', 'amd64', 'go1.23.0', '1.1.0-server']) await expect(about).toContainText(value)
     await about.getByRole('button', { name: chinese ? '关闭' : 'Close' }).click()
 
     await page.getByRole('button',{name:chinese?'用户菜单':'User menu',exact:true}).click()
