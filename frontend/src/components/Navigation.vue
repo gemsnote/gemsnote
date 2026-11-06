@@ -14,13 +14,15 @@ const logoutPrompt=ref(false)
 const resetPrompt=ref(false)
 const aboutOpen=ref(false)
 const aboutLoading=ref(false),aboutError=ref('')
+const serverAboutLoading=ref(false),serverAboutError=ref('')
 const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
 const serverInfo=ref({server:'',version:'',min_version:''})
 const serverAddress=location.origin
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
-const desktop=computed(()=>!!props.desktop)
+const wailsRuntime=location.protocol==='wails:'||!!(window as any).go?.main?.App
+const desktop=computed(()=>!!props.desktop||wailsRuntime)
 const syncing=ref(false)
 
 function close(){menuOpen.value=false;languageOpen.value=false;syncOpen.value=false}
@@ -41,16 +43,25 @@ function chooseLogout(force:boolean){
 async function showAbout(){
   close()
   aboutOpen.value=true
-  aboutLoading.value=true;aboutError.value=''
+  aboutLoading.value=true;aboutError.value='';serverAboutError.value='';serverAboutLoading.value=desktop.value
   try{
-    if(desktop.value){aboutInfo.value=await request('/api2/desktop/about')}
+    if(desktop.value){
+      aboutInfo.value=await request('/api2/desktop/about')
+      aboutLoading.value=false
+      try{
+        const info=await request('/api2/system/version')
+        if(typeof info?.server!=='string'||!info.server||typeof info?.version!=='string'||!info.version||typeof info?.min_version!=='string')throw new Error(t('服务端版本信息不完整'))
+        serverInfo.value=info
+      }catch(e){serverAboutError.value=errorMessage(e)}
+      finally{serverAboutLoading.value=false}
+    }
     else{
       const info=await request('/api2/system/version')
       if(typeof info?.server!=='string'||!info.server||typeof info?.version!=='string'||!info.version||typeof info?.min_version!=='string')throw new Error(t('服务端版本信息不完整'))
       serverInfo.value=info
     }
   }
-  catch(e){aboutError.value=errorMessage(e)}
+  catch(e){aboutError.value=errorMessage(e);serverAboutLoading.value=false}
   finally{aboutLoading.value=false}
 }
 onMounted(()=>updateNativeLanguage(language.value))
@@ -177,9 +188,10 @@ async function logout(event:MouseEvent){
         <p v-if="aboutLoading" role="status">{{t('正在加载…')}}</p>
         <p v-else-if="aboutError" class="error" role="alert">{{t('无法读取应用信息')}}: {{aboutError}}</p>
         <dl v-else-if="desktop">
-          <div><dt>{{t('版本')}}</dt><dd>{{aboutInfo.Version||'—'}}</dd></div>
+          <div><dt>{{t('客户端版本')}}</dt><dd>{{aboutInfo.Version||'—'}}</dd></div>
           <div><dt>{{t('平台')}}</dt><dd>{{aboutInfo.Platform}} / {{aboutInfo.Arch}}</dd></div>
           <div><dt>{{t('运行环境')}}</dt><dd>{{aboutInfo.Runtime}}</dd></div>
+          <div><dt>{{t('服务端版本')}}</dt><dd v-if="serverAboutLoading">{{t('正在加载…')}}</dd><dd v-else-if="serverAboutError" :title="serverAboutError">{{t('无法读取服务端版本')}}</dd><dd v-else>{{serverInfo.version}}</dd></div>
         </dl>
         <dl v-else>
           <div><dt>{{t('服务端名称')}}</dt><dd>{{serverInfo.server}}</dd></div>
@@ -187,7 +199,7 @@ async function logout(event:MouseEvent){
           <div><dt>{{t('服务器地址')}}</dt><dd>{{serverAddress}}</dd></div>
           <div><dt>{{t('最低客户端版本')}}</dt><dd>{{serverInfo.min_version||t('未限制')}}</dd></div>
         </dl>
-        <div class="choice-dialog-actions"><button v-if="aboutError" @click="showAbout">{{t('重试')}}</button><button class="primary" @click="aboutOpen=false">{{t('关闭')}}</button></div>
+        <div class="choice-dialog-actions"><button v-if="aboutError||serverAboutError" @click="showAbout">{{t('重试')}}</button><button class="primary" @click="aboutOpen=false">{{t('关闭')}}</button></div>
       </div>
     </section>
   </Teleport>

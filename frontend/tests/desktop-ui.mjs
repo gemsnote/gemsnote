@@ -38,6 +38,7 @@ try {
         case '/api2/desktop/about':
           data = aboutFails ? { Ok: false, Msg: 'info unavailable' } : { Name: 'Gemsnote', Version: '9.8.7-test', Platform: 'linux', Arch: 'amd64', Runtime: 'go1.23.0' }
           break
+        case '/api2/system/version': data = { server: 'gemsnote', version: '1.1.0-server', min_version: '1.1.0' }; break
         case '/api2/groups': data = deletedCount ? [] : [{ GroupId: 'g1', UserId: 'user1', Title: 'test group', Users: [] }]; break
         case '/api2/avatar':
           expect(route.request().headers()['content-type']).toContain('multipart/form-data')
@@ -75,7 +76,8 @@ try {
     await expect(about.getByRole('alert')).toContainText(chinese ? '无法读取应用信息' : 'Could not load application information')
     aboutFails = false
     await about.getByRole('button', { name: chinese ? '重试' : 'Retry' }).click()
-    for (const value of ['9.8.7-test', 'linux', 'amd64', 'go1.23.0']) await expect(about).toContainText(value)
+    await expect(about.locator('dt')).toHaveText([chinese ? '客户端版本' : 'Client version', chinese ? '平台' : 'Platform', chinese ? '运行环境' : 'Runtime', chinese ? '服务端版本' : 'Server version'])
+    for (const value of ['9.8.7-test', 'linux', 'amd64', 'go1.23.0', '1.1.0-server']) await expect(about).toContainText(value)
     await about.getByRole('button', { name: chinese ? '关闭' : 'Close' }).click()
 
     await page.getByRole('button',{name:chinese?'用户菜单':'User menu',exact:true}).click()
