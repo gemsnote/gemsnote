@@ -150,11 +150,16 @@ jobs:
         working-directory: release
         run: sha256sum * > checksums.txt
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
-        run: gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "Gemsnote $RELEASE_TAG"
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "Gemsnote $RELEASE_TAG"
+          fi
 
   publish-image:
     needs: [validate, build]
