@@ -7,7 +7,7 @@
 | 接口前缀 | `/api2` |
 | 使用方 | Web、新桌面客户端和 Flutter 移动客户端 |
 | 当前版本 | `1.1.0`；`1.0.0` 为首个定稿版本 |
-| 版本来源 | [app/version/version.go](../../app/version/version.go)，用于服务端发布版本和 API 版本响应；数据库迁移使用独立标识 |
+| 版本来源 | [app/version/VERSION](../../app/version/VERSION) 与 [app/version/API_VERSION](../../app/version/API_VERSION)，分别用于服务端发布版本与 API2 响应；数据库迁移使用独立标识 |
 | 路由与编码 | [conf/routes](../../conf/routes)、[Web 请求实现](../../frontend/src/api.ts)及对应控制器 |
 | Legacy 接口 | 旧 `/api` 继续保留，详见 [LEGACY_API.md](LEGACY_API.md) |
 

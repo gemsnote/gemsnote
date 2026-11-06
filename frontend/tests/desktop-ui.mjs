@@ -13,7 +13,10 @@ try {
   for (const language of ['zh-CN', 'en-US']) {
     const page = await browser.newPage({ locale: 'en-US', viewport: { width: 1280, height: 800 } })
     const chinese = language === 'zh-CN'
-    let aboutFails = true, uploadCount = 0, createdCount = 0, deletedCount = 0
+    // The English pass intentionally omits the bootstrap Desktop flag. It
+    // verifies that the local /desktop/about capability still selects the
+    // Desktop dialog instead of mislabeling the server version as app version.
+    let aboutFails = chinese, uploadCount = 0, createdCount = 0, deletedCount = 0
     const nativeDialogs = [], pageErrors = []
     let fullSyncRequest,fullSyncRunning=false
     page.on('dialog', async dialog => { nativeDialogs.push(dialog.type()); await dialog.dismiss() })
@@ -32,7 +35,7 @@ try {
           await fullSyncRequest.fulfill({json:{Ok:true,Cancelled:true}})
           data={Ok:true,Cancelled:true};break
         case '/api2/web/downloadStatus': data = { Running: false }; break
-        case '/api2/bootstrap': data = { Desktop: true, Host: 'https://notes.example.test:2443', User: { UserId: 'user1', Username: 'tester', Email: 'tester@example.test' }, Notebooks: [], Tags: [] }; break
+        case '/api2/bootstrap': data = { Desktop: chinese, Host: 'https://notes.example.test:2443', User: { UserId: 'user1', Username: 'tester', Email: 'tester@example.test' }, Notebooks: [], Tags: [] }; break
         case '/api2/notes': data = []; break
         case '/api2/user/info': data = {UserId:'user1',Email:'tester@example.test',Verified:false}; break
         case '/api2/desktop/about':
@@ -73,9 +76,11 @@ try {
     await page.getByRole('button', { name: chinese ? '用户菜单' : 'User menu', exact: true }).click()
     await page.getByRole('menuitem', { name: chinese ? '关于' : 'About', exact: true }).click()
     const about = page.getByRole('dialog', { name: chinese ? '关于珠玑笔记' : 'About Gemsnote', exact: true })
-    await expect(about.getByRole('alert')).toContainText(chinese ? '无法读取应用信息' : 'Could not load application information')
-    aboutFails = false
-    await about.getByRole('button', { name: chinese ? '重试' : 'Retry' }).click()
+    if(aboutFails){
+      await expect(about.getByRole('alert')).toContainText(chinese ? '无法读取应用信息' : 'Could not load application information')
+      aboutFails = false
+      await about.getByRole('button', { name: chinese ? '重试' : 'Retry' }).click()
+    }
     await expect(about.locator('dt')).toHaveText([chinese ? '客户端版本' : 'Client version', chinese ? '平台' : 'Platform', chinese ? '运行环境' : 'Runtime', chinese ? '服务端版本' : 'Server version'])
     for (const value of ['9.8.7-test', 'linux', 'amd64', 'go1.23.0', '1.1.0-server']) await expect(about).toContainText(value)
     await about.getByRole('button', { name: chinese ? '关闭' : 'Close' }).click()
@@ -117,7 +122,7 @@ try {
     await page.getByRole('button', { name: chinese ? '用户菜单' : 'User menu', exact: true }).click()
     await page.getByRole('menuitem', { name: chinese ? '账号' : 'Account', exact: true }).click()
     const serverAddress = page.getByLabel(chinese ? '服务器地址' : 'Server address', { exact: true })
-    await expect(serverAddress).toHaveValue('https://notes.example.test:2443')
+    await expect(serverAddress).toHaveValue(chinese?'https://notes.example.test:2443':baseURL)
     await expect(serverAddress).toHaveAttribute('readonly', '')
     const picker = page.getByRole('button', { name: chinese ? '更换头像' : 'Change avatar', exact: true })
     await expect(page.getByRole('button', { name: chinese ? '选择文件' : 'Choose file', exact: true })).toHaveCount(0)

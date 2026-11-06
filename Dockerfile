@@ -42,7 +42,10 @@ RUN REVEL_DIR="$(go list -m -f '{{.Dir}}' github.com/revel/revel)" && \
 # Stage 3: Shared server and gemsnote-worker runtime
 FROM alpine:3.22
 
+ARG GEMSNOTE_VERSION=development
 LABEL maintainer="raptor<raptor.zh@gmail.com>"
+LABEL org.opencontainers.image.title="Gemsnote" \
+      org.opencontainers.image.version="${GEMSNOTE_VERSION}"
 
 # Install ca-certificates for HTTPS connections and timezone data
 RUN apk --no-cache add ca-certificates tzdata su-exec && \

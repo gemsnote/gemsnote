@@ -218,7 +218,7 @@ Web 默认只发布到宿主机 `127.0.0.1:9000`。
 首次启动前创建 `.env`（不要提交真实密码）：
 
 ```dotenv
-GEMSNOTE_VERSION=1.0.0
+GEMSNOTE_VERSION=1.1.0
 GEMSNOTE_POSTGRES_PASSWORD=请替换为强密码
 ```
 
@@ -245,8 +245,8 @@ docker compose logs -f gemsnote
 运行 GHCR 镜像，可先拉取并标记为这两个文件中的应用镜像名：
 
 ```bash
-docker pull ghcr.io/gemsnote/gemsnote:1.0.0
-docker tag ghcr.io/gemsnote/gemsnote:1.0.0 gemsnote:1.0.0
+docker pull ghcr.io/gemsnote/gemsnote:1.1.0
+docker tag ghcr.io/gemsnote/gemsnote:1.1.0 gemsnote:1.1.0
 ```
 
 然后将下面示例中的 `--build` 替换为 `--no-build`，使用已拉取的镜像；这两个旧文件保留源码构建用途。GHCR 包若为私有，需要先执行 `docker login ghcr.io`；公开包可直接拉取。镜像支持 Linux amd64 和 arm64，Docker 会根据主机架构选择对应镜像。

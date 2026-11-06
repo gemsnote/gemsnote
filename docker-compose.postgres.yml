@@ -20,7 +20,7 @@ services:
     environment:
       GEMSNOTE_MAIL_REDIS_URL: redis://redis:6379/0
     build: .
-    image: gemsnote:1.0.0
+    image: gemsnote:1.1.0
     container_name: gemsnote
     restart: always
     depends_on:
@@ -55,7 +55,7 @@ services:
     stop_grace_period: 45s
     entrypoint: ["/opt/gemsnote/docker-entry-gemsnote-worker.sh"]
     build: .
-    image: gemsnote:1.0.0
+    image: gemsnote:1.1.0
     restart: unless-stopped
     environment:
       GEMSNOTE_MAIL_REDIS_URL: redis://redis:6379/0

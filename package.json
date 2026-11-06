@@ -1,6 +1,5 @@
 {
   "name": "gemsnote-front-end-builder",
-  "version": "1.0.0",
   "private": true,
   "devDependencies": {
     "gulp": "^3.8.7",

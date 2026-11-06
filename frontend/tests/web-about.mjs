@@ -20,6 +20,9 @@ try{
    switch(path){
     case '/api2/bootstrap':data={User:{UserId:'user',Username:'Tester'},Desktop:false,Notebooks:[],Tags:[]};break
     case '/api2/notes':data=[];break
+    // Web has no local Desktop bridge. About probes the capability once, then
+    // falls back to the server-only version view on this expected 404.
+    case '/api2/desktop/about':await route.fulfill({status:404,json:{Ok:false,Msg:'notFound'}});return
     case '/api2/system/version':
      expect(route.request().method()).toBe('GET');versionRequests++
      if(versionRequests===1){pending=route;return}

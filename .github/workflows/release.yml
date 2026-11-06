@@ -37,7 +37,7 @@ jobs:
             exit 1
           fi
           tag_version=$RELEASE_TAG
-          app_version=$(sed -n 's/^const Current = "\([^"]*\)"/\1/p' app/version/version.go)
+          app_version=$(tr -d '[:space:]' < app/version/VERSION)
           if [[ "$tag_version" != "$app_version" ]]; then
             echo "Tag version $tag_version does not match app version $app_version" >&2
             exit 1
@@ -193,4 +193,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.image.outputs.name }}:${{ needs.validate.outputs.version }}
-          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          build-args: GEMSNOTE_VERSION=${{ needs.validate.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}

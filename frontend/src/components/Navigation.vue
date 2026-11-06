@@ -21,9 +21,21 @@ const serverAddress=location.origin
 let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
-const wailsRuntime=location.protocol==='wails:'||!!(window as any).go?.main?.App
-const desktop=computed(()=>!!props.desktop||wailsRuntime)
+// The shared UI is also served by Wails through an HTTP-compatible asset
+// bridge, so neither location.protocol nor generated window.go bindings are a
+// reliable runtime discriminator.  The local bridge owns this endpoint and
+// the server deliberately does not; use that capability as the authority.
+const runtimeDesktop=ref(location.protocol==='wails:'||!!(window as any).go?.main?.App)
+const desktop=computed(()=>!!props.desktop||runtimeDesktop.value)
 const syncing=ref(false)
+
+async function loadDesktopAbout(){
+  const info=await request('/api2/desktop/about')
+  if(typeof info?.Version!=='string'||!info.Version)throw new Error(t('无法读取应用信息'))
+  aboutInfo.value=info
+  runtimeDesktop.value=true
+  return info
+}
 
 function close(){menuOpen.value=false;languageOpen.value=false;syncOpen.value=false}
 function updateNativeLanguage(value:typeof language.value){
@@ -45,8 +57,13 @@ async function showAbout(){
   aboutOpen.value=true
   aboutLoading.value=true;aboutError.value='';serverAboutError.value='';serverAboutLoading.value=desktop.value
   try{
-    if(desktop.value){
-      aboutInfo.value=await request('/api2/desktop/about')
+    let localDesktop=desktop.value
+    if(localDesktop)await loadDesktopAbout()
+    else{
+      try{await loadDesktopAbout();localDesktop=true}
+      catch{/* A normal Web server has no local Desktop capability. */}
+    }
+    if(localDesktop){
       aboutLoading.value=false
       try{
         const info=await request('/api2/system/version')

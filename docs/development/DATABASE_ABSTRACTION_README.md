@@ -31,7 +31,7 @@ DDL 位于 `database/schema.sql`，安装初始数据位于 `database/seed.sql`�
 
 ## 数据库版本迁移
 
-当前应用及数据库版本为 `1.0.0`，集中定义在 `app/version/version.go`。启动时会依次执行 `app/db/migrations.go` 中尚未应用的迁移，并把结果写入：
+当前应用版本集中定义在 `app/version/VERSION`，API2 协议版本定义在 `app/version/API_VERSION`；数据库迁移使用 `app/db/migrations.go` 中独立、不可改写的历史标识。启动时会依次执行尚未应用的迁移，并把结果写入：
 
 - MongoDB：`gemsnote_schema_migrations` 集合；
 - PostgreSQL：`gemsnote_schema_migrations` 表。

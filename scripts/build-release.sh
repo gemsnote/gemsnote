@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   echo "Usage: $0 <goos> <goarch> <absolute-output-dir>" >&2
-  echo "Version is read from app/version/version.go (Current); no version argument is accepted." >&2
+  echo "Version is read from app/version/VERSION; no version argument is accepted." >&2
 }
 if [[ $# -eq 1 && ( "$1" == "--help" || "$1" == "-h" ) ]]; then
   usage
@@ -18,10 +18,10 @@ target_os=$1
 target_arch=$2
 output_dir=$3
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-version_file="$project_root/app/version/version.go"
+version_file="$project_root/app/version/VERSION"
 [[ -f "$version_file" ]] || { echo "Version file not found: $version_file" >&2; exit 1; }
-version=$(sed -n 's/^const Current = "\([^"]*\)"/\1/p' "$version_file")
-[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid or missing Current in $version_file (expected MAJOR.MINOR.PATCH)" >&2; exit 1; }
+version=$(tr -d '[:space:]' < "$version_file")
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid version in $version_file (expected MAJOR.MINOR.PATCH)" >&2; exit 1; }
 case "$target_os/$target_arch" in
   linux/amd64|linux/arm64|darwin/amd64|darwin/arm64|windows/amd64) ;;
   *) echo "Unsupported release target: $target_os/$target_arch" >&2; exit 2 ;;

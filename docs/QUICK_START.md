@@ -89,7 +89,7 @@ Windows 执行 `run.bat`。本机可访问 <http://127.0.0.1:9000>，但 Release
 首次启动前，在该目录创建 `.env`：
 
 ```dotenv
-GEMSNOTE_VERSION=1.0.0
+GEMSNOTE_VERSION=1.1.0
 GEMSNOTE_POSTGRES_PASSWORD=请替换为强密码
 ```
 
