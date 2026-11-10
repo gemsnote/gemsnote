@@ -7,9 +7,8 @@ import {t} from '../i18n'
 import {importLimits,ImportError,type ImportSource} from '../markdownImport'
 import {createImportJob,runImportJob,type ImportJob} from '../importJob'
 import FilePicker from './FilePicker.vue'
-import NotebookPicker from './NotebookPicker.vue'
 
-const props=defineProps<{items:any[];selected:string;userId:string;desktop:boolean}>()
+const props=defineProps<{selected:string;userId:string;desktop:boolean}>()
 const emit=defineEmits<{close:[];changed:[job:ImportJob,complete:boolean]}>()
 const source=shallowRef<ImportSource>(),job=shallowRef<ImportJob>(),destination=ref(props.selected),name=ref(''),busy=ref(false),reading=ref(false),error=ref(''),done=ref(0),stepTitle=ref(''),stop=ref(false),discard=ref(false)
 let worker:Worker|undefined,timer:ReturnType<typeof setTimeout>|undefined,sequence=0,disposed=false
@@ -29,7 +28,7 @@ async function selected(file:File){
   worker=new Worker(new URL('../markdownImport.worker.ts',import.meta.url),{type:'module'})
   timer=setTimeout(()=>{cancelWorker();error.value=t('解析文件超时，请缩小文件后重试');reading.value=false},15000)
   worker.onerror=()=>{cancelWorker();error.value=t('无法解析文件，请重新选择');reading.value=false}
-  worker.onmessage=({data})=>{cancelWorker();reading.value=false;if(data.error){error.value=errorMessage(data.error);return}source.value=data.source;name.value=data.source.title;if(!data.source.zip&&!destination.value)destination.value=props.items[0]?.NotebookId||''}
+  worker.onmessage=({data})=>{cancelWorker();reading.value=false;if(data.error){error.value=errorMessage(data.error);return}source.value=data.source;name.value=data.source.title}
   worker.postMessage({name:file.name,bytes},[bytes.buffer])
  }catch(e){if(token===sequence){error.value=message(e);reading.value=false}}
 }
@@ -63,9 +62,6 @@ onBeforeUnmount(()=>{disposed=true;sequence++;stop.value=true;cancelWorker()})
 <label v-if="source.zip">{{t('新笔记本名称')}}<input v-model="name" maxlength="200"></label>
 <p v-for="warning in source.warnings||[]" :key="warning" role="note">{{t(warning)}}</p>
 <p>{{t('将导入 {notes} 篇笔记、{books} 个新笔记本；跳过 {ignored} 个文件。',{notes:source.notes.length,books:source.zip?source.folders.length+1:0,ignored:source.ignored})}}</p>
-<p>{{t(source.zip?'选择新笔记本的父级':'选择目标笔记本')}}</p>
-<NotebookPicker v-model="destination" :items="items" :root="source.zip"/>
-<p v-if="!source.zip&&!items.length">{{t('请先创建一个笔记本，再导入单个文档。')}}</p>
 </template>
 </template>
 <template v-else>
@@ -82,7 +78,7 @@ onBeforeUnmount(()=>{disposed=true;sequence++;stop.value=true;cancelWorker()})
 </template>
 <div v-else class="choice-dialog-actions">
 <button v-if="busy" :disabled="stop" @click="stop=true">{{t('暂停导入')}}</button>
-<button v-else-if="!complete" class="primary" :disabled="reading||!source||(!source.zip&&!destination)||(source.zip&&!name.trim())" @click="start">{{t(job?'继续导入':'开始导入')}}</button>
+<button v-else-if="!complete" class="primary" :disabled="reading||!source||!destination||(source.zip&&!name.trim())" @click="start">{{t(job?'继续导入':'开始导入')}}</button>
 <button :disabled="busy" @click="close">{{t(complete?'关闭':'取消')}}</button>
 </div>
 </div></section>

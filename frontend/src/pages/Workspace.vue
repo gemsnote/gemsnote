@@ -467,7 +467,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <button class="primary" @click="create(true)">{{t('新建笔记')}}</button>
 </div>
 </main>
-<ImportDialog v-if="importing" ref="importDialog" :items="notebookTree" :selected="importTarget" :user-id="boot.User.UserId" :desktop="!!boot.Desktop" @close="importing=false" @changed="imported"/>
+<ImportDialog v-if="importing" ref="importDialog" :selected="importTarget" :user-id="boot.User.UserId" :desktop="!!boot.Desktop" @close="importing=false" @changed="imported"/>
 <section v-if="movingBook" class="dialog-backdrop" @click.self="!movingBookBusy&&(movingBook='')">
 <div class="dialog" role="dialog" aria-modal="true" :aria-label="t('移动笔记本')">
 <h2>{{t('移动笔记本')}}</h2>
