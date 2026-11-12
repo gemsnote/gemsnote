@@ -51,6 +51,7 @@ const isSharedNote=computed(()=>!!current.value&&(!!current.value.Note.IsShared|
 const shareBusy=ref(false)
 const shareSuggestions=computed<string[]>(()=>[...(boot.value.Sharing?.Suggestions||[]),...(boot.value.Sharing?.Recipients||[])].map((u:any)=>u.Username).filter(Boolean))
 const sharedRecipients=computed(()=>(boot.value.Sharing?.Recipients||[]).filter((u:any)=>u.NoteIds?.includes(current.value?.Note.NoteId)).map((u:any)=>u.Username).join(', '))
+const sharedBy=computed(()=>isSharedNote.value?[...(boot.value.Sharing?.Owners||[]),...(boot.value.SharedUsers||[])].find((u:any)=>u.UserId===current.value?.Note.UserId)?.Username||current.value?.Note.OwnerUsername||'':'')
 const placedShares=computed<any[]>(()=>boot.value.Sharing?.PlacedShares||[])
 const totalNotes=computed(()=>Number(boot.value.TotalNotes||0)+placedShares.value.length)
 const sharedCacheLabel=computed(()=>{if(!isSharedNote.value)return'';const state=current.value?.Note.CacheState as string|undefined;const at=current.value?.Note.CachedAt as string|undefined;switch(state){case 'ready':return at?t('离线缓存 {date}',{date:formatDate(at)}):t('离线缓存');case 'stale':return t('缓存待更新');case 'pending':return t('未下载，请先同步');case 'revoked':return t('已撤销访问');default:return''}})
@@ -401,6 +402,7 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <span>{{t('修改：')}}{{formatDate(current.Note.UpdatedTime)}}</span>
 <span>{{t('格式：')}}{{current.Note.IsMarkdown?'MD':'RT'}}</span>
 <span v-if="sharedRecipients" :title="sharedRecipients">{{t('已共享给：')}}{{sharedRecipients}}</span>
+<span v-if="sharedBy" :title="sharedBy">{{t('共享自：')}}{{sharedBy}}</span>
 <span class="note-id" :title="current.Note.NoteId">{{current.Note.NoteId}}</span>
 </div>
 <NotePreview v-if="preview||!writable" :key="current.Note.NoteId" :content="content" :markdown="current.Note.IsMarkdown" @error.capture="imageUnavailable"/>

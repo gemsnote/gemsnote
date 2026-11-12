@@ -28,7 +28,7 @@ async function selected(file:File){
   worker=new Worker(new URL('../markdownImport.worker.ts',import.meta.url),{type:'module'})
   timer=setTimeout(()=>{cancelWorker();error.value=t('解析文件超时，请缩小文件后重试');reading.value=false},15000)
   worker.onerror=()=>{cancelWorker();error.value=t('无法解析文件，请重新选择');reading.value=false}
-  worker.onmessage=({data})=>{cancelWorker();reading.value=false;if(data.error){error.value=errorMessage(data.error);return}source.value=data.source;name.value=data.source.title}
+  worker.onmessage=({data})=>{cancelWorker();reading.value=false;if(data.error){error.value=data.params?t(data.error,data.params):errorMessage(data.error);return}source.value=data.source;name.value=data.source.title}
   worker.postMessage({name:file.name,bytes},[bytes.buffer])
  }catch(e){if(token===sequence){error.value=message(e);reading.value=false}}
 }
@@ -55,6 +55,7 @@ onBeforeUnmount(()=>{disposed=true;sequence++;stop.value=true;cancelWorker()})
 <h2>{{t('导入笔记')}}</h2>
 <p>{{t('Markdown 导入为 Markdown 笔记，RTF/DOCX 导入为富文本笔记；ZIP 文件夹成为子笔记本。')}}</p>
 <p class="muted">{{t('文档最大 4 MiB，ZIP 最大 32 MiB。不下载远程资源。')}}</p>
+<p class="muted">{{t('ZIP 最多 {entries} 个条目、{notes} 篇笔记、{notebooks} 个子笔记本、{depth} 层目录。',importLimits)}}</p>
 <template v-if="!job">
 <FilePicker :label="t('Markdown、RTF、DOCX 或 ZIP 文件')" accept=".md,.markdown,.rtf,.docx,.zip" @selected="selected"/>
 <p v-if="reading" role="status">{{t('正在解析文件…')}}</p>

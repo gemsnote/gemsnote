@@ -11,14 +11,16 @@ try {
   const shares=[]
   const requests=[]
   const own={NoteId:'own',NotebookId:'mine',UserId:'me',Title:'My rich text',IsMarkdown:false,UpdatedTime:'2026-10-30T10:00:00Z'}
+  let catalogue=[own]
+  const outgoing=['own'],notePages=[]
   const received={NoteId:'shared',NotebookId:'remote',UserId:'author',Title:'Shared Markdown',IsMarkdown:true,UpdatedTime:'2026-10-30T09:00:00Z',Perm:0,IsShared:true}
   await page.route('**/api2/**',async route=>{
    const path=new URL(route.request().url()).pathname
    const body=route.request().postData()||''
    let data={Ok:true}
    switch(path){
-    case '/api2/bootstrap':data={Desktop:desktop,User:{UserId:'me',Username:'me'},Notebooks:[{NotebookId:'mine',Title:'My notebook',NumberNotes:copied?2:1}],Tags:[],TotalNotes:copied?2:1,SharedNotebooks:{author:[{IsDefault:true,Title:'Author shares'}]},Sharing:{Suggestions:[{UserId:'past',Username:'past-reader',NoteIds:[]}],Recipients:[{UserId:'reader',Username:'Reader Alice',NoteIds:['own']}],Placements:moved?{shared:'mine'}:{},PlacedShares:moved?[{...received,NotebookId:'mine'}]:[]}};break
-    case '/api2/notes':data=[own];break
+    case '/api2/bootstrap':data={Desktop:desktop,User:{UserId:'me',Username:'me'},Notebooks:[{NotebookId:'mine',Title:'My notebook',NumberNotes:copied?2:1}],Tags:[],TotalNotes:copied?2:1,SharedNotebooks:{author:[{IsDefault:true,Title:'Author shares'}]},SharedUsers:desktop?undefined:[{UserId:'author',Username:'Original author'}],Sharing:{Owners:desktop?[{UserId:'author',Username:'Original author'}]:[],Suggestions:[{UserId:'past',Username:'past-reader',NoteIds:[]}],Recipients:[{UserId:'reader',Username:'Reader Alice',NoteIds:outgoing}],Placements:moved?{shared:'mine'}:{},PlacedShares:moved?[{...received,NotebookId:'mine'}]:[]}};break
+    case '/api2/notes':{const number=JSON.parse(body).page||1;notePages.push(number);data=catalogue.slice((number-1)*100,number*100);break}
     case '/api2/share/listShareNotes':data=[received];break
     case '/api2/document':{
      const id=JSON.parse(body).noteId
@@ -54,12 +56,25 @@ try {
   await expect.poll(()=>shares.length).toBe(2);expect(shares[1]).toBe('reader@example.test')
   await page.getByRole('dialog').getByRole('button',{name:lang==='zh-CN'?'关闭':'Close',exact:true}).click()
 
+  // Match the live regression: two outgoing shares at positions 5 and 232.
+  // Both must appear even though their metadata is fetched on different pages.
+  outgoing.push('old-own')
+  catalogue=Array.from({length:251},(_,i)=>i===4?own:{...own,NoteId:i===231?'old-own':`filler-${i}`,Title:i===231?'Older shared note':`Filler ${i}`})
+  await page.reload()
+  await expect(page.locator('.note-item')).toHaveCount(251)
+  notePages.length=0
   await page.getByRole('button',{name:/Reader Alice/}).click()
   await expect(page.locator('.note-list h2')).toHaveText('Reader Alice')
+  await expect(page.locator('.note-item')).toHaveCount(2)
+  await expect(page.locator('.note-list')).toContainText('Older shared note')
+  expect(notePages).toEqual([1,2,3])
+  catalogue=[own]
   await page.getByRole('button',{name:'♧ Author shares',exact:true}).click()
+  await expect(page.locator('.note-item')).toHaveCount(1)
   await expect(page.locator('.note-format')).toHaveText('MD')
   await page.locator('.note-item').click()
   await expect(page.locator('.rendered')).toContainText('Read only content')
+  await expect(page.locator('.note-info-line')).toContainText((lang==='zh-CN'?'共享自：':'Shared by: ')+'Original author')
   await expect(page.getByRole('button',{name:lang==='zh-CN'?'编辑':'Edit',exact:true})).toHaveCount(0)
   // Locate via the toolbar to keep translated button text assertions explicit.
   const action=page.locator('.toolbar-actions button').filter({hasText:lang==='zh-CN'?'移动/复制':/Move.*copy/i})
@@ -70,6 +85,7 @@ try {
   await expect(dialog).toHaveCount(0)
   expect(requests[0]).toEqual({path:'/api2/shared/move',body:{noteId:'shared',notebookId:'mine'}})
   await expect(page.locator('.note-info-line')).toContainText('My notebook')
+  await expect(page.locator('.note-info-line')).toContainText('Original author')
   await expect(page.locator('.notebook-select small')).toHaveText('2')
   await page.locator('.notebook-select').click()
   await expect(page.locator('.note-item')).toHaveCount(2)

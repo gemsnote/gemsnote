@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest'
 import {zipSync,strToU8,type Zippable} from 'fflate'
-import {parseMarkdownImport,importLimits} from './markdownImport'
+import {parseMarkdownImport,importLimits,ImportError} from './markdownImport'
 import {createImportJob,runImportJob,type ImportAPI} from './importJob'
 
 const zip=(entries:Zippable)=>zipSync(entries)
@@ -57,6 +57,15 @@ describe('Markdown import validation',()=>{
  it('rejects archives without Markdown and unsupported file extensions',()=>{
   expect(()=>parseMarkdownImport('empty.zip',zip({'a.png':md('image')}))).toThrow('没有可导入的文档')
   expect(()=>parseMarkdownImport('a.txt',md('text'))).toThrow('请选择')
+ })
+ it.each([
+  ['entries',5001,5000,()=>Object.fromEntries(Array.from({length:5001},(_,i)=>[`${i}.bin`,new Uint8Array()])),'ZIP 总条目数'],
+  ['notes',2001,2000,()=>Object.fromEntries(Array.from({length:2001},(_,i)=>[`${i}.md`,md('body')])),'ZIP 可导入笔记数'],
+  ['notebooks',1001,1000,()=>({...Object.fromEntries(Array.from({length:1001},(_,i)=>[`${i}/`,new Uint8Array()])), 'root.md':md('body')}),'ZIP 子笔记本数量'],
+ ] as const)('reports %s limits separately even for small archives',(_,count,limit,entries,message)=>{
+  const bytes=zip(entries())
+  expect(bytes.length).toBeLessThan(importLimits.archive)
+  try{parseMarkdownImport('small.zip',bytes);throw Error('must reject')}catch(e){expect(e).toBeInstanceOf(ImportError);expect((e as ImportError).key).toContain(message);expect((e as ImportError).params).toEqual({count,limit})}
  })
 })
 

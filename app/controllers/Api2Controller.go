@@ -217,6 +217,12 @@ func (c Api2) Notes() revel.Result {
 	c.Params.Form.Set("starred", boolString(p.Starred))
 	if p.Page > 0 {
 		c.Params.Form.Set("page", intString(p.Page))
+		// Revel's Bind/GetPage reads Values, which was computed before this
+		// JSON facade ran; changing Form alone repeats page 1 on every request.
+		if c.Params.Values == nil {
+			c.Params.Values = url.Values{}
+		}
+		c.Params.Values.Set("page", intString(p.Page))
 	}
 	return (Web{c.BaseController}).Notes(p.NotebookID, p.Key, p.Tag, p.Sort, p.Trash)
 }

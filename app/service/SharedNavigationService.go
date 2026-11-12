@@ -21,6 +21,7 @@ type PlacedSharedNote struct {
 	Perm     int
 }
 type SharingNavigation struct {
+	Owners       []SharingRecipient
 	Suggestions  []SharingRecipient
 	Recipients   []SharingRecipient
 	Placements   map[string]string
@@ -33,7 +34,13 @@ func (s *ShareService) Navigation(userID string) (*SharingNavigation, error) {
 	if !bson.IsObjectIdHex(userID) {
 		return nil, fmt.Errorf("invalid user")
 	}
-	result := &SharingNavigation{Suggestions: s.shareSuggestions(userID), Recipients: []SharingRecipient{}, Placements: map[string]string{}, PlacedShares: []PlacedSharedNote{}}
+	result := &SharingNavigation{Owners: []SharingRecipient{}, Suggestions: s.shareSuggestions(userID), Recipients: []SharingRecipient{}, Placements: map[string]string{}, PlacedShares: []PlacedSharedNote{}}
+	// Keep public sharer names in the snapshot navigation, so offline clients
+	// can identify the author without caching private user profiles.
+	_, owners := s.GetShareNotebooks(userID)
+	for _, owner := range owners {
+		result.Owners = append(result.Owners, SharingRecipient{UserId: owner.UserId.Hex(), Username: owner.Username, NoteIds: []string{}})
+	}
 	placements, err := db.SharedPlacements(userID)
 	if err != nil {
 		return nil, err

@@ -8,9 +8,9 @@ export const importLimits = {archive:32*1024*1024, note:4*1024*1024, total:64*10
 export interface ImportNote {path:string; title:string; content:string; folder:string;isMarkdown?:boolean;tags?:string[];createdTime?:string;updatedTime?:string}
 export interface ImportSource {zip:boolean; title:string; folders:string[]; notes:ImportNote[]; ignored:number;warnings?:string[]}
 export class ImportError extends Error {
- constructor(public key:string){super(key);this.name='ImportError'}
+ constructor(public key:string,public params:Record<string,string|number>={}){super(key);this.name='ImportError'}
 }
-function fail(key:string):never {throw new ImportError(key)}
+function fail(key:string,params?:Record<string,string|number>):never {throw new ImportError(key,params)}
 const markdown=/\.(md|markdown)$/i
 // Import planning is independent of the UI/system language. Preserve a stable
 // path order across builds, with parent folders created before their children.
@@ -36,7 +36,7 @@ function zipEntries(bytes:Uint8Array,docx=false):ZipEntry[]{
  if(end<0||end<Math.max(0,len-65557))fail('ZIP 文件损坏或格式不受支持')
  const count=u16(end+10),offset=u32(end+16),centralSize=u32(end+12)
  if(u16(end+4)||u16(end+6)||u16(end+8)!==count||count===65535||offset+centralSize!==end)fail('ZIP 文件损坏或格式不受支持')
- if(count>importLimits.entries)fail('ZIP 文件数量超出导入限制')
+ if(count>importLimits.entries)fail('ZIP 总条目数为 {count}，超过 {limit} 个上限（包含文件和目录）',{count,limit:importLimits.entries})
  const entries:ZipEntry[]=[],seen=new Set<string>()
  let pos=offset,total=0,notes=0
  for(let i=0;i<count;i++){
@@ -57,11 +57,12 @@ function zipEntries(bytes:Uint8Array,docx=false):ZipEntry[]{
   if(keep){
    if(method!==0&&method!==8)fail('ZIP 文件损坏或格式不受支持')
    if(size>importLimits.note||(total+=size)>importLimits.total)fail('文档内容大小超出导入限制')
-   if(++notes>importLimits.notes)fail('ZIP 文件数量超出导入限制')
+   notes++
   }
   entries.push({name,path,directory,size,crc:u32(pos+16),keep});pos=next
  }
  if(pos!==end)fail('ZIP 文件损坏或格式不受支持')
+ if(notes>importLimits.notes)fail('ZIP 可导入笔记数为 {count}，超过 {limit} 篇上限',{count:notes,limit:importLimits.notes})
  return entries
 }
 function richContent(name:string,bytes:Uint8Array):string{
@@ -107,6 +108,6 @@ export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
   notes.push({path:entry.path,...(markdown.test(entry.path)?parseHugoMarkdown(content,title(entry.path.slice(index+1))):{title:title(entry.path.slice(index+1)),content}),folder,isMarkdown:markdown.test(entry.path)})
  }
  if(!notes.length)fail('ZIP 中没有可导入的文档')
- if(folders.size>importLimits.notebooks)fail('ZIP 文件数量超出导入限制')
+ if(folders.size>importLimits.notebooks)fail('ZIP 子笔记本数量为 {count}，超过 {limit} 个上限',{count:folders.size,limit:importLimits.notebooks})
  return {zip:true,title:title(name),folders:[...folders].sort((a,b)=>a.split('/').length-b.split('/').length||comparePath(a,b)),notes:notes.sort((a,b)=>comparePath(a.path,b.path)),ignored:entries.filter(e=>!e.directory&&!e.keep).length,warnings:notes.some(n=>n.isMarkdown===false)?[richWarning]:[]}
 }
