@@ -7,6 +7,12 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '新增':'New', '导入':'Import', '笔记列表':'Note list', '所选笔记操作':'Selected note actions', '取消选择':'Clear selection',
+ '批量移动笔记':'Move selected notes', '批量共享笔记':'Share selected notes', '批量删除笔记':'Delete selected notes',
+ '已选中 {count} 篇笔记':'{count} notes selected', '请选择笔记':'Select notes first.', '操作参数无效':'Invalid action parameters.',
+ '只能共享或删除自己的笔记':'Only your own notes can be shared or deleted.', '所选笔记将以只读方式共享。':'The selected notes will be shared as read-only.',
+ '将所选笔记放入回收站？':'Move the selected notes to Trash?', '永久删除所选笔记？此操作不可撤销。':'Permanently delete the selected notes? This cannot be undone.',
+ '部分笔记操作失败，已完成 {done}/{total}；重试仅处理失败项。':'Some actions failed ({done}/{total} completed). Retry processes only the failed notes.',
  "httpFailure":"Request failed (HTTP {status}). Check the server and try again.",
  "operationFailed":"The operation failed. Try again; if it persists, check the logs or contact your administrator.",
  "operationCancelled":"The operation was cancelled.",

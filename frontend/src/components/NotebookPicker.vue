@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed,ref} from 'vue'
 import {t} from '../i18n'
-const props=defineProps<{items:any[];modelValue:string;exclude?:string;root?:boolean}>()
+const props=defineProps<{items:any[];modelValue:string;exclude?:string;root?:boolean;disabled?:boolean}>()
 const emit=defineEmits<{ 'update:modelValue':[value:string] }>()
 const search=ref(''),collapsed=ref(new Set<string>())
 const rows=computed(()=>{
@@ -18,12 +18,12 @@ function toggle(id:string){const next=new Set(collapsed.value);next.has(id)?next
 </script>
 <template>
 <div class="notebook-picker">
-<input v-model="search" :placeholder="t('搜索笔记本')" :aria-label="t('搜索笔记本')">
+<input v-model="search" :disabled="disabled" :placeholder="t('搜索笔记本')" :aria-label="t('搜索笔记本')">
 <div class="picker-tree" :aria-label="t('选择笔记本')">
-<button v-if="root" type="button" :class="{selected:modelValue===''}" @click="emit('update:modelValue','')">{{t('根目录')}}</button>
+<button v-if="root" type="button" :disabled="disabled" :class="{selected:modelValue===''}" @click="emit('update:modelValue','')">{{t('根目录')}}</button>
 <div v-for="n in rows" :key="n.NotebookId" class="picker-row" :style="{paddingLeft:n.depth*18+'px'}">
-<button v-if="n.Subs?.length" type="button" :aria-label="t('展开或收起笔记本')" :aria-expanded="!collapsed.has(n.NotebookId)" @click="toggle(n.NotebookId)">{{collapsed.has(n.NotebookId)?'▸':'▾'}}</button><span v-else class="picker-leaf">·</span>
-<button type="button" :class="{selected:modelValue===n.NotebookId}" :aria-pressed="modelValue===n.NotebookId" :title="n.Title" @click="emit('update:modelValue',n.NotebookId)">{{n.Title}}</button>
+<button v-if="n.Subs?.length" type="button" :disabled="disabled" :aria-label="t('展开或收起笔记本')" :aria-expanded="!collapsed.has(n.NotebookId)" @click="toggle(n.NotebookId)">{{collapsed.has(n.NotebookId)?'▸':'▾'}}</button><span v-else class="picker-leaf">·</span>
+<button type="button" :disabled="disabled" :class="{selected:modelValue===n.NotebookId}" :aria-pressed="modelValue===n.NotebookId" :title="n.Title" @click="emit('update:modelValue',n.NotebookId)">{{n.Title}}</button>
 </div>
 <p v-if="!rows.length">{{t('没有匹配的笔记本')}}</p>
 </div></div>

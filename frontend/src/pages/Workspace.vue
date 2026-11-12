@@ -14,6 +14,9 @@ import TagInput from '../components/TagInput.vue'
 import ShareRecipientInput from '../components/ShareRecipientInput.vue'
 import ImportDialog from '../components/ImportDialog.vue'
 import type {ImportJob} from '../importJob'
+import NoteBatchDialog from '../components/NoteBatchDialog.vue'
+import {selectNote,type NoteSelection} from '../noteSelection'
+import {ownsNote,type BatchAction,type BatchNote} from '../noteBatch'
 import {language,t,formatDate} from '../i18n'
 import {confirmAction,confirmNotebookDelete,promptText} from '../dialogs'
 const restoringHistory=ref(false)
@@ -22,6 +25,53 @@ const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),t
 const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'CreatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
+const noteSelection=ref<NoteSelection>({ids:new Set(),anchor:''})
+const selectionMenu=ref<{x:number;y:number}|null>(null),batchAction=ref<BatchAction|null>(null),batchNotes=ref<BatchNote[]>([])
+const selectedNotes=computed(()=>sorted.value.filter(note=>noteSelection.value.ids.has(note.NoteId)))
+const selectedOwned=computed(()=>selectedNotes.value.length>0&&selectedNotes.value.every(note=>ownsNote(note,boot.value.User?.UserId)))
+function clearNoteSelection(){noteSelection.value={ids:new Set(),anchor:''};selectionMenu.value=null}
+function showSelectionMenu(event:MouseEvent){
+ const edge=(event.target instanceof Element?event.target.closest('.note-list')?.getBoundingClientRect().right:undefined)??event.clientX
+ selectionMenu.value={x:Math.max(8,Math.min(edge+8,window.innerWidth-230)),y:Math.max(8,Math.min(event.clientY,window.innerHeight-230))}
+ bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false
+}
+async function selectNoteRow(note:any,event:MouseEvent){
+ if(!event.ctrlKey&&!event.metaKey&&!event.shiftKey){selectionMenu.value=null;await open(note.NoteId);return}
+ if(!await flush())return
+ const order=sorted.value.map(note=>note.NoteId)
+ if(!order.includes(note.NoteId))return
+ noteSelection.value=selectNote(noteSelection.value,order,note.NoteId,{toggle:event.ctrlKey||event.metaKey,range:event.shiftKey})
+ if(noteSelection.value.ids.size)showSelectionMenu(event);else selectionMenu.value=null
+}
+async function noteContextMenu(note:any,event:MouseEvent){
+ if(!await flush()||!sorted.value.some(item=>item.NoteId===note.NoteId))return
+ if(!noteSelection.value.ids.has(note.NoteId))noteSelection.value={ids:new Set([note.NoteId]),anchor:note.NoteId}
+ showSelectionMenu(event)
+}
+async function showBatch(action:BatchAction){
+ selectionMenu.value=null
+ if(!selectedNotes.value.length||action!=='move'&&!selectedOwned.value||action!=='delete'&&trash.value)return
+ if(!await flush())return
+ batchNotes.value=selectedNotes.value.map(note=>({...note}))
+ batchAction.value=action
+}
+async function batchChanged(ids:string[],action:BatchAction){
+ const completed=new Set(ids)
+ noteSelection.value={ids:new Set([...noteSelection.value.ids].filter(id=>!completed.has(id))),anchor:''}
+ if(action==='delete'){
+  loadId++
+  if(completed.has(current.value?.Note.NoteId)){dirty.value=false;current.value=null}
+ }
+ try{
+  if(!await bootstrap())return
+  await load()
+  const id=current.value?.Note.NoteId
+  if(action==='move'&&id&&completed.has(id)){
+   const doc=await request('/web/document',{noteId:id})
+   if(current.value?.Note.NoteId===id&&!dirty.value)current.value=doc
+  }
+ }catch(e){error.value=errorMessage(e)}
+}
 const importing=ref(false),importTarget=ref('')
 const importDialog=ref<InstanceType<typeof ImportDialog>>()
 async function showImport(target:string){bookMenu.value='';if(await flush()){importTarget.value=target;importing.value=true}}
@@ -156,9 +206,9 @@ function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(runSe
 async function setStar(n:any){if(sharedOwner.value||n.IsShared)return;try{const next=!n.IsStar;await request('/web/star',{noteId:n.NoteId,starred:next});n.IsStar=next;boot.value.TotalStarred=Math.max(0,Number(boot.value.TotalStarred||0)+(next?1:-1));if(boot.value.Desktop)boot.value.PendingChanges=true;if(starred.value)await load()}catch(e){error.value=errorMessage(e)}}
 async function attachmentsFor(noteId:string){try{const r:any=await request('/attach/getAttachs',{noteId});if(current.value?.Note.NoteId===noteId)attachments.value=r.List||[]}catch(e){if(current.value?.Note.NoteId===noteId){attachments.value=[];error.value=errorMessage(e)}}}
 async function refreshDocument(){if(!current.value)return;current.value=await request('/web/document',{noteId:current.value.Note.NoteId})}
-async function open(id:string){if(!await flush())return;const token=++loadId;try{const doc=await request('/web/document',{noteId:id});if(token!==loadId)return;preview.value=true;current.value=doc;mobileNotesVisible.value=false;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;panel.value='';await attachmentsFor(id);await router.replace(`/note/${id}`)}catch(e){error.value=errorMessage(e)}}
-async function select(id='',owner='',isTrash=false,isStar=false,recipient=''){if(!await flush())return;clearTimeout(searchTimer);showNotes();notebook.value=id;sharedOwner.value=owner;sharingRecipient.value=recipient;trash.value=isTrash;starred.value=isStar;search.value='';tagFilter.value='';bookMenu.value='';await load();sidebar.value=false}
-async function selectTag(tag:string){if(!await flush())return;clearTimeout(searchTimer);showNotes();notebook.value='';sharedOwner.value='';sharingRecipient.value='';trash.value=false;starred.value=false;search.value='';tagFilter.value=tag;await load();sidebar.value=false}
+async function open(id:string){if(!await flush())return;noteSelection.value={ids:new Set([id]),anchor:id};selectionMenu.value=null;const token=++loadId;try{const doc=await request('/web/document',{noteId:id});if(token!==loadId)return;preview.value=true;current.value=doc;mobileNotesVisible.value=false;title.value=doc.Note.Title;content.value=doc.Content||'';tags.value=(doc.Note.Tags||[]).join(',');dirty.value=false;panel.value='';await attachmentsFor(id);await router.replace(`/note/${id}`)}catch(e){error.value=errorMessage(e)}}
+async function select(id='',owner='',isTrash=false,isStar=false,recipient=''){if(!await flush())return;clearNoteSelection();clearTimeout(searchTimer);showNotes();notebook.value=id;sharedOwner.value=owner;sharingRecipient.value=recipient;trash.value=isTrash;starred.value=isStar;search.value='';tagFilter.value='';bookMenu.value='';await load();sidebar.value=false}
+async function selectTag(tag:string){if(!await flush())return;clearNoteSelection();clearTimeout(searchTimer);showNotes();notebook.value='';sharedOwner.value='';sharingRecipient.value='';trash.value=false;starred.value=false;search.value='';tagFilter.value=tag;await load();sidebar.value=false}
 function hasChildren(n:any){return Array.isArray(n.Subs)&&n.Subs.length>0}
 async function selectBook(n:any){if(hasChildren(n)){const next=new Set(expandedNotebooks.value);if(next.has(n.NotebookId))next.delete(n.NotebookId);else next.add(n.NotebookId);expandedNotebooks.value=next}await select(n.NotebookId)}
 let stopResize:(()=>void)|undefined
@@ -261,8 +311,8 @@ async function downloadBook(id:string){
 }
 
 function leave(e:BeforeUnloadEvent){if(dirty.value||saving.value||importDialog.value?.pending){e.preventDefault();e.returnValue=''}}
-function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();flush()}}
-function closeBookMenu(e:PointerEvent){bookMenu.value='';if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
+function shortcut(e:KeyboardEvent){if(e.key==='Escape'){bookMenu.value='';clearNoteSelection();if(sortMenu.value)sortMenu.value.open=false}if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();flush()}}
+function closeBookMenu(e:PointerEvent){bookMenu.value='';selectionMenu.value=null;if(sortMenu.value&&!sortMenu.value.contains(e.target as Node))sortMenu.value.open=false}
 function handleSyncResult(result:any){
  const value=result?.detail||result||{}
  if(value.Ok===false){error.value=errorMessage(value.Msg||'syncFailed');return}
@@ -292,6 +342,11 @@ onMounted(async()=>{(window as any).__gemsnoteBeforeLogout=flush;(window as any)
 onBeforeUnmount(()=>{delete (window as any).__gemsnoteBeforeLogout;delete (window as any).__gemsnoteBeforeReset;delete (window as any).__gemsnoteAfterReset;delete (window as any).__gemsnoteSyncNow;clearTimeout(saveTimer);clearTimeout(searchTimer);stopResize?.();runtimeUnsubscribers.splice(0).forEach(unsubscribe=>unsubscribe());document.body.classList.remove('panel-resizing');window.removeEventListener('sync-result',handleSyncResult as EventListener);window.removeEventListener('resize',updateCompact);window.removeEventListener('beforeunload',leave);window.removeEventListener('keydown',shortcut);window.removeEventListener('pointerdown',closeBookMenu)})
 onBeforeRouteLeave(async(to)=>{if(to.path!=='/login'&&importDialog.value?.pending&&!await confirmAction(t('关闭后将无法继续本次导入，已导入内容会保留。确认关闭？')))return false;return await flush()})
 watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(String(id));else if(!id)flush().then(ok=>{if(ok)current.value=null})})
+watch(()=>sorted.value.map(note=>note.NoteId).join(','),()=>{
+ const visible=new Set(notes.value.map(note=>note.NoteId))
+ noteSelection.value={ids:new Set([...noteSelection.value.ids].filter(id=>visible.has(id))),anchor:visible.has(noteSelection.value.anchor)?noteSelection.value.anchor:''}
+ selectionMenu.value=null
+})
 </script>
 <template>
 <main v-if="!authenticated" class="auth-shell" aria-busy="true"></main>
@@ -312,7 +367,15 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div v-for="n in filteredBooks" :key="n.NotebookId" class="notebook-row" :class="{selected:notebook===n.NotebookId}" :style="{paddingLeft:4+n.depth*16+'px'}">
 <button class="notebook-select" @click="selectBook(n)"><span class="tree-toggle" :aria-hidden="true">{{hasChildren(n)?(expandedNotebooks.has(n.NotebookId)?'▾':'▸'):'▱'}}</span> <span :title="n.Title">{{n.Title}}</span><small>{{n.NumberNotes}}</small></button>
 <button class="notebook-more" aria-haspopup="menu" :aria-expanded="bookMenu===n.NotebookId" :aria-label="t('{name} 菜单',{name:n.Title})" @pointerdown.stop @click.stop="bookMenu=bookMenu===n.NotebookId?'':n.NotebookId">⋯</button>
-<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop><button role="menuitem" @click="addBook(n.NotebookId)">{{t('新增子笔记本')}}</button><button role="menuitem" @click="showImport(n.NotebookId)">{{t('导入笔记/笔记本')}}</button><button role="menuitem" :disabled="exporting" @click="downloadBook(n.NotebookId)">{{t('导出笔记本（ZIP）')}}</button><button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button><button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button><button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button></div>
+<div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop>
+<button role="menuitem" :aria-label="t('新增子笔记本')" @click="addBook(n.NotebookId)">{{t('新增')}}</button>
+<button role="menuitem" @click="bookAction(n.NotebookId)">{{t('重命名')}}</button>
+<button role="menuitem" @click="showBookMove(n.NotebookId)">{{t('移动')}}</button>
+<button role="menuitem" @click="bookAction(n.NotebookId,true)">{{t('删除')}}</button>
+<hr role="separator">
+<button role="menuitem" :aria-label="t('导入笔记/笔记本')" @click="showImport(n.NotebookId)">{{t('导入')}}</button>
+<button role="menuitem" :aria-label="t('导出笔记本（ZIP）')" :disabled="exporting" @click="downloadBook(n.NotebookId)">{{t('导出')}}</button>
+</div>
 </div>
 <h3>{{t('共享给我')}}</h3>
 <p v-if="boot.SharedCache==='unsupported'" class="muted">{{t('服务端不支持共享离线缓存')}}</p>
@@ -359,10 +422,15 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 <div class="note-search-row">
 <input class="note-search" v-model="search" type="search" :placeholder="t('搜索笔记')" :aria-label="t('搜索笔记')" @input="scheduleSearch" @keydown.enter.prevent="runSearch">
 </div>
-<div class="list-items">
+<div v-if="selectedNotes.length>1" class="note-selection-bar" role="status">
+<span>{{t('已选中 {count} 篇笔记',{count:selectedNotes.length})}}</span>
+<button class="icon-button" :aria-label="t('所选笔记操作')" @click="showSelectionMenu($event)">⋯</button>
+<button class="icon-button" :aria-label="t('取消选择')" @click="clearNoteSelection">×</button>
+</div>
+<div class="list-items" :aria-label="t('笔记列表')">
 <div v-for="n in sorted" :key="n.NoteId" class="note-row">
 <button v-if="!sharedOwner&&!trash&&!n.IsShared" class="star-button" :aria-label="t(n.IsStar?'取消加星':'加星')" @click="setStar(n)">{{n.IsStar?'★':'☆'}}</button>
-<button class="note-item" :class="{selected:current?.Note.NoteId===n.NoteId}" @click="open(n.NoteId)">
+<button class="note-item" :class="{selected:noteSelection.ids.has(n.NoteId),current:current?.Note.NoteId===n.NoteId}" :aria-pressed="noteSelection.ids.has(n.NoteId)" :aria-current="current?.Note.NoteId===n.NoteId?'true':undefined" @mousedown="($event.ctrlKey||$event.metaKey||$event.shiftKey)&&$event.preventDefault()" @click="selectNoteRow(n,$event)" @contextmenu.prevent="noteContextMenu(n,$event)">
 <strong :title="n.Title||t('未命名')"><span v-if="n.IsDirty" class="note-pending-dot" :aria-label="t('有未同步的更改')"></span>{{n.Title||t('未命名')}}</strong>
 <p>{{n.Desc||t('暂无摘要')}}</p>
 <small><span class="note-format">{{n.IsMarkdown?'MD':'RT'}}</span> {{formatDate(n.UpdatedTime)}} {{n.Perm===0?t('· 只读'):''}}</small>
@@ -470,6 +538,13 @@ watch(()=>route.params.noteId,id=>{if(id&&id!==current.value?.Note.NoteId)open(S
 </div>
 </main>
 <ImportDialog v-if="importing" ref="importDialog" :selected="importTarget" :user-id="boot.User.UserId" :desktop="!!boot.Desktop" @close="importing=false" @changed="imported"/>
+<div v-if="selectionMenu&&selectedNotes.length" class="note-selection-menu" role="menu" :aria-label="t('所选笔记操作')" :style="{left:selectionMenu.x+'px',top:selectionMenu.y+'px'}" @pointerdown.stop @keydown.esc.stop.prevent="clearNoteSelection">
+<p>{{t('已选中 {count} 篇笔记',{count:selectedNotes.length})}}</p>
+<button role="menuitem" :disabled="trash" @click="showBatch('move')">{{t('移动')}}</button>
+<button role="menuitem" :disabled="trash||!selectedOwned" :title="!selectedOwned?t('只能共享或删除自己的笔记'):''" @click="showBatch('share')">{{t('共享')}}</button>
+<button role="menuitem" :disabled="!selectedOwned" :title="!selectedOwned?t('只能共享或删除自己的笔记'):''" @click="showBatch('delete')">{{t('删除')}}</button>
+</div>
+<NoteBatchDialog v-if="batchAction" :action="batchAction" :notes="batchNotes" :user-id="boot.User.UserId" :notebooks="notebookTree" :suggestions="shareSuggestions" :trash="trash" @changed="batchChanged" @close="batchAction=null"/>
 <section v-if="movingBook" class="dialog-backdrop" @click.self="!movingBookBusy&&(movingBook='')">
 <div class="dialog" role="dialog" aria-modal="true" :aria-label="t('移动笔记本')">
 <h2>{{t('移动笔记本')}}</h2>

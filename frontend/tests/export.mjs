@@ -50,7 +50,10 @@ try{
   if(desktop){const before=count;await bookExport();await expect.poll(()=>count,{timeout:30000}).toBe(before+1);bytes=Buffer.from(exported.data,'base64')}
   else {const pending=page.waitForEvent('download');await bookExport();bytes=readFileSync(await (await pending).path())}
   const pagedFiles=unzipSync(bytes);expect(Object.keys(pagedFiles).filter(n=>/\.(md|rtf)$/.test(n))).toHaveLength(102);expect(pagedFiles['Book/Page 100.md']).toBeTruthy()
-  unreadable=true;await bookExport();await expect(page.locator('.editor>.error')).toContainText('readFailed')
+  const before=count,unexpectedDownloads=[]
+  page.on('download',download=>unexpectedDownloads.push(download))
+  unreadable=true;await bookExport();await expect(page.locator('.editor>.error')).toContainText('操作失败，请重试')
+  expect(count).toBe(before);expect(unexpectedDownloads).toHaveLength(0)
   await page.close();console.log(`${desktop?'Desktop':'Web'} Hugo note and notebook export passed`)
  }
 }finally{await browser?.close();await server.close()}

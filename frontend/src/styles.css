@@ -166,6 +166,11 @@ input:focus,select:focus,textarea:focus,[contenteditable=true]:focus{outline:2px
 .notebook-row:hover .notebook-more,.notebook-more[aria-expanded=true],.notebook-more:focus-visible{visibility:visible}
 .notebook-menu{position:absolute;right:4px;top:34px;z-index:8;min-width:96px;padding:5px;background:#fff;border:1px solid #d9e0da;border-radius:8px;box-shadow:0 8px 24px #10251f24}
 .notebook-menu button{display:block;width:100%;border:0;text-align:left;padding:7px}
+.notebook-menu hr{border:0;border-top:1px solid #d9e0da;margin:5px 0}
+.note-selection-bar{display:flex;align-items:center;gap:4px;padding:4px 10px;background:#dbe9dd;color:#193b35;font-size:12px}.note-selection-bar>span{flex:1}.note-selection-bar .icon-button{padding:3px;min-width:24px;border:0;background:transparent}
+.note-selection-menu{position:fixed;z-index:100;width:220px;padding:5px;background:#fff;color:#193b35;border:1px solid #d9e0da;border-radius:8px;box-shadow:0 8px 24px #10251f24}
+.note-selection-menu p{font-size:12px;padding:4px 8px;margin:0 0 4px;border-bottom:1px solid #e4e8e0}.note-selection-menu button{display:block;width:100%;padding:8px;text-align:left;border:0}
+.note-item{user-select:none;-webkit-user-select:none}.note-item.current{box-shadow:inset 3px 0 #193b35}
 .create-row{justify-content:flex-end}
 .create-icon{display:flex;align-items:center;gap:5px;padding:6px 9px;font-size:12px}
 .markdown-icon{font-weight:700}
