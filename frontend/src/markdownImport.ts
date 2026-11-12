@@ -1,10 +1,11 @@
 import {rtfToHtml,docxXmlToHtml,richWarning} from './richDocument'
 import {strFromU8, unzipSync} from 'fflate'
+import {parseHugoMarkdown} from './hugoImport'
 
 // Validate the whole input before creating anything. No archive entry is ever
 // extracted to disk, and only supported note documents and required DOCX XML are decompressed.
 export const importLimits = {archive:32*1024*1024, note:4*1024*1024, total:64*1024*1024, entries:5000, notes:2000, notebooks:1000, depth:20}
-export interface ImportNote {path:string; title:string; content:string; folder:string;isMarkdown?:boolean}
+export interface ImportNote {path:string; title:string; content:string; folder:string;isMarkdown?:boolean;tags?:string[];createdTime?:string;updatedTime?:string}
 export interface ImportSource {zip:boolean; title:string; folders:string[]; notes:ImportNote[]; ignored:number;warnings?:string[]}
 export class ImportError extends Error {
  constructor(public key:string){super(key);this.name='ImportError'}
@@ -81,7 +82,8 @@ export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
  if(markdown.test(name)){
   if(bytes.length>importLimits.note)fail('文档内容大小超出导入限制')
   const base=name.split(/[\\/]/).pop()!
-  return {zip:false,title:title(base),folders:[],notes:[{path:base,title:title(base),content:decode(bytes),folder:''}],ignored:0}
+  const note=parseHugoMarkdown(decode(bytes),title(base))
+  return {zip:false,title:note.title,folders:[],notes:[{path:base,...note,folder:''}],ignored:0}
  }
  if(!/\.zip$/i.test(name))fail('请选择 Markdown、RTF、DOCX 或 ZIP 文件')
  if(bytes.length>importLimits.archive)fail('ZIP 文件大小不能超过 32 MiB')
@@ -102,9 +104,9 @@ export function parseMarkdownImport(name:string,bytes:Uint8Array):ImportSource {
   if(folder)addFolder(folder)
   const content=markdown.test(entry.path)?decode(data):richContent(entry.path,data),size=new TextEncoder().encode(content).length
   if(size>importLimits.note||(totalContent+=size)>importLimits.total)fail('文档内容大小超出导入限制')
-  notes.push({path:entry.path,title:title(entry.path.slice(index+1)),folder,content,isMarkdown:markdown.test(entry.path)})
+  notes.push({path:entry.path,...(markdown.test(entry.path)?parseHugoMarkdown(content,title(entry.path.slice(index+1))):{title:title(entry.path.slice(index+1)),content}),folder,isMarkdown:markdown.test(entry.path)})
  }
  if(!notes.length)fail('ZIP 中没有可导入的文档')
- if(folders.size>importLimits.notebooks-1)fail('ZIP 文件数量超出导入限制')
+ if(folders.size>importLimits.notebooks)fail('ZIP 文件数量超出导入限制')
  return {zip:true,title:title(name),folders:[...folders].sort((a,b)=>a.split('/').length-b.split('/').length||comparePath(a,b)),notes:notes.sort((a,b)=>comparePath(a.path,b.path)),ignored:entries.filter(e=>!e.directory&&!e.keep).length,warnings:notes.some(n=>n.isMarkdown===false)?[richWarning]:[]}
 }

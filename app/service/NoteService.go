@@ -334,15 +334,17 @@ func (this *NoteService) ListNoteContentByNoteIds(noteIds []bson.ObjectId) (note
 // 首先要判断Notebook是否是Blog, 是的话设为blog
 // [ok]
 
-func (this *NoteService) AddNote(note info.Note, fromApi bool) info.Note {
+func (this *NoteService) AddNote(note info.Note, fromApi bool, preserveTimes ...bool) info.Note {
 	if note.NoteId.Hex() == "" {
 		noteId := bson.NewObjectId()
 		note.NoteId = noteId
 	}
 
 	// 关于创建时间, 可能是客户端发来, 此时判断时间是否有
-	note.CreatedTime = FixUrlTime(note.CreatedTime)
-	note.UpdatedTime = FixUrlTime(note.UpdatedTime)
+	if len(preserveTimes) == 0 || !preserveTimes[0] {
+		note.CreatedTime = FixUrlTime(note.CreatedTime)
+		note.UpdatedTime = FixUrlTime(note.UpdatedTime)
+	}
 
 	note.IsTrash = false
 	note.UpdatedUserId = note.UserId
@@ -385,10 +387,12 @@ func (this *NoteService) AddSharedNote(note info.Note, myUserId bson.ObjectId) i
 
 // 添加笔记本内容
 // [ok]
-func (this *NoteService) AddNoteContent(noteContent info.NoteContent) info.NoteContent {
+func (this *NoteService) AddNoteContent(noteContent info.NoteContent, preserveTimes ...bool) info.NoteContent {
 
-	noteContent.CreatedTime = FixUrlTime(noteContent.CreatedTime)
-	noteContent.UpdatedTime = FixUrlTime(noteContent.UpdatedTime)
+	if len(preserveTimes) == 0 || !preserveTimes[0] {
+		noteContent.CreatedTime = FixUrlTime(noteContent.CreatedTime)
+		noteContent.UpdatedTime = FixUrlTime(noteContent.UpdatedTime)
+	}
 
 	noteContent.UpdatedUserId = noteContent.UserId
 	if !db.Insert(db.NoteContents, noteContent) {
@@ -446,7 +450,7 @@ func (this *NoteService) AddNoteAndContentApi(note info.Note, noteContent info.N
 
 // 添加笔记和内容
 // 这里使用 info.NoteAndContent 接收?
-func (this *NoteService) AddNoteAndContentForController(note info.Note, noteContent info.NoteContent, updatedUserId string) info.Note {
+func (this *NoteService) AddNoteAndContentForController(note info.Note, noteContent info.NoteContent, updatedUserId string, preserveTimes ...bool) info.Note {
 	if note.UserId.Hex() != updatedUserId {
 		if !shareService.HasUpdateNotebookPerm(note.UserId.Hex(), updatedUserId, note.NotebookId.Hex()) {
 			Log("NO AUTH11")
@@ -455,9 +459,9 @@ func (this *NoteService) AddNoteAndContentForController(note info.Note, noteCont
 			Log("HAS AUTH -----------")
 		}
 	}
-	return this.AddNoteAndContent(note, noteContent, bson.ObjectIdHex(updatedUserId))
+	return this.AddNoteAndContent(note, noteContent, bson.ObjectIdHex(updatedUserId), preserveTimes...)
 }
-func (this *NoteService) AddNoteAndContent(note info.Note, noteContent info.NoteContent, myUserId bson.ObjectId) info.Note {
+func (this *NoteService) AddNoteAndContent(note info.Note, noteContent info.NoteContent, myUserId bson.ObjectId, preserveTimes ...bool) info.Note {
 	if note.NoteId.Hex() == "" {
 		noteId := bson.NewObjectId()
 		note.NoteId = noteId
@@ -466,10 +470,10 @@ func (this *NoteService) AddNoteAndContent(note info.Note, noteContent info.Note
 	if note.UserId != myUserId {
 		note = this.AddSharedNote(note, myUserId)
 	} else {
-		note = this.AddNote(note, false)
+		note = this.AddNote(note, false, preserveTimes...)
 	}
 	if note.NoteId != "" {
-		if saved := this.AddNoteContent(noteContent); saved.NoteId == "" {
+		if saved := this.AddNoteContent(noteContent, preserveTimes...); saved.NoteId == "" {
 			db.DeleteAllByIdAndUserId(db.Notes, note.NoteId.Hex(), note.UserId.Hex())
 			return info.Note{}
 		}
@@ -477,7 +481,7 @@ func (this *NoteService) AddNoteAndContent(note info.Note, noteContent info.Note
 	return note
 }
 
-func (this *NoteService) AddNoteAndContentApi(note info.Note, noteContent info.NoteContent, myUserId bson.ObjectId) info.Note {
+func (this *NoteService) AddNoteAndContentApi(note info.Note, noteContent info.NoteContent, myUserId bson.ObjectId, preserveTimes ...bool) info.Note {
 	if note.NoteId.Hex() == "" {
 		noteId := bson.NewObjectId()
 		note.NoteId = noteId
@@ -486,10 +490,10 @@ func (this *NoteService) AddNoteAndContentApi(note info.Note, noteContent info.N
 	if note.UserId != myUserId {
 		note = this.AddSharedNote(note, myUserId)
 	} else {
-		note = this.AddNote(note, true)
+		note = this.AddNote(note, true, preserveTimes...)
 	}
 	if note.NoteId != "" {
-		if saved := this.AddNoteContent(noteContent); saved.NoteId == "" {
+		if saved := this.AddNoteContent(noteContent, preserveTimes...); saved.NoteId == "" {
 			db.DeleteAllByIdAndUserId(db.Notes, note.NoteId.Hex(), note.UserId.Hex())
 			return info.Note{}
 		}

@@ -122,6 +122,9 @@ const translations: Record<string, string> = {
  "该邮箱已注册":"This email address is already registered.",
 
  '导入笔记':'Import notes', 'Markdown、RTF、DOCX 或 ZIP 文件':'Markdown, RTF, DOCX or ZIP file',
+ 'Hugo 元数据格式无效':'Invalid Hugo front matter.', 'Hugo 日期无效':'Invalid Hugo date.', 'Hugo 元数据缺少创建或修改时间':'Hugo front matter must contain a creation or modification date.', 'Hugo 标题必须是文本':'The Hugo title must be text.', 'Hugo 标签格式无效':'Invalid Hugo tags.',
+ '删除此笔记本？子笔记本需先移动或删除。':'Delete this notebook? Move or delete its sub-notebooks first.',
+ '同时删除笔记本里的所有笔记（移入回收站）':'Also delete all notes in this notebook (move to Trash)',
  'Markdown 导入为 Markdown 笔记，RTF/DOCX 导入为富文本笔记；ZIP 文件夹成为子笔记本。':'Markdown files become Markdown notes; RTF/DOCX files become rich-text notes. ZIP folders become sub-notebooks.',
  '文档最大 4 MiB，ZIP 最大 32 MiB。不下载远程资源。':'Documents: up to 4 MiB. ZIP: up to 32 MiB. Remote resources are not downloaded.',
  '复杂排版、内嵌图片和对象可能简化；图片以占位文字保留，请核对导入结果。':'Complex layouts, embedded images and objects may be simplified; images are represented by placeholders. Please review the imported note.',
@@ -132,7 +135,7 @@ const translations: Record<string, string> = {
  '文件已丢失':'File missing', '图片无法加载':'Image unavailable', '重试下载':'Retry download', '添加附件':'Add attachment',
  'attachmentMissing':'The file is still missing on the server.', 'attachmentUnavailable':'This attachment cannot be downloaded.', 'attachmentChanged':'This attachment changed. Refresh the note and try again.',
  '导入 Markdown':'Import Markdown',
- '单个 MD 导入为笔记；ZIP 导入为新笔记本，文件夹成为子笔记本。':'Import an MD file as a note, or a ZIP as a new notebook with folders as sub-notebooks.',
+ 'ZIP 根目录笔记导入当前笔记本，目录成为子笔记本。':'ZIP root notes go into the current notebook; folders become sub-notebooks.',
  '仅导入 UTF-8 Markdown 文本，不导入图片和附件。MD 最大 4 MiB，ZIP 最大 32 MiB。':'Imports UTF-8 Markdown text only, without images or attachments. Maximum: 4 MiB per MD file, 32 MiB per ZIP.',
  'Markdown 或 ZIP 文件':'Markdown or ZIP file',
  '新笔记本名称':'New notebook name',

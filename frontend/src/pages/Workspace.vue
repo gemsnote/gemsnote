@@ -15,7 +15,7 @@ import ShareRecipientInput from '../components/ShareRecipientInput.vue'
 import ImportDialog from '../components/ImportDialog.vue'
 import type {ImportJob} from '../importJob'
 import {language,t,formatDate} from '../i18n'
-import {confirmAction,promptText} from '../dialogs'
+import {confirmAction,confirmNotebookDelete,promptText} from '../dialogs'
 const restoringHistory=ref(false)
 const route=useRoute(),router=useRouter(),boot=ref<any>({}),notes=ref<any[]>([]),current=ref<any>(null),authenticated=ref(false)
 const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),trash=ref(false),starred=ref(false),sharedOwner=ref(''),sharingRecipient=ref('')
@@ -28,7 +28,7 @@ async function showImport(target:string){bookMenu.value='';if(await flush()){imp
 async function imported(job:ImportJob,complete:boolean){
  try{
   if(!await bootstrap())return
-  expandedNotebooks.value=new Set([...expandedNotebooks.value,...job.bookIds])
+  expandedNotebooks.value=new Set([...expandedNotebooks.value,job.rootId,...job.bookIds])
   let parent=notebooks.value.find(n=>n.NotebookId===job.rootId)?.ParentNotebookId
   const seen=new Set<string>()
   while(parent&&!seen.has(parent)){seen.add(parent);expandedNotebooks.value.add(parent);parent=notebooks.value.find(n=>n.NotebookId===parent)?.ParentNotebookId}
@@ -184,7 +184,7 @@ async function save():Promise<boolean>{
 async function flush(){tagInput.value?.commit();clearTimeout(saveTimer);if(!await save())return false;return dirty.value?save():true}
 async function create(markdown:boolean){if(!await flush())return;let id=notebook.value||(!sharedOwner.value?notebooks.value[0]?.NotebookId:'');if(!id&&!sharedOwner.value){await addBook();id=notebooks.value[0]?.NotebookId}if(!id){error.value=t('请先选择一个可编辑的共享笔记本');return}try{const doc=await request('/web/save',{noteId:objectId(),notebookId:id,ownerId:sharedOwner.value,title:t('未命名笔记'),content:'',tags:'',isNew:true,isMarkdown:markdown});await bootstrap();await load();await open(doc.Note.NoteId)}catch(e){error.value=errorMessage(e)}}
 async function addBook(parentNotebookId=''){const name=await promptText(t(parentNotebookId?'子笔记本名称':'笔记本名称'));if(!name)return;bookMenu.value='';try{await request('/notebook/addNotebook',{notebookId:objectId(),title:name,parentNotebookId});await bootstrap()}catch(e){error.value=errorMessage(e)}}
-async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remove){if(!await confirmAction(t('删除此笔记本？请先移动其中的笔记。')))return;await request('/notebook/deleteNotebook',{notebookId:id});if(notebook.value===id)notebook.value=''}else{const name=await promptText(t('笔记本名称'),notebooks.value.find(n=>n.NotebookId===id)?.Title);if(!name)return;await request('/notebook/updateNotebookTitle',{notebookId:id,title:name})}await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
+async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remove){const choice=await confirmNotebookDelete(t('删除此笔记本？子笔记本需先移动或删除。'));if(choice===null)return;await request('/notebook/deleteNotebook',{notebookId:id,deleteNotes:choice==='true'});if(notebook.value===id)notebook.value='';current.value=null}else{const name=await promptText(t('笔记本名称'),notebooks.value.find(n=>n.NotebookId===id)?.Title);if(!name)return;await request('/notebook/updateNotebookTitle',{notebookId:id,title:name})}await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
 async function remove(){if(!current.value||!await confirmAction(t(own.value?(trash.value?'永久删除这篇笔记？此操作不可撤销。':'将笔记放入回收站？'):'从共享列表移除这篇笔记？')))return;try{if(own.value&&trash.value)await request('/note/deleteTrash',{noteId:current.value.Note.NoteId});else if(own.value)await request('/note/deleteNote',{noteIds:[current.value.Note.NoteId],isShared:false});else await request('/share/deleteShareNoteBySharedUser',{noteId:current.value.Note.NoteId,fromUserId:current.value.Note.UserId});dirty.value=false;current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
 async function restore(){try{await request('/web/restore',{noteId:current.value.Note.NoteId});current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
 async function move(copy=false){if(!await flush()||!destination.value)return;try{const noteId=current.value.Note.NoteId;if(copy&&isSharedNote.value)await request('/note/copySharedNote',{noteIds:[noteId],notebookId:destination.value,fromUserId:current.value.Note.UserId});else if(isSharedNote.value)await request('/shared/move',{noteId,notebookId:destination.value});else await request(copy?'/note/copyNote':'/note/moveNote',{noteIds:[noteId],notebookId:destination.value});panel.value='';await bootstrap();await load();await open(noteId)}catch(e){error.value=errorMessage(e)}}

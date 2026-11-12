@@ -342,6 +342,30 @@ func (this *NotebookService) DeleteNotebook(userId, notebookId string) (bool, st
 	}
 }
 
+// DeleteNotebookAndNotes moves owned notes to Trash before deleting the notebook.
+func (this *NotebookService) DeleteNotebookAndNotes(userId, notebookId string) (bool, string) {
+	HistoryMutationMutex.Lock()
+	defer HistoryMutationMutex.Unlock()
+	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(notebookId) {
+		return false, "notExists"
+	}
+	notebook := this.GetNotebookById(notebookId)
+	if notebook.NotebookId == "" || notebook.UserId.Hex() != userId || notebook.IsDeleted {
+		return false, "notExists"
+	}
+	if db.Count(db.Notebooks, bson.M{"ParentNotebookId": bson.ObjectIdHex(notebookId), "UserId": bson.ObjectIdHex(userId), "IsDeleted": false}) != 0 {
+		return false, "笔记本下有子笔记本"
+	}
+	var notes []info.Note
+	db.ListByQ(db.Notes, bson.M{"NotebookId": bson.ObjectIdHex(notebookId), "UserId": bson.ObjectIdHex(userId), "IsTrash": false, "IsDeleted": false}, &notes)
+	for _, note := range notes {
+		if ok, msg, _ := NoteS.UpdateNote(userId, note.NoteId.Hex(), bson.M{"IsTrash": true}, note.Usn); !ok {
+			return false, msg
+		}
+	}
+	return this.DeleteNotebook(userId, notebookId)
+}
+
 // API调用, 删除笔记本, 不作笔记控制
 func (this *NotebookService) DeleteNotebookForce(userId, notebookId string, usn int) (bool, string) {
 	notebook := this.GetNotebookById(notebookId)

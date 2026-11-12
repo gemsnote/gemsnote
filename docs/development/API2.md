@@ -205,6 +205,16 @@ Web 和新客户端均使用 `POST /api2/auth/login`，推荐 `application/json`
 保存现有笔记时应显式发送 `isMarkdown`。省略该字段时保留现有格式；显式传 `false`
 仍表示富文本，可用于恢复富文本历史版本。新建笔记省略该字段时默认富文本。
 
+导入新笔记时，`POST /api2/save` 可传 `createdTime`、`updatedTime`（RFC3339，含时区），
+仅在 `isNew:true` 时采用。省略时使用服务端当前时间。同步创建接口
+`POST /api2/client/note/add` 对应采用 `CreatedTime`、`UpdatedTime`，保留导入时间的时区对应瞬间和精度；
+普通后续编辑仍按既有更新时间逻辑处理。`tags` 以逗号分隔传给 `/api2/save`。
+
+`POST /api2/notebook/deleteNotebook` 和 `POST /api2/client/notebook/delete` 可传 `deleteNotes:true`，
+将本人该笔记本下的笔记移入回收站后删除笔记本；默认 `false`，要求笔记本为空。
+客户端同步接口仍须提交当前 `usn`。存在子笔记本时须先移动或删除子笔记本，不递归删除。
+以上选项仅用于 API2，旧 `/api` 的删除行为不变。
+
 `GET /api2/bootstrap` 保持公开：缺失、失效或冲突的 API2 凭据返回 `User:null`，
 携带有效 Bearer token 时返回该 token 对应的用户及数据。初始化接口和受保护接口
 使用相同的身份来源，不会用旧浏览器 Cookie 把匿名 API2 请求判为“已登录”。

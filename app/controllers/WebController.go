@@ -151,6 +151,10 @@ func (c Web) Document(noteId string) revel.Result {
 }
 
 func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNew, isMarkdown bool, usn int) revel.Result {
+	return c.save(noteId, notebookId, ownerId, title, content, tags, isNew, isMarkdown, usn, time.Time{}, time.Time{})
+}
+
+func (c Web) save(noteId, notebookId, ownerId, title, content, tags string, isNew, isMarkdown bool, usn int, createdTime, updatedTime time.Time) revel.Result {
 	if !bson.IsObjectIdHex(noteId) || (isNew && !bson.IsObjectIdHex(notebookId)) {
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidId"})
 	}
@@ -173,7 +177,18 @@ func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNe
 			return c.RenderJSON(info.Re{Ok: false, Msg: "conflict"})
 		}
 		note := info.Note{NoteId: bson.ObjectIdHex(noteId), NotebookId: bson.ObjectIdHex(notebookId), UserId: bson.ObjectIdHex(ownerId), Title: title, Tags: tagList, IsMarkdown: isMarkdown}
-		created := noteService.AddNoteAndContentForController(note, info.NoteContent{NoteId: note.NoteId, UserId: note.UserId, Content: content}, c.GetUserId())
+		// Import times represent instants, including their original precision.
+		note.CreatedTime, note.UpdatedTime = createdTime.In(time.Local), updatedTime.In(time.Local)
+		preserveTimes := !createdTime.IsZero() || !updatedTime.IsZero()
+		if preserveTimes {
+			if note.CreatedTime.IsZero() {
+				note.CreatedTime = note.UpdatedTime
+			}
+			if note.UpdatedTime.IsZero() {
+				note.UpdatedTime = note.CreatedTime
+			}
+		}
+		created := noteService.AddNoteAndContentForController(note, info.NoteContent{NoteId: note.NoteId, UserId: note.UserId, Content: content, CreatedTime: note.CreatedTime, UpdatedTime: note.UpdatedTime}, c.GetUserId(), preserveTimes)
 		if created.NoteId == "" {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "saveFailed"})
 		}

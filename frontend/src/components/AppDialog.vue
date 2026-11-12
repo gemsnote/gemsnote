@@ -21,6 +21,7 @@ watch(activeDialog, async request=>{
       <h2>{{t('珠玑笔记')}}</h2>
       <label v-if="activeDialog.kind==='prompt'">{{activeDialog.message}}<input ref="input" v-model="value"></label>
       <p v-else>{{activeDialog.message}}</p>
+      <label v-if="activeDialog.kind==='checkbox'" class="delete-notes-option"><input v-model="value" type="checkbox" true-value="true" false-value="">{{t('同时删除笔记本里的所有笔记（移入回收站）')}}</label>
       <div class="choice-dialog-actions">
         <button v-if="activeDialog.kind!=='alert'" type="button" autofocus @click="closeDialog(false)">{{t('取消')}}</button>
         <button class="primary" type="submit">{{t('确定')}}</button>
@@ -32,4 +33,5 @@ watch(activeDialog, async request=>{
 <style scoped>
 .app-dialog{border:0;margin:auto;max-height:90vh;overflow:auto}
 .app-dialog::backdrop{background:#172e3266}
+.delete-notes-option{display:flex;align-items:center;gap:8px}.delete-notes-option input{width:auto}
 </style>

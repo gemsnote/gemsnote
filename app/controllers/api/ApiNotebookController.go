@@ -132,8 +132,14 @@ func (c ApiNotebook) UpdateNotebook(notebookId, title, parentNotebookId string, 
 
 // 删除笔记本
 // [OK]
-func (c ApiNotebook) DeleteNotebook(notebookId string, usn int) revel.Result {
+func (c ApiNotebook) DeleteNotebook(notebookId string, usn int, deleteNotes bool) revel.Result {
 	re := info.NewApiRe()
 	re.Ok, re.Msg = notebookService.DeleteNotebookForce(c.getUserId(), notebookId, usn)
+	if deleteNotes && strings.HasPrefix(c.Request.URL.Path, "/api2/") && !re.Ok {
+		nb := notebookService.GetNotebookById(notebookId)
+		if nb.UserId.Hex() == c.getUserId() && nb.Usn == usn && !nb.IsDeleted {
+			re.Ok, re.Msg = notebookService.DeleteNotebookAndNotes(c.getUserId(), notebookId)
+		}
+	}
 	return c.RenderJSON(re)
 }

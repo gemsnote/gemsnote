@@ -59,9 +59,8 @@ onBeforeUnmount(()=>{disposed=true;sequence++;stop.value=true;cancelWorker()})
 <FilePicker :label="t('Markdown、RTF、DOCX 或 ZIP 文件')" accept=".md,.markdown,.rtf,.docx,.zip" @selected="selected"/>
 <p v-if="reading" role="status">{{t('正在解析文件…')}}</p>
 <template v-if="source">
-<label v-if="source.zip">{{t('新笔记本名称')}}<input v-model="name" maxlength="200"></label>
 <p v-for="warning in source.warnings||[]" :key="warning" role="note">{{t(warning)}}</p>
-<p>{{t('将导入 {notes} 篇笔记、{books} 个新笔记本；跳过 {ignored} 个文件。',{notes:source.notes.length,books:source.zip?source.folders.length+1:0,ignored:source.ignored})}}</p>
+<p>{{t('将导入 {notes} 篇笔记、{books} 个新笔记本；跳过 {ignored} 个文件。',{notes:source.notes.length,books:source.folders.length,ignored:source.ignored})}}</p>
 </template>
 </template>
 <template v-else>
@@ -78,7 +77,7 @@ onBeforeUnmount(()=>{disposed=true;sequence++;stop.value=true;cancelWorker()})
 </template>
 <div v-else class="choice-dialog-actions">
 <button v-if="busy" :disabled="stop" @click="stop=true">{{t('暂停导入')}}</button>
-<button v-else-if="!complete" class="primary" :disabled="reading||!source||!destination||(source.zip&&!name.trim())" @click="start">{{t(job?'继续导入':'开始导入')}}</button>
+<button v-else-if="!complete" class="primary" :disabled="reading||!source||!destination" @click="start">{{t(job?'继续导入':'开始导入')}}</button>
 <button :disabled="busy" @click="close">{{t(complete?'关闭':'取消')}}</button>
 </div>
 </div></section>

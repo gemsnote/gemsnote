@@ -10,7 +10,7 @@ describe('Markdown import validation',()=>{
   const text='# 标题\r\n\r\n**内容** [链接](./other.md)\r\n'
   const source=parseMarkdownImport('我的笔记.MD',md('\ufeff'+text))
   expect(source.zip).toBe(false)
-  expect(source.notes).toEqual([{path:'我的笔记.MD',title:'我的笔记',content:text,folder:''}])
+  expect(source.notes).toEqual([{path:'我的笔记.MD',title:'我的笔记',content:text,tags:[],folder:''}])
  })
  it('imports root notes, nested notes and empty folders while skipping binary payloads and Mac metadata',()=>{
   const source=parseMarkdownImport('资料.zip',zip({'根.md':md('root'),'学习/Go/开始.markdown':md('start'),'学习/空/':new Uint8Array(),'image.png':new Uint8Array([255]),'__MACOSX/._根.md':md('ignore')}))
@@ -27,7 +27,7 @@ describe('Markdown import validation',()=>{
   expect(source.notes.map(n=>n.path)).toEqual(['E.md','Go/子/一.md','é.md','空/子/两.md','笔记.md'])
   expect(reversed.folders).toEqual(source.folders)
   expect(reversed.notes).toEqual(source.notes)
-  const job=(input:typeof source)=>{let id=0;return createImportJob(input,'user','','notes',()=>String(++id))}
+  const job=(input:typeof source)=>{let id=0;return createImportJob(input,'user','existing','notes',()=>String(++id))}
   expect(job(reversed).steps).toEqual(job(source).steps)
  })
  it('rejects invalid UTF-8 before any mutation',()=>{
@@ -80,12 +80,12 @@ describe('resumable API2 import',()=>{
   const f=fixture(),source=parseMarkdownImport('Batch.zip',zip({'a/b/note.md':md('你好')}))
   const job=createImportJob(source,'user','existing','批量',f.id)
   await runImportJob(job,f.api,()=>{})
-  expect(f.books.map(b=>[b.NotebookId,b.Title,b.ParentNotebookId])).toEqual([['1','批量','existing'],['2','a','1'],['3','b','2']])
-  expect(f.notes.get('4')).toMatchObject({Note:{NotebookId:'3',IsMarkdown:true,Title:'note'},Content:'你好'})
+  expect(f.books.map(b=>[b.NotebookId,b.Title,b.ParentNotebookId])).toEqual([['1','a','existing'],['2','b','1']])
+  expect(f.notes.get('3')).toMatchObject({Note:{NotebookId:'2',IsMarkdown:true,Title:'note'},Content:'你好'})
   expect(job.next).toBe(job.steps.length)
  })
  it.each(['/notebook/addNotebook','/web/save'])('reconciles a lost response from %s without creating duplicates',async path=>{
-  const f=fixture(),job=createImportJob(parseMarkdownImport('Batch.zip',zip({'n.md':md('body')})),'user','','Batch',f.id)
+  const f=fixture(),job=createImportJob(parseMarkdownImport('Batch.zip',zip({'folder/n.md':md('body')})),'user','existing','Batch',f.id)
   f.fail(path)
   await expect(runImportJob(job,f.api,()=>{})).rejects.toThrow('connection lost')
   await runImportJob(job,f.api,()=>{})
@@ -93,7 +93,7 @@ describe('resumable API2 import',()=>{
   expect(job.next).toBe(2)
  })
  it('pauses between records and resumes without re-uploading completed records',async()=>{
-  const f=fixture(),job=createImportJob(parseMarkdownImport('Batch.zip',zip({'n.md':md('body')})),'user','','Batch',f.id)
+  const f=fixture(),job=createImportJob(parseMarkdownImport('Batch.zip',zip({'folder/n.md':md('body')})),'user','existing','Batch',f.id)
   await runImportJob(job,f.api,()=>{},()=>job.next===1)
   expect(job.next).toBe(1)
   await runImportJob(job,f.api,()=>{})

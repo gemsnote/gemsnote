@@ -250,7 +250,13 @@ func (c ApiNote) GetNoteContent(noteId string) revel.Result {
 // 添加笔记
 // [OK]
 func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
-	c.normalizeModificationTime(&noteOrContent)
+	preserveTimes := c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") && !noteOrContent.UpdatedTime.IsZero()
+	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") && !noteOrContent.CreatedTime.IsZero() {
+		noteOrContent.CreatedTime = noteOrContent.CreatedTime.In(time.Local)
+	}
+	if !preserveTimes {
+		c.normalizeModificationTime(&noteOrContent)
+	}
 	userId := bson.ObjectIdHex(c.getUserId())
 	re := info.NewRe()
 	myUserId := userId
@@ -383,7 +389,7 @@ func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
 		note.Desc = SubStringHTMLToRaw(noteContent.Abstract, 200)
 	}
 
-	note = noteService.AddNoteAndContentApi(note, noteContent, myUserId)
+	note = noteService.AddNoteAndContentApi(note, noteContent, myUserId, preserveTimes)
 
 	if note.NoteId == "" {
 		re.Ok = false

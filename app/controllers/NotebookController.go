@@ -5,6 +5,7 @@ import (
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/revel/revel"
 	"gopkg.in/mgo.v2/bson"
+	"strings"
 	//	. "github.com/gemsnote/gemsnote/app/lea"
 	//	"io/ioutil"
 )
@@ -52,8 +53,14 @@ func (c Notebook) GetNotebooks() revel.Result {
 	return c.RenderJSON(re)
 }
 
-func (c Notebook) DeleteNotebook(notebookId string) revel.Result {
-	re, msg := notebookService.DeleteNotebook(c.GetUserId(), notebookId)
+func (c Notebook) DeleteNotebook(notebookId string, deleteNotes bool) revel.Result {
+	var re bool
+	var msg string
+	if deleteNotes && strings.HasPrefix(c.Request.URL.Path, "/api2/") {
+		re, msg = notebookService.DeleteNotebookAndNotes(c.GetUserId(), notebookId)
+	} else {
+		re, msg = notebookService.DeleteNotebook(c.GetUserId(), notebookId)
+	}
 	return c.RenderJSON(info.Re{Ok: re, Msg: msg})
 }
 
