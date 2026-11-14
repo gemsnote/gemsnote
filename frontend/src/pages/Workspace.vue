@@ -2,6 +2,7 @@
 import {errorMessage,errorCode} from '../errors'
 import {ref,computed,onMounted,onBeforeUnmount,watch} from 'vue'
 import {useRoute,useRouter,onBeforeRouteLeave} from 'vue-router'
+import NoteListViewport from '../components/NoteListViewport.vue'
 import NotePreview from '../components/NotePreview.vue'
 import {request,objectId,upload} from '../api'
 import {htmlToRtf} from '../richDocument'
@@ -113,7 +114,18 @@ function imageUnavailable(event:Event){const img=event.target;if(!(img instanceo
 async function queueSharedDownload(attachId:string){try{await request('/attach/queueSharedDownload',{attachId});sharedQueueMsg.value=t('已加入离线下载队列，稍后自动下载');attachmentsFor(current.value?.Note.NoteId||'')}catch(e){error.value=errorMessage(e)}}
 let saveTimer:ReturnType<typeof setTimeout>|undefined,searchTimer:ReturnType<typeof setTimeout>|undefined,loadId=0,notesLoadId=0,savePromise:Promise<boolean>|undefined
 const runtimeUnsubscribers:Array<()=>void>=[]
-function compareBooks(a:any,b:any){return String(a.Title||'').localeCompare(String(b.Title||''),language.value,{sensitivity:'base',numeric:true})||String(a.NotebookId||'').localeCompare(String(b.NotebookId||''))}
+const draggingBook=ref(''),bookOrderBusy=ref(false),dropBook=ref(''),dropAfter=ref(false)
+function canDropBook(target:any){const source=notebooks.value.find(n=>n.NotebookId===draggingBook.value);return !!source&&!bookOrderBusy.value&&source.NotebookId!==target.NotebookId&&(source.ParentNotebookId||'')===(target.ParentNotebookId||'')}
+function dragOverBook(target:any,event:DragEvent){if(!canDropBook(target)){dropBook.value='';return}event.preventDefault();dropBook.value=target.NotebookId;const box=(event.currentTarget as HTMLElement).getBoundingClientRect();dropAfter.value=event.clientY>box.top+box.height/2}
+async function reorderBook(target:any){
+ if(!canDropBook(target))return
+ const source=draggingBook.value;draggingBook.value='';dropBook.value=''
+ const siblings=notebooks.value.filter(n=>(n.ParentNotebookId||'')===(target.ParentNotebookId||''))
+ const ids=siblings.map(n=>n.NotebookId).filter(id=>id!==source);ids.splice(ids.indexOf(target.NotebookId)+(dropAfter.value?1:0),0,source)
+ bookOrderBusy.value=true
+ try{await request('/notebook/reorder',{notebookIds:ids});await bootstrap()}catch(e){error.value=errorMessage(e)}finally{bookOrderBusy.value=false}
+}
+function compareBooks(a:any,b:any){return (Number(a.Seq)||0)-(Number(b.Seq)||0)||String(a.Title||'').localeCompare(String(b.Title||''),language.value,{sensitivity:'base',numeric:true})||String(a.NotebookId||'').localeCompare(String(b.NotebookId||''))}
 function sortBookTree(items:any[]):any[]{return [...(items||[])].sort(compareBooks).map(n=>({...n,Subs:sortBookTree(n.Subs||[])}))}
 function flatten(items:any[],depth=0):any[]{return (items||[]).flatMap(n=>[{...n,depth},...flatten(n.Subs,depth+1)])}
 function withSharedCounts(items:any[]):any[]{return items.map(n=>({...n,NumberNotes:Number(n.NumberNotes||0)+placedShares.value.filter(s=>s.NotebookId===n.NotebookId).length,Subs:withSharedCounts(n.Subs||[])}))}
@@ -365,7 +377,7 @@ watch(()=>sorted.value.map(note=>note.NoteId).join(','),()=>{
 <input class="notebook-search" v-model="notebookSearch" :placeholder="t('搜索笔记本')" :aria-label="t('搜索笔记本')">
 <button :class="{selected:!notebook&&!trash&&!starred&&!sharedOwner&&!sharingRecipient}" @click="select()">{{t('所有笔记')}} <small>{{totalNotes}}</small></button>
 <button :class="{selected:starred}" @click="select('','',false,true)">★ {{t('已加星')}} <small>{{boot.TotalStarred||0}}</small></button>
-<div v-for="n in filteredBooks" :key="n.NotebookId" class="notebook-row" :class="{selected:notebook===n.NotebookId}" :style="{paddingLeft:4+n.depth*16+'px'}">
+<div v-for="n in filteredBooks" :key="n.NotebookId" class="notebook-row" :class="{selected:notebook===n.NotebookId,'notebook-drop-target':dropBook===n.NotebookId,'notebook-drop-after':dropAfter}" :draggable="!bookOrderBusy" @dragstart="draggingBook=n.NotebookId;$event.dataTransfer?.setData('text/plain',n.NotebookId)" @dragend="draggingBook='';dropBook=''" @dragover="dragOverBook(n,$event)" @drop.prevent="reorderBook(n)" :style="{paddingLeft:4+n.depth*16+'px'}">
 <button class="notebook-select" @click="selectBook(n)"><span class="tree-toggle" :aria-hidden="true">{{hasChildren(n)?(expandedNotebooks.has(n.NotebookId)?'▾':'▸'):'▱'}}</span> <span :title="n.Title">{{n.Title}}</span><small>{{n.NumberNotes}}</small></button>
 <button class="notebook-more" aria-haspopup="menu" :aria-expanded="bookMenu===n.NotebookId" :aria-label="t('{name} 菜单',{name:n.Title})" @pointerdown.stop @click.stop="bookMenu=bookMenu===n.NotebookId?'':n.NotebookId">⋯</button>
 <div v-if="bookMenu===n.NotebookId" class="notebook-menu" role="menu" @pointerdown.stop>
@@ -429,8 +441,9 @@ watch(()=>sorted.value.map(note=>note.NoteId).join(','),()=>{
 <button class="icon-button" :aria-label="t('所选笔记操作')" @click="showSelectionMenu($event)">⋯</button>
 <button class="icon-button" :aria-label="t('取消选择')" @click="clearNoteSelection">×</button>
 </div>
-<div class="list-items" :aria-label="t('笔记列表')">
-<div v-for="n in sorted" :key="n.NoteId" class="note-row">
+<NoteListViewport :items="sorted" :aria-label="t('笔记列表')">
+<template #default="{item:n}">
+<div class="note-row">
 <button v-if="!sharedOwner&&!trash&&!n.IsShared" class="star-button" :aria-label="t(n.IsStar?'取消加星':'加星')" @click="setStar(n)">{{n.IsStar?'★':'☆'}}</button>
 <button class="note-item" :class="{selected:noteSelection.ids.has(n.NoteId),current:current?.Note.NoteId===n.NoteId}" :aria-pressed="noteSelection.ids.has(n.NoteId)" :aria-current="current?.Note.NoteId===n.NoteId?'true':undefined" @mousedown="($event.ctrlKey||$event.metaKey||$event.shiftKey)&&$event.preventDefault()" @click="selectNoteRow(n,$event)" @contextmenu.prevent="noteContextMenu(n,$event)">
 <strong :title="n.Title||t('未命名')"><span v-if="n.IsDirty" class="note-pending-dot" :aria-label="t('有未同步的更改')"></span>{{n.Title||t('未命名')}}</strong>
@@ -438,8 +451,9 @@ watch(()=>sorted.value.map(note=>note.NoteId).join(','),()=>{
 <small><span class="note-format">{{n.IsMarkdown?'MD':'RT'}}</span> {{formatDate(n.UpdatedTime)}} {{n.Perm===0?t('· 只读'):''}}</small>
 </button>
 </div>
-<p v-if="!notes.length" class="empty">{{t('这里还没有笔记')}}</p>
-</div>
+</template>
+<template #empty><p v-if="!notes.length" class="empty">{{t('这里还没有笔记')}}</p></template>
+</NoteListViewport>
 <div class="resize-handle" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="t('调节笔记栏宽度')" :aria-valuenow="notesWidth" aria-valuemin="180" aria-valuemax="520" @keydown.arrow-left.prevent="resizeBy('notes',-10)" @keydown.arrow-right.prevent="resizeBy('notes',10)" @pointerdown.prevent="resizePanel('notes',$event)"></div>
 </section>
 <main class="editor">

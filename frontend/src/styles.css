@@ -189,3 +189,6 @@ input:focus,select:focus,textarea:focus,[contenteditable=true]:focus{outline:2px
 @media(max-width:700px){.workspace.mobile-list-open .note-list{display:flex}.workspace.mobile-list-open .editor{display:none}}
 
 .search-scope{display:flex;align-items:center;gap:5px;font-size:12px;margin:6px 0;color:#193b35}.search-scope input{width:auto;margin:0}
+
+.notebook-drop-target{box-shadow:inset 0 3px #193b35}
+.notebook-drop-target.notebook-drop-after{box-shadow:inset 0 -3px #193b35}

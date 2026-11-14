@@ -128,6 +128,50 @@ func (c Api2) body(v interface{}) error {
 
 func (c Api2) Bootstrap() revel.Result { return (Web{c.BaseController}).Bootstrap() }
 
+func (c Api2) ReorderNotebooks() revel.Result {
+	var p struct {
+		NotebookIDs []string `json:"notebookIds"`
+	}
+	if err := c.body(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	order, msg := validateNotebookOrder(c.GetUserId(), p.NotebookIDs, notebookService.GetNotebookById)
+	if msg != "" {
+		return c.RenderJSON(info.Re{Ok: false, Msg: msg})
+	}
+	return c.RenderJSON(notebookService.SortNotebooks(c.GetUserId(), order))
+}
+
+func validateNotebookOrder(userID string, ids []string, lookup func(string) info.Notebook) (map[string]int, string) {
+	if !bson.IsObjectIdHex(userID) {
+		return nil, "noAuth"
+	}
+	if len(ids) < 1 || len(ids) > 5000 {
+		return nil, "invalidNotebook"
+	}
+	order := map[string]int{}
+	parent := ""
+	for i, id := range ids {
+		if !bson.IsObjectIdHex(id) {
+			return nil, "invalidNotebook"
+		}
+		if _, exists := order[id]; exists {
+			return nil, "invalidNotebook"
+		}
+		nb := lookup(id)
+		if nb.UserId.Hex() != userID || nb.IsDeleted {
+			return nil, "noAuth"
+		}
+		if i == 0 {
+			parent = nb.ParentNotebookId.Hex()
+		} else if parent != nb.ParentNotebookId.Hex() {
+			return nil, "invalidParentNotebook"
+		}
+		order[id] = i
+	}
+	return order, ""
+}
+
 func (c Api2) MoveNotebook() revel.Result {
 	var p struct {
 		NotebookID       string `json:"notebookId"`

@@ -116,6 +116,7 @@ POST    /api2/note/moveNote                     Note.MoveNote
 POST    /api2/note/copyNote                     Note.CopyNote
 POST    /api2/note/copySharedNote               Note.CopySharedNote
 POST    /api2/notebook/updateNotebookTitle      Notebook.UpdateNotebookTitle
+POST    /api2/notebook/reorder                  Api2.ReorderNotebooks
 POST    /api2/notebook/moveNotebook             Api2.MoveNotebook
 POST    /api2/user/updateUsername               User.UpdateUsername
 POST    /api2/user/updatePwd                    User.UpdatePwd
