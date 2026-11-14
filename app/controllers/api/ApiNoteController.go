@@ -4,6 +4,7 @@ import (
 	"github.com/revel/revel"
 	//	"encoding/json"
 	"context"
+	"encoding/json"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/gemsnote/gemsnote/app/service"
@@ -89,6 +90,43 @@ func (c ApiNote) GetSyncNotesWithContent(afterUsn, maxEntry int) revel.Result {
 	}
 	userID := c.getUserId()
 	notes := noteService.GetSyncNotesWithContent(userID, afterUsn, maxEntry)
+	return syncSnapshotResult{data: notes}
+}
+
+// GetNoteContents returns an owner-scoped body/version snapshot for requested IDs.
+func (c ApiNote) GetNoteContents() revel.Result {
+	var p struct {
+		NoteIDs []string `json:"noteIds"`
+	}
+	if err := c.Params.BindJSON(&p); err != nil {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidJSON"})
+	}
+	if len(p.NoteIDs) == 0 || len(p.NoteIDs) > 20 {
+		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidNoteId"})
+	}
+	notes, err := noteService.GetNoteContents(c.getUserId(), p.NoteIDs)
+	if err != nil {
+		if err.Error() == "noteContentUnavailable" {
+			c.Response.Status = 503
+		}
+		return c.RenderJSON(info.Re{Ok: false, Msg: err.Error()})
+	}
+	// Multi-note batches are capped at 8 MiB uncompressed. One oversized note
+	// is allowed alone so valid large notes are not silently dropped.
+	if len(notes) > 1 {
+		size := 2
+		for _, note := range notes {
+			data, err := json.Marshal(note)
+			if err != nil {
+				return c.RenderJSON(info.Re{Ok: false, Msg: "invalidResponse"})
+			}
+			size += len(data) + 1
+			if size > 8*1024*1024 {
+				c.Response.Status = 413
+				return c.RenderJSON(info.Re{Ok: false, Msg: "noteBatchTooLarge"})
+			}
+		}
+	}
 	return syncSnapshotResult{data: notes}
 }
 
@@ -250,6 +288,9 @@ func (c ApiNote) GetNoteContent(noteId string) revel.Result {
 // 添加笔记
 // [OK]
 func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
+	unlock := service.BeginNoteContentMutation()
+	defer unlock()
+
 	preserveTimes := c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") && !noteOrContent.UpdatedTime.IsZero()
 	if c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/") && !noteOrContent.CreatedTime.IsZero() {
 		noteOrContent.CreatedTime = noteOrContent.CreatedTime.In(time.Local)
@@ -413,6 +454,9 @@ func (c ApiNote) AddNote(noteOrContent info.ApiNote) revel.Result {
 // 更新笔记
 // [OK]
 func (c ApiNote) UpdateNote(noteOrContent info.ApiNote) revel.Result {
+	unlock := service.BeginNoteContentMutation()
+	defer unlock()
+
 	service.HistoryMutationMutex.Lock()
 	defer service.HistoryMutationMutex.Unlock()
 	c.normalizeModificationTime(&noteOrContent)

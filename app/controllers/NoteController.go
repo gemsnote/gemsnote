@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
+	"github.com/gemsnote/gemsnote/app/service"
 	"gopkg.in/mgo.v2/bson"
 	"net/url"
 	"os"
@@ -175,6 +176,9 @@ func (c Note) GetNoteContent(noteId string) revel.Result {
 
 // 这里不能用json, 要用post
 func (c Note) UpdateNoteOrContent(noteOrContent info.NoteOrContent) revel.Result {
+	unlock := service.BeginNoteContentMutation()
+	defer unlock()
+
 	// 新添加note
 	if noteOrContent.IsNew {
 		userId := c.GetObjectUserId()

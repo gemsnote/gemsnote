@@ -83,6 +83,8 @@ func validateHistoryAttachments(h info.EachHistory, noteID string) ([]info.Attac
 }
 
 func (s *NoteContentHistoryService) Restore(noteID, userID, historyID string, usn int) (bool, string) {
+	unlock := BeginNoteContentMutation()
+	defer unlock()
 	HistoryMutationMutex.Lock()
 	defer HistoryMutationMutex.Unlock()
 	if !bson.IsObjectIdHex(noteID) || !bson.IsObjectIdHex(userID) || !bson.IsObjectIdHex(historyID) {

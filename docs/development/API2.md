@@ -19,6 +19,19 @@ API2 只开放路由表明确声明的动作和 HTTP 方法，不通过旧通配
 
 ## 1.1.0 增加的部分
 
+### 元数据与正文分批同步
+
+客户端先调用 `GET /api2/note/getSyncNotes?afterUsn=<USN>&maxEntry=500`，每批读取最多 500 条元数据；按本地 USN 筛选新增、变化或正文未缓存的笔记，再调用 `POST /api2/note/getNoteContents`。重新同步下载全部正文，普通完全同步跳过 USN 相同且正文已缓存的笔记。
+
+正文接口使用 JSON `{"noteIds":["<服务端笔记 ID>"]}`，每批 1–20 个互不重复的有效 ID；必须全部属于当前用户，否则返回 `Ok:false`。成功返回按请求 ID 排列的笔记数组，每项包含完整元数据、对应的 `Usn` 和真实 `Content`（允许空字符串），支持 gzip。该接口仅存在于 API2，不改变旧 `/api`。
+
+多篇正文的未压缩 JSON 总量限制为 8 MiB，超过时返回 HTTP 413、`Msg:noteBatchTooLarge`；单篇超大正文允许单独读取。客户端遇到 413 或传输超时会拆小批次；单篇请求仍保留正文专用超时与取消能力。正文暂不可读取时返回 HTTP 503、`Msg:noteContentUnavailable`，不得把缺失正文视为空笔记。
+
+正文及其对应版本成功保存后才能确认 USN。分页游标使用元数据页的原始 USN，不能使用下载正文时更新后的 USN 跳过中间记录；失败与取消均不得提前推进游标。图片和附件沿用后台下载机制，不纳入正文批次。
+
+实际 PostgreSQL 回归脚本为 `scripts/test-sync-batches.py`，仅能对一次性本机实例运行，须设置 `GEMSNOTE_DISPOSABLE_API2=1` 和 `GEMSNOTE_TEST_PG_CONTAINER=gemsnote-api2-...`，可通过 `GEMSNOTE_API2_URL` 指定地址。脚本会写入测试数据，不可指向实际部署实例。
+
+
 ### 共享导航与接收者笔记本归属
 
 `GET /api2/bootstrap`（以及 `/api2/web/bootstrap`）增加 `Sharing`：
@@ -257,7 +270,7 @@ API2 并非所有接口均接受 JSON。例如 `/api2/user/updatePwd`、
 
 前两项响应中的 `Content:""` 是共享响应模型产生的占位值，**不表示正文为空或已下载**。
 客户端不能根据 `Content` 字段存在就覆盖本地正文或跳过正文下载。处理远端版本时，
-应在正文成功写入本地后才确认该版本已完整同步；修复历史缓存时不能仅凭 USN 相同跳过正文。
+应在正文成功写入本地后才确认该版本已完整同步；已知正文未缓存时不能仅凭 USN 相同跳过正文；历史损坏缓存可通过重新同步重建。
 正文快照返回的空正文则是真实值，不应当作缺失。
 
 正文快照根据 `Accept-Encoding` 协商 gzip 压缩，不依赖全局压缩开关，解压后 JSON

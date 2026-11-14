@@ -1,14 +1,25 @@
 package service
 
 import (
+	"fmt"
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"gopkg.in/mgo.v2/bson"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
+
+// A note save updates metadata and body separately. Batch snapshots must not
+// expose a new USN paired with the previous body during that write window.
+var noteContentSnapshotMu sync.RWMutex
+
+func BeginNoteContentMutation() func() {
+	noteContentSnapshotMu.Lock()
+	return noteContentSnapshotMu.Unlock
+}
 
 type NoteService struct {
 }
@@ -141,6 +152,59 @@ func (this *NoteService) GetSyncNotes(userId string, afterUsn, maxEntry int) []i
 // syncs otherwise spend most of their time waiting on database round trips.
 func (this *NoteService) GetSyncNotesWithContent(userId string, afterUsn, maxEntry int) []info.ApiNote {
 	notes := this.GetSyncNotes(userId, afterUsn, maxEntry)
+	return this.attachSyncContents(userId, notes)
+}
+
+func (this *NoteService) GetNoteContents(userId string, ids []string) ([]info.ApiNote, error) {
+	noteContentSnapshotMu.RLock()
+	defer noteContentSnapshotMu.RUnlock()
+	objectIDs := make([]bson.ObjectId, 0, len(ids))
+	seen := map[string]bool{}
+	for _, id := range ids {
+		id = strings.ToLower(id)
+		if !bson.IsObjectIdHex(id) || seen[id] {
+			return nil, fmt.Errorf("invalidNoteId")
+		}
+		seen[id] = true
+		objectIDs = append(objectIDs, bson.ObjectIdHex(id))
+	}
+	records := []info.Note{}
+	db.ListByQ(db.Notes, bson.M{"_id": bson.M{"$in": objectIDs}, "UserId": bson.ObjectIdHex(userId)}, &records)
+	if len(records) != len(ids) {
+		return nil, fmt.Errorf("noteIdNotExists")
+	}
+	byID := map[string]info.ApiNote{}
+	for _, note := range this.ToApiNotes(records) {
+		byID[note.NoteId] = note
+	}
+	notes := make([]info.ApiNote, 0, len(ids))
+	for _, id := range ids {
+		notes = append(notes, byID[strings.ToLower(id)])
+	}
+	contentIDs := []bson.ObjectId{}
+	for _, n := range notes {
+		if !n.IsDeleted {
+			contentIDs = append(contentIDs, bson.ObjectIdHex(n.NoteId))
+		}
+	}
+	contents := []info.NoteContent{}
+	if len(contentIDs) > 0 {
+		db.ListByQWithFields(db.NoteContents, bson.M{"_id": bson.M{"$in": contentIDs}, "UserId": bson.ObjectIdHex(userId)}, []string{"_id", "Content"}, &contents)
+	}
+	if len(contents) != len(contentIDs) {
+		return nil, fmt.Errorf("noteContentUnavailable")
+	}
+	bodyByID := map[string]string{}
+	for _, body := range contents {
+		bodyByID[body.NoteId.Hex()] = body.Content
+	}
+	for i := range notes {
+		notes[i].Content = bodyByID[notes[i].NoteId]
+	}
+	return notes, nil
+}
+
+func (this *NoteService) attachSyncContents(userId string, notes []info.ApiNote) []info.ApiNote {
 	if len(notes) == 0 {
 		return notes
 	}

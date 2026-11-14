@@ -10,7 +10,7 @@ const emit=defineEmits<{synced:[]}>()
 const menuOpen=ref(false)
 const languageOpen=ref(false)
 const syncOpen=ref(false)
-const logoutPrompt=ref(false)
+const logoutBusy=ref(false)
 const resetPrompt=ref(false)
 const aboutOpen=ref(false)
 const aboutLoading=ref(false),aboutError=ref('')
@@ -18,7 +18,6 @@ const serverAboutLoading=ref(false),serverAboutError=ref('')
 const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
 const serverInfo=ref({server:'',version:'',min_version:''})
 const serverAddress=location.origin
-let resolveLogoutChoice:((force:boolean)=>void)|undefined
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
 const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
 // Desktop builds inject their canonical api/VERSION while compiling this
@@ -49,14 +48,6 @@ function updateNativeLanguage(value:typeof language.value){
 }
 function chooseLanguage(value:typeof language.value){setLanguage(value);updateNativeLanguage(value);close()}
 function focusOut(event:FocusEvent){if(!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node|null))close()}
-function askLogoutChoice(){
-  close();logoutPrompt.value=true
-  return new Promise<boolean>(resolve=>{resolveLogoutChoice=resolve})
-}
-function chooseLogout(force:boolean){
-  logoutPrompt.value=false
-  const resolve=resolveLogoutChoice;resolveLogoutChoice=undefined;resolve?.(force)
-}
 async function showAbout(){
   close()
   aboutOpen.value=true
@@ -129,31 +120,17 @@ async function runImmediateSync(){
 }
 async function logout(event:MouseEvent){
   event.preventDefault()
-  const beforeLogout=(window as any).__gemsnoteBeforeLogout
-  if(typeof beforeLogout==='function'&&!await beforeLogout())return
-  if(!desktop.value){
-    try{
-      await request('/web/logout',{})
-      location.href='/login'
-    }catch(e){
-      const message=errorMessage(e)
-      window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
-    }
-    return
-  }
+  if(logoutBusy.value)return
+  close();logoutBusy.value=true
   try{
+    // Persist pending editor changes locally; this is not a remote sync.
+    const beforeLogout=(window as any).__gemsnoteBeforeLogout
+    if(typeof beforeLogout==='function'&&!await beforeLogout())return
     await request('/web/logout',{})
     location.href='/login'
   }catch(e){
-    const message=errorMessage(e)
-    if(errorCode(e)==='syncFailed'){
-      if(!await askLogoutChoice())return
-      try{await request('/web/logout',{force:true});location.href='/login'}
-      catch(forceError){window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:errorMessage(forceError),Full:false}}))}
-      return
-    }
-    window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:message,Full:false}}))
-  }
+    window.dispatchEvent(new CustomEvent('sync-result',{detail:{Ok:false,Msg:errorMessage(e),Full:false}}))
+  }finally{logoutBusy.value=false}
 }
 </script>
 
@@ -182,16 +159,6 @@ async function logout(event:MouseEvent){
     </div>
   </nav>
   <Teleport to="body">
-    <section v-if="logoutPrompt" class="choice-dialog-backdrop" role="presentation" @click.self="chooseLogout(false)">
-      <div class="choice-dialog" role="dialog" aria-modal="true" :aria-label="t('退出登录')">
-        <h2>{{t('退出登录')}}</h2>
-        <p>{{t('退出前同步失败，是否在不同步的情况下退出？')}}</p>
-        <div class="choice-dialog-actions">
-          <button class="primary" @click="chooseLogout(true)">{{t('确定')}}</button>
-          <button @click="chooseLogout(false)">{{t('取消')}}</button>
-        </div>
-      </div>
-    </section>
     <section v-if="resetPrompt" class="choice-dialog-backdrop" role="presentation" @click.self="resetPrompt=false">
       <div class="choice-dialog" role="dialog" aria-modal="true" :aria-label="t('重新同步')">
         <h2>{{t('重新同步')}}</h2>

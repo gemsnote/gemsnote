@@ -155,6 +155,8 @@ func (c Web) Save(noteId, notebookId, ownerId, title, content, tags string, isNe
 }
 
 func (c Web) save(noteId, notebookId, ownerId, title, content, tags string, isNew, isMarkdown bool, usn int, createdTime, updatedTime time.Time) revel.Result {
+	unlock := service.BeginNoteContentMutation()
+	defer unlock()
 	if !bson.IsObjectIdHex(noteId) || (isNew && !bson.IsObjectIdHex(notebookId)) {
 		return c.RenderJSON(info.Re{Ok: false, Msg: "invalidId"})
 	}

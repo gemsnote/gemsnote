@@ -30,7 +30,7 @@ try {
       const path = new URL(route.request().url()).pathname
       let data
       switch (path) {
-        case '/api2/logout': data={Ok:false,Msg:'syncFailed'};break
+        case '/api2/logout': data={Ok:false,Msg:'databaseBusy'};break
         case '/api2/web/fullSync': fullSyncRequest=route;fullSyncRunning=true;return
         case '/api2/web/syncProgress': data={Running:fullSyncRunning,RunID:5,Mode:'full',Stage:'notes',Current:3};break
         case '/api2/web/cancelSync':
@@ -98,13 +98,11 @@ try {
     await expect(syncDialog).toHaveCount(0)
     await expect(page.getByRole('alert')).toHaveCount(0)
 
-    // Localized messages must not replace the code used to open logout confirmation.
+    // Local logout failures report an error, never request a final remote sync.
     await page.getByRole('button',{name:chinese?'用户菜单':'User menu',exact:true}).click()
     await page.getByRole('menuitem',{name:chinese?'退出':'Sign out',exact:true}).click()
-    const logoutDialog=page.getByRole('dialog',{name:chinese?'退出登录':'Sign out',exact:true})
-    await expect(logoutDialog).toBeVisible()
-    await logoutDialog.getByRole('button',{name:chinese?'取消':'Cancel',exact:true}).click()
-    await expect(logoutDialog).toHaveCount(0)
+    await expect(page.getByRole('dialog',{name:chinese?'退出登录':'Sign out',exact:true})).toHaveCount(0)
+    await expect(page.locator('.editor>.error')).toBeVisible()
     await expect(page).toHaveURL(`${baseURL}/note`)
 
     // Prompt cancel/Escape must not create anything; submit must preserve input.
