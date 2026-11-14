@@ -25,6 +25,7 @@ const notebook=ref(''),notebookSearch=ref(''),search=ref(''),tagFilter=ref(''),t
 const title=ref(''),content=ref(''),tags=ref(''),dirty=ref(false),saving=ref(false),error=ref(''),preview=ref(false),panel=ref(''),destination=ref(''),shareEmail=ref(''),histories=ref<any[]>([]),members=ref<any[]>([]),attachments=ref<any[]>([]),sort=ref<'UpdatedTime'|'CreatedTime'|'Title'>('UpdatedTime'),sortAsc=ref(false),sidebar=ref(false)
 const notebooksVisible=ref(true),notesVisible=ref(true),notebooksWidth=ref(230),notesWidth=ref(290),bookMenu=ref(''),compact=ref(false)
 const expandedNotebooks=ref<Set<string>>(new Set())
+const searchAllNotebooks=ref(false)
 const noteSelection=ref<NoteSelection>({ids:new Set(),anchor:''})
 const selectionMenu=ref<{x:number;y:number}|null>(null),batchAction=ref<BatchAction|null>(null),batchNotes=ref<BatchNote[]>([])
 const selectedNotes=computed(()=>sorted.value.filter(note=>noteSelection.value.ids.has(note.NoteId)))
@@ -179,7 +180,7 @@ async function load(){
   for(let page=1;;page++){
    const params=sharedOwner.value
     ?{userId:sharedOwner.value,notebookId:notebook.value,page,sortField:sort.value,isAsc:sortAsc.value}
-    :{notebookId:notebook.value,key:search.value,tag:tagFilter.value,trash:trash.value,starred:starred.value,page,sort:sort.value}
+    :{notebookId:search.value.trim()&&searchAllNotebooks.value?'':notebook.value,key:search.value,tag:tagFilter.value,trash:trash.value,starred:starred.value,page,sort:sort.value}
    const batch=await request<any[]>(path,params)
    if(token!==notesLoadId)return
    if(!Array.isArray(batch))throw new Error(t('笔记接口返回的数据格式不正确'))
@@ -190,7 +191,7 @@ async function load(){
   }
   if(!sharedOwner.value&&!trash.value&&!starred.value&&!sharingRecipient.value){
    for(const item of placedShares.value){
-    if(seen.has(item.NoteId)||(notebook.value&&item.NotebookId!==notebook.value)||(tagFilter.value&&!(item.Tags||[]).includes(tagFilter.value)))continue
+    if(seen.has(item.NoteId)||(notebook.value&&!(search.value.trim()&&searchAllNotebooks.value)&&item.NotebookId!==notebook.value)||(tagFilter.value&&!(item.Tags||[]).includes(tagFilter.value)))continue
     const key=search.value.trim().toLocaleLowerCase()
     if(key&&!`${item.Title||''} ${item.Desc||''}`.toLocaleLowerCase().includes(key))continue
     all.push(item);seen.add(item.NoteId)
@@ -237,8 +238,8 @@ async function create(markdown:boolean){if(!await flush())return;let id=notebook
 async function addBook(parentNotebookId=''){const name=await promptText(t(parentNotebookId?'子笔记本名称':'笔记本名称'));if(!name)return;bookMenu.value='';try{await request('/notebook/addNotebook',{notebookId:objectId(),title:name,parentNotebookId});await bootstrap()}catch(e){error.value=errorMessage(e)}}
 async function bookAction(id:string,remove=false){bookMenu.value='';try{if(remove){const choice=await confirmNotebookDelete(t('删除此笔记本？子笔记本需先移动或删除。'));if(choice===null)return;await request('/notebook/deleteNotebook',{notebookId:id,deleteNotes:choice==='true'});if(notebook.value===id)notebook.value='';current.value=null}else{const name=await promptText(t('笔记本名称'),notebooks.value.find(n=>n.NotebookId===id)?.Title);if(!name)return;await request('/notebook/updateNotebookTitle',{notebookId:id,title:name})}await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
 async function remove(){if(!current.value||!await confirmAction(t(own.value?(trash.value?'永久删除这篇笔记？此操作不可撤销。':'将笔记放入回收站？'):'从共享列表移除这篇笔记？')))return;try{if(own.value&&trash.value)await request('/note/deleteTrash',{noteId:current.value.Note.NoteId});else if(own.value)await request('/note/deleteNote',{noteIds:[current.value.Note.NoteId],isShared:false});else await request('/share/deleteShareNoteBySharedUser',{noteId:current.value.Note.NoteId,fromUserId:current.value.Note.UserId});dirty.value=false;current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
-async function restore(){try{await request('/web/restore',{noteId:current.value.Note.NoteId});current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
-async function move(copy=false){if(!await flush()||!destination.value)return;try{const noteId=current.value.Note.NoteId;if(copy&&isSharedNote.value)await request('/note/copySharedNote',{noteIds:[noteId],notebookId:destination.value,fromUserId:current.value.Note.UserId});else if(isSharedNote.value)await request('/shared/move',{noteId,notebookId:destination.value});else await request(copy?'/note/copyNote':'/note/moveNote',{noteIds:[noteId],notebookId:destination.value});panel.value='';await bootstrap();await load();await open(noteId)}catch(e){error.value=errorMessage(e)}}
+async function restore(){if(!notebooks.value.some(n=>n.NotebookId===current.value.Note.NotebookId)){destination.value='';panel.value='restore';return}try{await request('/web/restore',{noteId:current.value.Note.NoteId});current.value=null;await bootstrap();await load()}catch(e){error.value=errorMessage(e)}}
+async function move(copy=false){if(!await flush()||!destination.value)return;const restoring=panel.value==='restore';try{const noteId=current.value.Note.NoteId;if(copy&&isSharedNote.value)await request('/note/copySharedNote',{noteIds:[noteId],notebookId:destination.value,fromUserId:current.value.Note.UserId});else if(isSharedNote.value)await request('/shared/move',{noteId,notebookId:destination.value});else await request(copy?'/note/copyNote':'/note/moveNote',{noteIds:[noteId],notebookId:destination.value});panel.value='';await bootstrap();await load();if(restoring){current.value=null;return}await open(noteId)}catch(e){error.value=errorMessage(e)}}
 async function share(){if(shareBusy.value||!shareEmail.value.trim())return;shareBusy.value=true;try{const result=await request('/share/addShareNote',{noteId:current.value.Note.NoteId,emails:[shareEmail.value.trim()],perm:0});const failures=Object.values(result).filter((r:any)=>!r.Ok);if(failures.length)throw new Error(String((failures[0] as any).Msg||'sharingLoadFailed'));shareEmail.value='';await bootstrap();await showShare()}catch(e){error.value=errorMessage(e)}finally{shareBusy.value=false}}
 async function showShare(){panel.value='share';try{const r=await request('/web/shareMembers',{noteId:current.value.Note.NoteId});members.value=r.Users||[]}catch(e){error.value=errorMessage(e)}}
 async function revoke(id:string){try{await request('/share/deleteShareNote',{noteId:current.value.Note.NoteId,toUserId:id});await bootstrap();await showShare()}catch(e){error.value=errorMessage(e)}}
@@ -421,6 +422,7 @@ watch(()=>sorted.value.map(note=>note.NoteId).join(','),()=>{
 </header>
 <div class="note-search-row">
 <input class="note-search" v-model="search" type="search" :placeholder="t('搜索笔记')" :aria-label="t('搜索笔记')" @input="scheduleSearch" @keydown.enter.prevent="runSearch">
+<label v-if="!sharedOwner" class="search-scope"><input type="checkbox" v-model="searchAllNotebooks" @change="runSearch">{{t('搜索所有笔记本')}}</label>
 </div>
 <div v-if="selectedNotes.length>1" class="note-selection-bar" role="status">
 <span>{{t('已选中 {count} 篇笔记',{count:selectedNotes.length})}}</span>
@@ -480,13 +482,13 @@ watch(()=>sorted.value.map(note=>note.NoteId).join(','),()=>{
 <div class="note-tag-line"><span>{{t('标签')}}</span><TagInput :key="current.Note.NoteId" ref="tagInput" v-model="tags" :suggestions="(boot.Tags||[]).map((tag:any)=>tag.Tag)" :readonly="!writable" @update:model-value="changed"/></div>
 <section v-if="panel" class="dialog-backdrop" @click.self="panel=''">
 <div class="dialog" role="dialog" aria-modal="true">
-<button v-if="panel!=='move'" class="close" @click="panel=''">{{t('关闭')}}</button>
-<template v-if="panel==='move'">
-<h2>{{t('移动或复制笔记')}}</h2>
+<button v-if="panel!=='move'&&panel!=='restore'" class="close" @click="panel=''">{{t('关闭')}}</button>
+<template v-if="panel==='move'||panel==='restore'">
+<h2>{{t(panel==='restore'?'恢复':'移动或复制笔记')}}</h2>
 <NotebookPicker v-model="destination" :items="notebookTree"/>
 <div class="choice-dialog-actions">
-<button :disabled="!destination" @click="move()">{{t('移动')}}</button>
-<button :disabled="!destination" @click="move(true)">{{t(isSharedNote?'复制到我的笔记本':'复制')}}</button>
+<button :disabled="!destination" @click="move()">{{t(panel==='restore'?'恢复':'移动')}}</button>
+<button v-if="panel!=='restore'" :disabled="!destination" @click="move(true)">{{t(isSharedNote?'复制到我的笔记本':'复制')}}</button>
 <button @click="panel=''">{{t('取消')}}</button>
 </div>
 </template>

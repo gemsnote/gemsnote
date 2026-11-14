@@ -7,6 +7,7 @@ export const languages: { code: Language; name: string }[] = [
 ]
 
 const translations: Record<string, string> = {
+ '搜索所有笔记本':'Search all notebooks',
  '新增':'New', '导入':'Import', '笔记列表':'Note list', '所选笔记操作':'Selected note actions', '取消选择':'Clear selection',
  '批量移动笔记':'Move selected notes', '批量共享笔记':'Share selected notes', '批量删除笔记':'Delete selected notes',
  '已选中 {count} 篇笔记':'{count} notes selected', '请选择笔记':'Select notes first.', '操作参数无效':'Invalid action parameters.',
