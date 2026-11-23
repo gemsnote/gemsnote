@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -265,20 +266,63 @@ func (this *ThemeService) GetDefaultThemes() (themes []info.Theme) {
 
 func validateFilename(filename string) bool {
 	// 防止用"../../来获取其它文件"
-	if strings.Contains(filename, "..") {
+	if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\\x00") {
 		return false
 	}
 	return true
 }
 
+// themeTemplateAllowed limits theme editing to template/config files. Anything
+// else (notably .js/.htm/.svg) would become an executable document served from
+// the application's own origin.
+func themeTemplateAllowed(filename string) bool {
+	if filename == "theme.json" {
+		return true
+	}
+	if !validateFilename(filename) {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".html", ".css":
+		return true
+	}
+	return false
+}
+
+// themeDirectoryWritable keeps theme writes inside public/upload, even when a
+// historical theme row points somewhere else.
+func themeDirectoryWritable(basePath string) bool {
+	if basePath == "" {
+		return false
+	}
+	root := filepath.Join(revel.BasePath, "public", "upload")
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	abs, err := filepath.Abs(basePath)
+	if err != nil {
+		return false
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = resolved
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == "." || rel == ".." {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
 // 得到模板内容
 func (this *ThemeService) GetTplContent(userId, themeId, filename string) string {
-	if !validateFilename(filename) {
+	if !themeTemplateAllowed(filename) {
 		return ""
 	}
-
-	path := this.GetThemeAbsolutePath(userId, themeId) + "/" + filename
-	return GetFileStrContent(path)
+	basePath := this.GetThemeAbsolutePath(userId, themeId)
+	if !themeDirectoryWritable(basePath) {
+		return ""
+	}
+	return GetFileStrContent(basePath + "/" + filename)
 }
 
 // 得到主题的绝对路径
@@ -301,13 +345,16 @@ func (this *ThemeService) GetThemePath(userId, themeId string) string {
 
 // 更新模板内容
 func (this *ThemeService) UpdateTplContent(userId, themeId, filename, content string) (ok bool, msg string) {
-	if !validateFilename(filename) {
-		return
+	if !themeTemplateAllowed(filename) {
+		return false, "invalidFilename"
 	}
 
 	basePath := this.GetThemeAbsolutePath(userId, themeId)
+	if !themeDirectoryWritable(basePath) {
+		return false, "noPermission"
+	}
 	path := basePath + "/" + filename
-	if strings.Contains(filename, ".html") {
+	if strings.HasSuffix(strings.ToLower(filename), ".html") {
 		// Log(">>")
 		if ok, msg = this.ValidateTheme(basePath, filename, content); ok {
 			// 模板
@@ -336,17 +383,20 @@ func (this *ThemeService) UpdateTplContent(userId, themeId, filename, content st
 		}
 		return
 	}
+	// remaining allowed names are stylesheets
 	ok = PutFileStrContent(path, content)
 	return
 }
 
 func (this *ThemeService) DeleteTpl(userId, themeId, filename string) (ok bool) {
-	if !validateFilename(filename) {
+	if !themeTemplateAllowed(filename) {
 		return
 	}
-
-	path := this.GetThemeAbsolutePath(userId, themeId) + "/" + filename
-	ok = DeleteFile(path)
+	basePath := this.GetThemeAbsolutePath(userId, themeId)
+	if !themeDirectoryWritable(basePath) {
+		return
+	}
+	ok = DeleteFile(basePath + "/" + filename)
 	return
 }
 

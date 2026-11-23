@@ -110,8 +110,30 @@ func AuthInterceptor(c *revel.Controller) revel.Result {
 	return c.Redirect("/login")
 }
 
+// memberMutationMethods lists the Member actions that change state. Other
+// actions only render pages, so they must stay reachable with GET.
+var memberMutationMethods = map[string]map[string]bool{
+	"MemberBlog": {
+		"UpdateBlogUrlTitle": true, "UpdateBlogAbstract": true, "DoUpdateBlogAbstract": true,
+		"UpateCateIds": true, "UpdateCateUrlTitle": true,
+		"DoAddOrUpdateSingle": true, "SortSingles": true, "DeleteSingle": true, "UpdateSingleUrlTitle": true,
+		"UpdateTplContent": true, "DeleteTpl": true,
+		"DeleteThemeImage": true, "UploadThemeImage": true,
+		"ActiveTheme": true, "DeleteTheme": true, "PublicTheme": true,
+	},
+}
+
+func isMemberMutation(controller, method string) bool {
+	if controller == "MemberGroup" {
+		return method != "Index"
+	}
+	return memberMutationMethods[controller][method]
+}
+
 func MutationInterceptor(c *revel.Controller) revel.Result {
-	if c.MethodName == "Index" {
+	controller := strings.Title(c.Name)
+	method := strings.Title(c.MethodName)
+	if !isMemberMutation(controller, method) {
 		return nil
 	}
 	if c.Request.Method != "POST" {
@@ -158,6 +180,7 @@ func init() {
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &MemberBlog{})
 	revel.InterceptFunc(AuthInterceptor, revel.BEFORE, &MemberGroup{})
 	revel.InterceptFunc(MutationInterceptor, revel.BEFORE, &MemberGroup{})
+	revel.InterceptFunc(MutationInterceptor, revel.BEFORE, &MemberBlog{})
 	revel.OnAppStart(func() {
 	})
 }

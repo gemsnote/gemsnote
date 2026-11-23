@@ -34,3 +34,11 @@ func TestApplySecurityHeadersKeepsActionCSP(t *testing.T) {
 		t.Fatal("HSTS missing on TLS responses")
 	}
 }
+
+func TestApplySecurityHeadersSandboxesUploads(t *testing.T) {
+	header := http.Header{}
+	applySecurityHeaders(header, "/upload/abc/themes/t/x.html", false)
+	if got := header.Get("Content-Security-Policy"); got != "sandbox; default-src 'none'; frame-ancestors 'none'" {
+		t.Fatalf("upload CSP = %q", got)
+	}
+}

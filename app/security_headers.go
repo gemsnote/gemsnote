@@ -25,6 +25,12 @@ func applySecurityHeaders(header headerWriter, path string, tls bool) {
 	if tls {
 		header.Set("Strict-Transport-Security", "max-age=31536000")
 	}
+	// Uploaded themes/avatars live under a static route. Sandbox them so an
+	// uploaded document can never run script with the application's origin.
+	if strings.HasPrefix(path, "/upload/") || strings.HasPrefix(path, "/public/upload/") {
+		header.Set("Content-Security-Policy", "sandbox; default-src 'none'; frame-ancestors 'none'")
+		return
+	}
 	if header.Get("Content-Security-Policy") == "" {
 		header.Set("Content-Security-Policy", "frame-ancestors 'self'")
 	}
