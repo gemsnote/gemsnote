@@ -4,12 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
@@ -154,8 +153,7 @@ func (c ApiShared) NoteFile(noteId, fileId string) revel.Result {
 		}
 		path, title, inline = fileInfo.Path, fileInfo.Title, true
 	}
-	fullPath := revel.BasePath + "/" + strings.TrimLeft(path, "/")
-	file, err := os.Open(fullPath)
+	file, err := controllers.OpenStoredFile(path)
 	if err != nil {
 		return c.RenderJSON(map[string]interface{}{"Ok": false, "Msg": "fileNotFound"})
 	}
@@ -169,10 +167,11 @@ func (c ApiShared) NoteFile(noteId, fileId string) revel.Result {
 		return c.RenderJSON(map[string]interface{}{"Ok": false, "Msg": "fileReadFailed"})
 	}
 	digest := hex.EncodeToString(hash.Sum(nil))
+	controllers.SetFileSecurityHeaders(c.Controller)
 	c.Response.Out.Header().Set("X-Gemsnote-SHA256", digest)
 	c.Response.Out.Header().Set("ETag", `"`+digest+`"`)
 	if inline {
 		return c.RenderFile(file, revel.Inline)
 	}
-	return c.RenderBinary(file, title, revel.Attachment, time.Now())
+	return c.RenderBinary(file, controllers.SafeDownloadName(title), revel.Attachment, time.Now())
 }

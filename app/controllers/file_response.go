@@ -42,13 +42,28 @@ func RenderStoredFile(c *revel.Controller, storedPath, title string, delivery re
 		title = filepath.Base(fullPath)
 	}
 	title = safeDownloadName(title)
-	if c.Response.Out.Server != nil {
-		c.Response.Out.Header().Set("X-Content-Type-Options", "nosniff")
-		c.Response.Out.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
-		c.Response.Out.Header().Set("Cache-Control", "private, no-store")
-	}
+	SetFileSecurityHeaders(c)
 	return c.RenderBinary(file, title, delivery, stat.ModTime())
 }
+
+// SetFileSecurityHeaders applies the response hardening required for any file
+// that leaves the server: no content sniffing, no script execution, no caching
+// by shared proxies.
+func SetFileSecurityHeaders(c *revel.Controller) {
+	if c.Response.Out.Server == nil {
+		return
+	}
+	header := c.Response.Out.Header()
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Content-Security-Policy", "sandbox; default-src 'none'; frame-ancestors 'none'")
+	header.Set("Cache-Control", "private, no-store")
+}
+
+// OpenStoredFile validates a database-stored path before opening it.
+func OpenStoredFile(stored string) (*os.File, error) { return openStoredFile(stored) }
+
+// SafeDownloadName keeps user titles out of header and archive separators.
+func SafeDownloadName(name string) string { return safeDownloadName(name) }
 
 // Paths from old snapshots are untrusted too. Resolve links and reject any
 // path outside the instance directory before opening it.
