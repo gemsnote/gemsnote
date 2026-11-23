@@ -49,3 +49,17 @@ func DerivePDFSecret(appSecret string) string {
 	mac.Write([]byte("gemsnote/pdf-credential/v1"))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
+// PDFRenderArgs keeps the external renderer away from local files and plugins.
+// Markdown notes need JavaScript (the export template renders them client-side
+// and signals --window-status), so JS is only disabled for HTML notes; the
+// renderer still has to be isolated at the OS level.
+func PDFRenderArgs(markdown bool) []string {
+	args := []string{"--lowquality", "--disable-local-file-access", "--no-plugins"}
+	if markdown {
+		args = append(args, "--window-status", "done")
+	} else {
+		args = append(args, "--disable-javascript")
+	}
+	return args
+}

@@ -774,7 +774,7 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 	}
 
 	note := noteService.GetNoteById(noteId)
-	if note.NoteId == "" {
+	if note.NoteId == "" || note.IsTrash || note.IsDeleted {
 		re.Msg = "noteNotExists"
 		return c.RenderJSON(re)
 	}
@@ -813,10 +813,7 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 	}
 
 	renderURL := configService.GetSiteUrl() + "/note/toPdf?" + url.Values{"noteId": {noteId}, "appKey": {appKey}}.Encode()
-	args := []string{"--lowquality", "--disable-local-file-access"}
-	if note.IsMarkdown {
-		args = append(args, "--window-status", "done")
-	}
+	args := PDFRenderArgs(note.IsMarkdown)
 	args = append(args, renderURL, path)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -824,14 +821,24 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 
 	_, err := cmd.Output()
 	if err != nil {
+		revel.AppLog.Error("pdf render failed", "noteId", noteId, "error", err)
+		os.Remove(path)
 		re.Msg = "sysError"
 		return c.RenderJSON(re)
 	}
 	file, err := os.Open(path)
 	if err != nil {
+		revel.AppLog.Error("pdf output unreadable", "noteId", noteId, "error", err)
+		os.Remove(path)
 		re.Msg = "sysError"
 		return c.RenderJSON(re)
 	}
+	// Unlink now so the rendered note does not persist on disk.
+	defer func() {
+		if removeErr := os.Remove(path); removeErr != nil {
+			revel.AppLog.Warn("pdf temp file cleanup failed", "noteId", noteId, "error", removeErr)
+		}
+	}()
 
 	filenameReturn := note.Title
 	filenameReturn = FixFilename(filenameReturn)

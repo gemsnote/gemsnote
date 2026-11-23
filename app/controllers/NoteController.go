@@ -17,7 +17,6 @@ import (
 	"time"
 	//	"github.com/gemsnote/gemsnote/app/types"
 	//	"io/ioutil"
-	"fmt"
 	//	"bytes"
 	//	"os"
 )
@@ -338,7 +337,7 @@ func (c Note) ToPdf(noteId, appKey string) revel.Result {
 		return c.RenderText("auth error")
 	}
 	note := noteService.GetNoteById(noteId)
-	if note.NoteId == "" {
+	if note.NoteId == "" || note.IsTrash || note.IsDeleted {
 		return c.RenderText("no note")
 	}
 
@@ -461,10 +460,7 @@ func (c Note) ExportPdf(noteId string) revel.Result {
 	}
 
 	renderURL := configService.GetSiteUrl() + "/note/toPdf?" + url.Values{"noteId": {noteId}, "appKey": {appKey}}.Encode()
-	args := []string{"--lowquality", "--disable-local-file-access"}
-	if note.IsMarkdown {
-		args = append(args, "--window-status", "done")
-	}
+	args := PDFRenderArgs(note.IsMarkdown)
 	args = append(args, renderURL, path)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -472,12 +468,23 @@ func (c Note) ExportPdf(noteId string) revel.Result {
 
 	_, err := cmd.Output()
 	if err != nil {
-		return c.RenderText("export pdf error. " + fmt.Sprintf("%v", err))
+		revel.AppLog.Error("pdf render failed", "noteId", noteId, "error", err)
+		os.Remove(path)
+		return c.RenderText("export pdf error")
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return c.RenderText("export pdf error. " + fmt.Sprintf("%v", err))
+		revel.AppLog.Error("pdf output unreadable", "noteId", noteId, "error", err)
+		os.Remove(path)
+		return c.RenderText("export pdf error")
 	}
+	// Unlink now: the renderer output must not outlive the request, and POSIX
+	// keeps the open handle readable for the streaming response.
+	defer func() {
+		if removeErr := os.Remove(path); removeErr != nil {
+			revel.AppLog.Warn("pdf temp file cleanup failed", "noteId", noteId, "error", removeErr)
+		}
+	}()
 	// http://stackoverflow.com/questions/8588818/chrome-pdf-display-duplicate-headers-received-from-the-server
 	//	filenameReturn = strings.Replace(filenameReturn, ",", "-", -1)
 	filenameReturn := note.Title

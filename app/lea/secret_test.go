@@ -1,6 +1,7 @@
 package lea
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -49,5 +50,27 @@ func TestPDFCapabilityDoesNotUseAppSecretDirectly(t *testing.T) {
 	}
 	if ValidPDFToken(DerivePDFSecret("another-secret"), "5b1f0b7c9b1e4b0a8a2f3c4d", token, now) {
 		t.Fatal("token accepted with another key")
+	}
+}
+
+func TestPDFRenderArgsDisableActiveContent(t *testing.T) {
+	html := strings.Join(PDFRenderArgs(false), " ")
+	for _, want := range []string{"--disable-local-file-access", "--no-plugins", "--disable-javascript"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("HTML renderer args missing %s: %v", want, html)
+		}
+	}
+	// Markdown export is rendered by the page's own JavaScript and must keep it.
+	markdown := strings.Join(PDFRenderArgs(true), " ")
+	if strings.Contains(markdown, "--disable-javascript") {
+		t.Fatalf("markdown export needs JavaScript: %v", markdown)
+	}
+	if !strings.Contains(markdown, "--window-status") {
+		t.Fatalf("markdown export must wait for the rendered document: %v", markdown)
+	}
+	for _, want := range []string{"--disable-local-file-access", "--no-plugins"} {
+		if !strings.Contains(markdown, want) {
+			t.Fatalf("markdown renderer args missing %s: %v", want, markdown)
+		}
 	}
 }
