@@ -34,6 +34,7 @@ func init() {
 		revel.FilterConfiguringFilter, // A hook for adding or removing per-Action filters.
 		revel.ParamsFilter,            // Parse parameters into Controller.Params.
 		revel.SessionFilter,           // Restore and write the session cookie.
+		SecurityHeadersFilter,         // Default nosniff/frame/referrer/CSP headers.
 
 		// 使用SessionFilter标准版从cookie中得到sessionID, 然后通过MssessionFilter从Memcache中得到
 		// session, 之后MSessionFilter将session只存sessionID然后返回给SessionFilter返回到web
