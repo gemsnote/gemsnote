@@ -13,6 +13,22 @@ import (
 type ShareService struct {
 }
 
+// ownsShareResource verifies ownership against the resource itself.  Share
+// rows are authorization grants, not evidence that the grantor owns a note or
+// notebook; trusting them allowed a forged legacy grant to disclose another
+// user's private note through both legacy API and API2 readers.
+func (this *ShareService) ownsShareResource(ownerId, resourceId string, notebook bool) bool {
+	if !bson.IsObjectIdHex(ownerId) || !bson.IsObjectIdHex(resourceId) || !db.UserAvailable(ownerId) {
+		return false
+	}
+	if notebook {
+		item := notebookService.GetNotebookById(resourceId)
+		return item.NotebookId != "" && item.UserId.Hex() == ownerId && !item.IsDeleted && !item.IsTrash
+	}
+	item := noteService.GetNoteById(resourceId)
+	return item.NoteId != "" && item.UserId.Hex() == ownerId && !item.IsDeleted && !item.IsTrash
+}
+
 //-----------------------------------
 // 返回shareNotebooks, sharedUserInfos
 // info.ShareNotebooksByUser, []info.User
@@ -315,6 +331,9 @@ func (this *ShareService) AddShareNotebook(notebookId string, perm int, userId, 
 
 // 第三方注册时没有email
 func (this *ShareService) AddShareNotebookToUserId(notebookId string, perm int, userId, toUserId string) (bool, string, string) {
+	if !this.ownsShareResource(userId, notebookId, true) || !bson.IsObjectIdHex(toUserId) || toUserId == userId || !db.UserAvailable(toUserId) {
+		return false, "noPermission", ""
+	}
 	perm = 0
 	// 添加一条记录说明两者存在关系
 	this.AddHasShareNote(userId, toUserId)
@@ -353,6 +372,9 @@ func (this *ShareService) AddShareNote(noteId string, perm int, userId, email st
 
 // 第三方测试没有userId
 func (this *ShareService) AddShareNoteToUserId(noteId string, perm int, userId, toUserId string) (bool, string, string) {
+	if !this.ownsShareResource(userId, noteId, false) || !bson.IsObjectIdHex(toUserId) || toUserId == userId || !db.UserAvailable(toUserId) {
+		return false, "noPermission", ""
+	}
 	perm = 0
 	// 添加一条记录说明两者存在关系
 	this.AddHasShareNote(userId, toUserId)
@@ -376,6 +398,10 @@ func (this *ShareService) AddShareNoteToUserId(noteId string, perm int, userId, 
 // userId是所有者
 func (this *ShareService) HasReadPerm(userId, updatedUserId, noteId string) bool {
 	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(updatedUserId) || !bson.IsObjectIdHex(noteId) {
+		return false
+	}
+	// A stored grant is not proof of ownership. Reject forged historical rows.
+	if !this.ownsShareResource(userId, noteId, false) {
 		return false
 	}
 	q := this.getOrQ(updatedUserId) // (toUserId == "xxx" || ToGroupId in (1, 2,3))
@@ -419,6 +445,9 @@ func (this *ShareService) HasReadNotebookPerm(userId, updatedUserId, notebookId 
 	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(updatedUserId) || !bson.IsObjectIdHex(notebookId) {
 		return false
 	}
+	if !this.ownsShareResource(userId, notebookId, true) {
+		return false
+	}
 	q := this.getOrQ(updatedUserId)
 	q["UserId"] = bson.ObjectIdHex(userId)
 	q["NotebookId"] = bson.ObjectIdHex(notebookId)
@@ -460,7 +489,7 @@ func (this *ShareService) GetShareNoteContent(noteId, myUserId, sharedUserId str
 
 	if this.HasReadPerm(sharedUserId, myUserId, noteId) {
 		//	if this.HasSharedNote(noteId, myUserId) || this.HasSharedNotebook(noteId, myUserId, sharedUserId) {
-		db.Get(db.NoteContents, noteId, &noteContent)
+		noteContent = noteService.GetNoteContent(noteId, sharedUserId)
 	} else {
 	}
 	return
@@ -698,6 +727,9 @@ func (this *ShareService) GetNoteShareGroups(noteId, userId string) []info.Share
 // 共享笔记给分组
 func (this *ShareService) AddShareNoteGroup(userId, noteId, groupId string, perm int) bool {
 	perm = 0
+	if !this.ownsShareResource(userId, noteId, false) || !bson.IsObjectIdHex(groupId) {
+		return false
+	}
 	if !groupService.IsExistsGroupUser(userId, groupId) {
 		return false
 	}
@@ -757,6 +789,9 @@ func (this *ShareService) GetNotebookShareGroups(notebookId, userId string) []in
 // 共享笔记给分组
 func (this *ShareService) AddShareNotebookGroup(userId, notebookId, groupId string, perm int) bool {
 	perm = 0
+	if !this.ownsShareResource(userId, notebookId, true) || !bson.IsObjectIdHex(groupId) {
+		return false
+	}
 	if !groupService.IsExistsGroupUser(userId, groupId) {
 		return false
 	}

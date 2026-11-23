@@ -211,14 +211,14 @@ func (this *NotebookService) AddNotebookIdempotent(notebook info.Notebook) (bool
 }
 
 func (this *NotebookService) UpdateNotebookApi(userId, notebookId, title, parentNotebookId string, seq, usn int) (bool, string, info.Notebook) {
-	if notebookId == "" {
+	if !bson.IsObjectIdHex(userId) || !bson.IsObjectIdHex(notebookId) {
 		return false, "notebookIdNotExists", info.Notebook{}
 	}
 
 	// 先判断usn是否和数据库的一样, 如果不一样, 则冲突, 不保存
 	notebook := this.GetNotebookById(notebookId)
 	// 不存在
-	if notebook.NotebookId == "" {
+	if notebook.NotebookId == "" || notebook.UserId.Hex() != userId {
 		return false, "notExists", notebook
 	} else if notebook.Usn != usn {
 		return false, "conflict", notebook
@@ -227,8 +227,15 @@ func (this *NotebookService) UpdateNotebookApi(userId, notebookId, title, parent
 	notebook.Title = title
 
 	updates := bson.M{"Title": title, "Usn": notebook.Usn, "Seq": seq, "UpdatedTime": time.Now()}
-	if parentNotebookId != "" && bson.IsObjectIdHex(parentNotebookId) {
-		updates["ParentNotebookId"] = bson.ObjectIdHex(parentNotebookId)
+	if parentNotebookId != "" {
+		if !bson.IsObjectIdHex(parentNotebookId) || parentNotebookId == notebookId {
+			return false, "invalidParentNotebook", notebook
+		}
+		parent := this.GetNotebookById(parentNotebookId)
+		if parent.NotebookId == "" || parent.UserId.Hex() != userId || parent.IsDeleted || parent.IsTrash {
+			return false, "invalidParentNotebook", notebook
+		}
+		updates["ParentNotebookId"] = parent.NotebookId
 	} else {
 		updates["ParentNotebookId"] = ""
 	}

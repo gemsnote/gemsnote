@@ -585,6 +585,20 @@ func (this *NoteService) UpdateNote(updatedUserId, noteId string, needUpdate bso
 		}
 	}
 
+	// Never allow a note to reference a notebook owned by another account.
+	// This check belongs in the service because both legacy API and API2 reach
+	// this method and controller-only validation is easy to bypass.
+	if rawNotebookId, moving := needUpdate["NotebookId"]; moving {
+		targetId, ok := rawNotebookId.(bson.ObjectId)
+		if !ok || targetId == "" {
+			return false, "invalidNotebook", 0
+		}
+		target := notebookService.GetNotebookById(targetId.Hex())
+		if target.NotebookId == "" || target.UserId.Hex() != userId || target.IsDeleted || target.IsTrash {
+			return false, "invalidNotebook", 0
+		}
+	}
+
 	/*
 		// 这里不再判断, 因为controller已经判断了, 删除附件会新增, 所以不用判断
 		if usn > 0 && note.Usn != usn {
