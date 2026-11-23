@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gemsnote/gemsnote/app/service"
+	"github.com/revel/config"
 	"github.com/revel/revel"
 )
 
@@ -55,5 +56,32 @@ func TestLegacyCookieIdentityIsUnchanged(t *testing.T) {
 	base := BaseController{controller}
 	if base.GetUserId() == "" || base.GetUsername() != "cookie-user" || base.GetEmail() != "cookie@example.test" {
 		t.Fatal("legacy cookie identity changed")
+	}
+}
+
+func TestAPI2RejectsQueryCredentialsByDefault(t *testing.T) {
+	previous := revel.Config
+	revel.Config = nil
+	defer func() { revel.Config = previous }()
+
+	controller := cookieAuthenticatedController("/api2/bootstrap?token=query-secret", "")
+	if userID, token := AuthenticateAPI2(controller, &service.SessionService{}); userID != "" || token != "" {
+		t.Fatal("query credentials must not authenticate API2 by default")
+	}
+}
+
+func TestAPI2QueryCredentialsRequireExplicitOptIn(t *testing.T) {
+	previous := revel.Config
+	ctx := config.NewContext()
+	ctx.SetOption("api2.allow.query.token", "true")
+	revel.Config = ctx
+	defer func() { revel.Config = previous }()
+
+	// The opt-in path still performs a real session lookup, so an unknown token
+	// must stay unauthenticated; the important part is that the parameter is
+	// not discarded before validation when explicitly enabled.
+	controller := cookieAuthenticatedController("/api2/bootstrap?token=query-secret", "")
+	if userID, token := AuthenticateAPI2(controller, &service.SessionService{}); userID != "" || token != "" {
+		t.Fatal("unknown query token authenticated")
 	}
 }

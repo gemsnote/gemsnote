@@ -52,11 +52,16 @@ func AuthenticateAPI2(c *revel.Controller, sessions *service.SessionService) (st
 	if len(authorization) > 7 && strings.EqualFold(authorization[:7], "Bearer ") {
 		token = strings.TrimSpace(authorization[7:])
 	}
-	parameterToken := c.Params.Values.Get("token")
-	if token == "" {
+	// Query credentials end up in proxy logs, browser history and Referer
+	// headers. Only the explicit legacy escape hatch still accepts them.
+	if parameterToken := strings.TrimSpace(c.Params.Values.Get("token")); parameterToken != "" {
+		if token != "" && parameterToken != token {
+			return "", ""
+		}
+		if !allowQueryToken() {
+			return "", ""
+		}
 		token = parameterToken
-	} else if parameterToken != "" && parameterToken != token {
-		return "", ""
 	}
 	userID := sessions.FindUserId(token)
 	if userID == "" {
@@ -65,6 +70,12 @@ func AuthenticateAPI2(c *revel.Controller, sessions *service.SessionService) (st
 	c.ViewArgs["Api2Token"] = token
 	c.ViewArgs["Api2UserId"] = userID
 	return userID, token
+}
+
+// allowQueryToken keeps ?token= working only for deployments that still have
+// released clients depending on it; Bearer is the only default.
+func allowQueryToken() bool {
+	return revel.Config != nil && revel.Config.BoolDefault("api2.allow.query.token", false)
 }
 
 var userService *service.UserService
