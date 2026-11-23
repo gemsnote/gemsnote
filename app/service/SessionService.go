@@ -2,12 +2,14 @@ package service
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	// . "github.com/gemsnote/gemsnote/app/lea"
-	"gopkg.in/mgo.v2/bson"
 	"github.com/revel/revel"
+	"gopkg.in/mgo.v2/bson"
 	"strings"
 	"time"
 	//	"strings"
@@ -16,6 +18,18 @@ import (
 const apiTokenBytes = 32
 
 const defaultAPITokenIdleExpiry = 30 * 24 * time.Hour
+const defaultAPITokenAbsoluteExpiry = 90 * 24 * time.Hour
+const defaultWebSessionAbsoluteExpiry = 7 * 24 * time.Hour
+
+// storedSessionKey keeps the credential out of the database. A leaked dump
+// must not hand an attacker usable web sessions or API tokens.
+func storedSessionKey(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(raw))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
 
 func configuredDuration(name string, fallback time.Duration) time.Duration {
 	raw := strings.TrimSpace(revel.Config.StringDefault(name, fallback.String()))
@@ -26,8 +40,12 @@ func configuredDuration(name string, fallback time.Duration) time.Duration {
 	return value
 }
 
-func sessionExpired(updated time.Time, lifetime time.Duration) bool {
-	return updated.IsZero() || time.Since(updated) > lifetime
+func sessionExpired(created, updated time.Time, idle, absolute time.Duration) bool {
+	now := time.Now()
+	if created.IsZero() || updated.IsZero() {
+		return true
+	}
+	return now.Sub(updated) > idle || now.Sub(created) > absolute
 }
 
 // NewAPIToken returns a 256-bit opaque credential. API tokens intentionally
@@ -46,13 +64,13 @@ type SessionService struct {
 }
 
 func (this *SessionService) Update(sessionId, key string, value interface{}) bool {
-	return db.UpdateByQMap(db.Sessions, bson.M{"SessionId": sessionId},
+	return db.UpdateByQMap(db.Sessions, bson.M{"SessionId": storedSessionKey(sessionId)},
 		bson.M{key: value, "UpdatedTime": time.Now()})
 }
 
 // 注销时清空session
 func (this *SessionService) Clear(sessionId string) bool {
-	return db.Delete(db.Sessions, bson.M{"SessionId": sessionId})
+	return db.Delete(db.Sessions, bson.M{"SessionId": storedSessionKey(sessionId)})
 }
 
 // ClearUserSessions invalidates every web session and API token owned by a user.
@@ -71,11 +89,13 @@ func (this *SessionService) ValidateUserSession(sessionId, userId string) bool {
 		return false
 	}
 	session := info.Session{}
-	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId, "UserId": userId}, &session)
+	db.GetByQ(db.Sessions, bson.M{"SessionId": storedSessionKey(sessionId), "UserId": userId}, &session)
 	if session.Id == "" || !db.UserAvailable(userId) {
 		return false
 	}
-	if sessionExpired(session.UpdatedTime, configuredDuration("session.expires", 3*time.Hour)) {
+	if sessionExpired(session.CreatedTime, session.UpdatedTime,
+		configuredDuration("session.expires", 3*time.Hour),
+		configuredDuration("session.absolute.expires", defaultWebSessionAbsoluteExpiry)) {
 		this.Clear(sessionId)
 		return false
 	}
@@ -83,12 +103,12 @@ func (this *SessionService) ValidateUserSession(sessionId, userId string) bool {
 }
 func (this *SessionService) Get(sessionId string) info.Session {
 	session := info.Session{}
-	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId}, &session)
+	db.GetByQ(db.Sessions, bson.M{"SessionId": storedSessionKey(sessionId)}, &session)
 
 	// 如果没有session, 那么插入一条之
 	if session.Id == "" {
 		session.Id = bson.NewObjectId()
-		session.SessionId = sessionId
+		session.SessionId = storedSessionKey(sessionId)
 		session.CreatedTime = time.Now()
 		session.UpdatedTime = session.CreatedTime
 		db.Insert(db.Sessions, session)
@@ -145,11 +165,13 @@ func (this *SessionService) FindUserId(sessionId string) string {
 		return ""
 	}
 	session := info.Session{}
-	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId}, &session)
+	db.GetByQ(db.Sessions, bson.M{"SessionId": storedSessionKey(sessionId)}, &session)
 	if session.Id == "" || !db.UserAvailable(session.UserId) {
 		return ""
 	}
-	if sessionExpired(session.UpdatedTime, configuredDuration("api.token.expires", defaultAPITokenIdleExpiry)) {
+	if sessionExpired(session.CreatedTime, session.UpdatedTime,
+		configuredDuration("api.token.expires", defaultAPITokenIdleExpiry),
+		configuredDuration("api.token.absolute.expires", defaultAPITokenAbsoluteExpiry)) {
 		this.Clear(sessionId)
 		return ""
 	}
@@ -160,6 +182,6 @@ func (this *SessionService) FindUserId(sessionId string) string {
 // 登录成功后设置userId
 func (this *SessionService) SetUserId(sessionId, userId string) bool {
 	this.Get(sessionId)
-	ok := db.BindUserSession(sessionId, userId)
+	ok := db.BindUserSession(storedSessionKey(sessionId), userId)
 	return ok
 }
