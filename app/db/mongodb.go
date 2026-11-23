@@ -65,7 +65,9 @@ func (m *MongoDatabase) Initialize() error {
 	var ok bool
 
 	url, dbname = initURL, initDBName
-	if url != "" {
+	if envURL, present := envValue("GEMSNOTE_DB_URL"); present {
+		url, ok = envURL, true
+	} else if url != "" {
 		ok = true
 	} else if config != nil {
 		url, ok = config.String("db.url")
@@ -96,6 +98,9 @@ func (m *MongoDatabase) Initialize() error {
 		port, _ := config.String("db.port")
 		username, _ := config.String("db.username")
 		password, _ := config.String("db.password")
+		if value, present := envValue("GEMSNOTE_DB_PASSWORD"); present {
+			password = value
+		}
 		usernameAndPassword := ""
 		if username != "" && password != "" {
 			usernameAndPassword = username + ":" + password + "@"

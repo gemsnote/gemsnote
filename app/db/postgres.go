@@ -40,8 +40,11 @@ func (p *PostgresDatabase) Initialize() error {
 	var url string
 	var ok bool
 
-	url = initURL
-	ok = url != ""
+	url, ok = envValue("GEMSNOTE_DB_URL")
+	if !ok {
+		url = initURL
+		ok = url != ""
+	}
 	if !ok && config != nil {
 		url, ok = config.String("db.url")
 	}
@@ -63,6 +66,9 @@ func (p *PostgresDatabase) Initialize() error {
 		}
 		username, _ := config.String("db.username")
 		password, _ := config.String("db.password")
+		if value, present := envValue("GEMSNOTE_DB_PASSWORD"); present {
+			password = value
+		}
 		dbname, _ := config.String("db.dbname")
 		sslmode, _ := config.String("db.sslmode")
 		if sslmode == "" {

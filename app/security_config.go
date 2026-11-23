@@ -1,11 +1,23 @@
 package app
 
 import (
+	"os"
 	"strings"
 
 	"github.com/gemsnote/gemsnote/app/lea"
 	"github.com/revel/revel"
 )
+
+// databaseSecretFromEnvironment reports whether the deployment injects its
+// database credential or URL instead of relying on the shipped configuration.
+func databaseSecretFromEnvironment() bool {
+	for _, name := range []string{"GEMSNOTE_DB_URL", "GEMSNOTE_DB_PASSWORD"} {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return true
+		}
+	}
+	return false
+}
 
 // Production deployments must not sign sessions or PDF capabilities with the
 // public default secret. Development only warns so a fresh checkout still runs.
@@ -27,6 +39,12 @@ func init() {
 		// still follows http.ssl unless explicitly configured.
 		if production && !revel.CookieSecure {
 			revel.RevelLog.Warn("session cookies are not marked Secure; terminate TLS and set http.ssl=true or cookie.secure=true")
+		}
+		if production && !databaseSecretFromEnvironment() {
+			password, _ := revel.Config.String("db.password")
+			if _, hasURL := revel.Config.String("db.url"); !hasURL && (strings.TrimSpace(password) == "" || password == "gemsnote") {
+				revel.RevelLog.Warn("database uses an empty or default password; set GEMSNOTE_DB_PASSWORD or db.password")
+			}
 		}
 	})
 }

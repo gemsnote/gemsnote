@@ -32,7 +32,7 @@ db.host=127.0.0.1
 db.port=5432
 db.dbname=gemsnote
 db.username=gemsnote
-db.password=gemsnote
+db.password=gemsnote # override with GEMSNOTE_DB_PASSWORD in production
 # PostgreSQL URL format (alternative to host/port configuration):
 # db.url=postgresql://user:password@host:port/dbname?sslmode=disable
 # db.url=postgresql://gemsnote:gemsnote@127.0.0.1:5432/gemsnote?sslmode=disable
@@ -59,7 +59,7 @@ app.secret=V85ZzBeTnzpsHyjQX4zukbQ8qqtju9y2aDM55VWxAH9Qop19poekx3xkcDVvrD0y
 # for dev
 #--------------------------------
 app.name=gemsnote
-http.ssl=false
+http.ssl=false # enable TLS, or terminate it upstream and set cookie.secure=true
 cookie.httponly=true
 cookie.prefix=GEMSNOTE
 cookie.domain= # for share cookie with sub-domain
