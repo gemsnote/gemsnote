@@ -4,6 +4,7 @@ import (
 	"github.com/gemsnote/gemsnote/app/db"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
+	"github.com/revel/revel"
 	"gopkg.in/mgo.v2/bson"
 	"strings"
 )
@@ -19,6 +20,13 @@ type PwdService struct {
 func (this *PwdService) FindPwd(email string) (ok bool, msg string) {
 	ok = false
 	email = strings.ToLower(strings.TrimSpace(email))
+	// Bound recovery emails per address so the public endpoint cannot be used
+	// to flood a mailbox. The caller keeps returning a generic success so this
+	// never reveals whether an account exists.
+	if !PasswordResetRequests.Allow(email) {
+		revel.AppLog.Warn("password reset request throttled")
+		return true, ""
+	}
 	userId := userService.GetUserId(email)
 	if userId == "" {
 		msg = "用户不存在"
