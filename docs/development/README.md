@@ -11,7 +11,6 @@
 
 - [API2 新接口](API2.md)：Web 和新客户端使用的 `/api2` 接口规范，分别列出当前开发中的 1.1.0 新增合同与 1.0.0 原有接口。
 - [Legacy API 兼容说明](LEGACY_API.md)：旧 `/api` 接口、Leanote 客户端兼容范围及限制。
-- [API 安全审查与回归](API_SECURITY.md)：认证隔离、权限、文件处理及安全回归范围。
 
 ## Web 与 UI
 
