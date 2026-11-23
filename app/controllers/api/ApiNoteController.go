@@ -5,6 +5,7 @@ import (
 	//	"encoding/json"
 	"context"
 	"encoding/json"
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/gemsnote/gemsnote/app/info"
 	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/gemsnote/gemsnote/app/service"
@@ -799,8 +800,7 @@ func (c ApiNote) ExportPdf(noteId string) revel.Result {
 	filename := guid + ".pdf"
 	path := dir + "/" + filename
 
-	secret, _ := revel.Config.String("app.secret")
-	appKey := PDFToken(secret, noteId, time.Now())
+	appKey := PDFToken(controllers.PDFSecret(), noteId, time.Now())
 	if appKey == "" {
 		return c.RenderText("exportUnavailable")
 	}

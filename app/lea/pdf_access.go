@@ -38,3 +38,14 @@ func ValidPDFToken(secret, noteID, token string, now time.Time) bool {
 	mac.Write([]byte("pdf:" + noteID + ":" + parts[0]))
 	return hmac.Equal(actual, mac.Sum(nil))
 }
+
+// DerivePDFSecret keeps PDF capability signing independent from the session
+// cookie signing key, even when only app.secret is configured.
+func DerivePDFSecret(appSecret string) string {
+	if appSecret == "" {
+		return ""
+	}
+	mac := hmac.New(sha256.New, []byte(appSecret))
+	mac.Write([]byte("gemsnote/pdf-credential/v1"))
+	return hex.EncodeToString(mac.Sum(nil))
+}

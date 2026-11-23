@@ -334,8 +334,7 @@ func (c Note) SearchNoteByTags(tags []string) revel.Result {
 // 生成PDF
 func (c Note) ToPdf(noteId, appKey string) revel.Result {
 	// 虽然传了cookie但是这里还是不能得到userId, 所以还是通过appKey来验证之
-	appKeyTrue, _ := revel.Config.String("app.secret")
-	if !bson.IsObjectIdHex(noteId) || !ValidPDFToken(appKeyTrue, noteId, appKey, time.Now()) {
+	if !bson.IsObjectIdHex(noteId) || !ValidPDFToken(pdfSecret(), noteId, appKey, time.Now()) {
 		return c.RenderText("auth error")
 	}
 	note := noteService.GetNoteById(noteId)
@@ -445,9 +444,7 @@ func (c Note) ExportPdf(noteId string) revel.Result {
 	filename := guid + ".pdf"
 	path := dir + "/" + filename
 
-	// gemsnote.com的secret
-	secret, _ := revel.Config.String("app.secret")
-	appKey := PDFToken(secret, noteId, time.Now())
+	appKey := PDFToken(pdfSecret(), noteId, time.Now())
 	if appKey == "" {
 		return c.RenderText("exportUnavailable")
 	}
