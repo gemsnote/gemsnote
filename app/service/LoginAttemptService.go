@@ -33,9 +33,10 @@ type LoginAttemptService struct {
 	mu       sync.Mutex
 	attempts map[string]loginAttempt
 	now      func() time.Time
+	useRedis bool
 }
 
-var LoginAttempts = &LoginAttemptService{attempts: make(map[string]loginAttempt), now: time.Now}
+var LoginAttempts = &LoginAttemptService{attempts: make(map[string]loginAttempt), now: time.Now, useRedis: true}
 
 func loginAttemptHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
@@ -70,6 +71,11 @@ func loginFailureWindow() time.Duration {
 // Allow reports whether the (identity, client IP) pair may attempt a login and,
 // when it may not, how long the caller should wait before retrying.
 func (s *LoginAttemptService) Allow(identity, clientIP string) (bool, time.Duration) {
+	if s.useRedis {
+		if allowed, retry, err := redisLoginAttempt("allow", identity, clientIP); err == nil {
+			return allowed, retry
+		}
+	}
 	window := loginFailureWindow()
 	now := s.now()
 	s.mu.Lock()
@@ -107,6 +113,10 @@ func (s *LoginAttemptService) Allow(identity, clientIP string) (bool, time.Durat
 }
 
 func (s *LoginAttemptService) Failure(identity, clientIP string) {
+	if s.useRedis {
+		// Also retain local counters so a Redis outage cannot erase recent failures.
+		redisLoginAttempt("failure", identity, clientIP)
+	}
 	window := loginFailureWindow()
 	now := s.now()
 	s.mu.Lock()
@@ -134,6 +144,9 @@ func (s *LoginAttemptService) Failure(identity, clientIP string) {
 }
 
 func (s *LoginAttemptService) Success(identity, clientIP string) {
+	if s.useRedis {
+		redisLoginAttempt("success", identity, clientIP)
+	}
 	s.mu.Lock()
 	delete(s.attempts, loginAccountKey(identity, clientIP))
 	s.mu.Unlock()

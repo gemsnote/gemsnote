@@ -570,7 +570,9 @@ $env:GEMSNOTE_MAIL_REDIS_URL = 'redis://127.0.0.1:6379/0'
 mail.redis_url=redis://127.0.0.1:6379/0
 ```
 
-环境变量优先于配置文件。Redis 需专用于邮件队列，或使用独立数据库编号；可使用 `redis://:密码@主机:端口/数据库编号`。不要将 Redis 暴露到公网；其中短暂保存邮件正文、验证链接和 SMTP 凭据。敏感任务内容最多保存 10 分钟，发送完成后删除；发送状态保留 24 小时。Windows 可运行原生 Go worker，Redis 可部署在 Docker 或 Linux 主机。
+环境变量优先于配置文件。可使用 `redis://:密码@主机:端口/数据库编号`。不要将 Redis 暴露到公网；其中短暂保存邮件正文、验证链接和 SMTP 凭据。敏感任务内容最多保存 10 分钟，发送完成后删除；发送状态保留 24 小时。Windows 可运行原生 Go worker，Redis 可部署在 Docker 或 Linux 主机。
+
+登录限流默认复用邮件 Redis，使用独立的 `gemsnote:login:` 键前缀和自动过期计数，多实例共享限制。可通过 `GEMSNOTE_LOGIN_REDIS_URL` 或 `login.redis_url` 指定独立 Redis（环境变量优先）。账号及 IP 以摘要保存；Redis 故障时记录告警并降级为有容量上限的进程内计数。正常的 Legacy API 登录格式与响应保持不变，超过失败次数限制时返回 HTTP 429。
 
 服务端读取 `mail.redis_url` 后需要重启；worker 始终通过自己的 `GEMSNOTE_MAIL_REDIS_URL` 环境变量连接 Redis。两者必须指向同一主机、端口和数据库编号。Linux/macOS 可由系统服务管理进程，Windows 可由服务管理工具启动 worker；`run.sh` / `run.bat` 只启动 Web 服务端。
 
