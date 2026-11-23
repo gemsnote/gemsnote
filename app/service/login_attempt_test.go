@@ -1,9 +1,28 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
+
+func TestLoginAttemptsHardCapacity(t *testing.T) {
+	now := time.Now()
+	s := newTestLoginAttempts(now)
+	for i := 0; i < maxLoginAttemptKeys+100; i++ {
+		s.Failure(fmt.Sprint(i), fmt.Sprint(i))
+	}
+	if len(s.attempts) > maxLoginAttemptKeys {
+		t.Fatalf("unbounded counters: %d", len(s.attempts))
+	}
+	if allowed, _ := s.Allow("fresh", "fresh"); allowed {
+		t.Fatal("saturated limiter must fail closed")
+	}
+	s.now = func() time.Time { return now.Add(defaultLoginFailureWindow + time.Second) }
+	if allowed, _ := s.Allow("fresh", "fresh"); !allowed {
+		t.Fatal("expired saturation must recover")
+	}
+}
 
 func newTestLoginAttempts(now time.Time) *LoginAttemptService {
 	return &LoginAttemptService{attempts: make(map[string]loginAttempt), now: func() time.Time { return now }}

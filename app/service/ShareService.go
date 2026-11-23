@@ -264,6 +264,9 @@ func (this *ShareService) ListShareNotesByNotebookId(notebookId, myUserId, share
 // 这里不好排序
 func (this *ShareService) ListShareNotes(myUserId, sharedUserId string,
 	pageNumber, pageSize int, sortField string, isAsc bool) []info.ShareNoteWithPerm {
+	if !bson.IsObjectIdHex(myUserId) || !bson.IsObjectIdHex(sharedUserId) {
+		return nil
+	}
 
 	skipNum, _ := parsePageAndSort(pageNumber, pageSize, sortField, isAsc)
 	shareNotes := []info.ShareNote{}
@@ -286,13 +289,18 @@ func (this *ShareService) ListShareNotes(myUserId, sharedUserId string,
 	notes := noteService.ListNotesByNoteIds(noteIds)
 	notesMap := map[bson.ObjectId]info.Note{}
 	for _, each := range notes {
-		notesMap[each.NoteId] = each
+		if shareListNoteAllowed(each, sharedUserId) {
+			notesMap[each.NoteId] = each
+		}
 	}
 
 	// 将shareNotes与notes结合起来
 	notesWithPerm := []info.ShareNoteWithPerm{}
 	hasAdded := map[bson.ObjectId]bool{} // 防止重复, 只要前面权限高的
 	for _, each := range shareNotes {
+		if _, exists := notesMap[each.NoteId]; !exists {
+			continue
+		}
 		if !hasAdded[each.NoteId] {
 			// 待优化
 			notesWithPerm = append(notesWithPerm, info.ShareNoteWithPerm{notesMap[each.NoteId], each.Perm})
@@ -300,6 +308,10 @@ func (this *ShareService) ListShareNotes(myUserId, sharedUserId string,
 		}
 	}
 	return notesWithPerm
+}
+
+func shareListNoteAllowed(note info.Note, ownerId string) bool {
+	return note.NoteId.Valid() && note.UserId.Valid() && note.UserId.Hex() == ownerId && !note.IsDeleted && !note.IsTrash
 }
 
 func (this *ShareService) notes2NotesWithPerm(notes []info.Note) {

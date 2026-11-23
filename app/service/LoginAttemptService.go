@@ -15,7 +15,8 @@ const (
 	defaultLoginFailureWindow = 15 * time.Minute
 	// A single source address may try many accounts, so its aggregate budget is
 	// larger than one account/address pair while still stopping password sprays.
-	ipFailureFactor = 10
+	ipFailureFactor     = 10
+	maxLoginAttemptKeys = 10000
 )
 
 type loginAttempt struct {
@@ -73,6 +74,17 @@ func (s *LoginAttemptService) Allow(identity, clientIP string) (bool, time.Durat
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(s.attempts) >= maxLoginAttemptKeys {
+		for key, attempt := range s.attempts {
+			if now.Sub(attempt.first) >= window {
+				delete(s.attempts, key)
+			}
+		}
+		// Preserve active blocks under identity floods by failing closed.
+		if len(s.attempts) >= maxLoginAttemptKeys {
+			return false, window
+		}
+	}
 	blocked := false
 	var retry time.Duration
 	for _, key := range []string{loginAccountKey(identity, clientIP), loginIPKey(clientIP)} {
@@ -101,6 +113,9 @@ func (s *LoginAttemptService) Failure(identity, clientIP string) {
 	defer s.mu.Unlock()
 	for _, key := range []string{loginAccountKey(identity, clientIP), loginIPKey(clientIP)} {
 		attempt := s.attempts[key]
+		if _, exists := s.attempts[key]; !exists && len(s.attempts) >= maxLoginAttemptKeys {
+			continue
+		}
 		if attempt.first.IsZero() || now.Sub(attempt.first) >= window {
 			attempt = loginAttempt{first: now}
 		}
