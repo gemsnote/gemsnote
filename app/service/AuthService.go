@@ -30,6 +30,9 @@ func (this *AuthService) Login(emailOrUsername, pwd string) (info.User, error) {
 	if !userInfo.Available() {
 		return userInfo, ErrUserDisabled
 	}
+	// Opportunistically upgrade unsalted MD5 hashes at the only moment the
+	// plaintext is available.
+	userService.UpgradePwdHash(userInfo.UserId.Hex(), pwd)
 	return userInfo, nil
 }
 

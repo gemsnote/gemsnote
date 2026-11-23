@@ -5,10 +5,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// BcryptCost is the work factor for new password hashes. Existing hashes keep
+// their recorded cost and keep verifying.
+const BcryptCost = 12
+
 // GenerateHash generates bcrypt hash from plaintext password
 func GenerateHash(password string) ([]byte, error) {
 	hex := []byte(password)
-	hashedPassword, err := bcrypt.GenerateFromPassword(hex, 10)
+	hashedPassword, err := bcrypt.GenerateFromPassword(hex, BcryptCost)
 	if err != nil {
 		return hashedPassword, err
 	}

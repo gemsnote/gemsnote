@@ -341,6 +341,23 @@ func (this *UserService) UpdatePwd(userId, oldPwd, pwd string) (bool, string) {
 	return ok, ""
 }
 
+// UpgradePwdHash rewrites a legacy MD5 password as bcrypt after a successful
+// login. The old hash stays in the query so a concurrent password change wins.
+func (this *UserService) UpgradePwdHash(userId, rawPwd string) bool {
+	if !bson.IsObjectIdHex(userId) || rawPwd == "" {
+		return false
+	}
+	user := this.GetUser(userId)
+	if user.UserId == "" || !NeedsRehash(user.Pwd) || !ComparePwd(rawPwd, user.Pwd) {
+		return false
+	}
+	passwd := GenPwd(rawPwd)
+	if passwd == "" {
+		return false
+	}
+	return db.UpdateByQMap(db.Users, bson.M{"_id": bson.ObjectIdHex(userId), "Pwd": user.Pwd}, bson.M{"Pwd": passwd})
+}
+
 // 管理员重置密码
 func (this *UserService) ResetPwd(adminUserId, userId, pwd string) (ok bool, msg string) {
 	if !configService.IsAdmin(adminUserId) {

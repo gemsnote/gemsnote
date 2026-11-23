@@ -8,9 +8,17 @@ func ComparePwd(rawPwd, dbPwd string) bool {
 		return Md5(rawPwd) == dbPwd
 	}
 
-	hex := []byte(dbPwd)
-	return CompareHash(hex, rawPwd)
+	return CompareHash([]byte(dbPwd), rawPwd)
 }
+
+// NeedsRehash reports a legacy MD5 password that must be upgraded to bcrypt
+// after the next successful login.
+func NeedsRehash(dbPwd string) bool {
+	return len(dbPwd) == 32
+}
+
+// PasswordMinLength is the minimum accepted password length for new passwords.
+const PasswordMinLength = 8
 
 // 加密
 func GenPwd(rawPwd string) string {

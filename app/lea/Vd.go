@@ -79,7 +79,7 @@ var rules = map[string]func(string, map[string]string) (bool, string){
 		if value == "" {
 			return
 		}
-		ok = len(value) >= 6
+		ok = len(value) >= PasswordMinLength
 		return
 	},
 	"email": func(value string, rule map[string]string) (ok bool, msg string) {
