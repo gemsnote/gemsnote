@@ -68,6 +68,7 @@ POST    /api2/document                           Api2.Document
 POST    /api2/save                               Api2.Save
 POST    /api2/restore                            Api2.Restore
 GET     /api2/file/getImage                      ApiFile.GetImage
+GET     /api2/file/imageToken                    ApiFile.ImageToken
 GET     /api2/file/getAttach                     ApiFile.GetAttach
 GET     /api2/system/version                     ApiSystem.Version
 GET     /api2/shared/capabilities                ApiShared.Capabilities

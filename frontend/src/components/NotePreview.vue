@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {ref, shallowRef, watch, nextTick, onMounted, onBeforeUnmount} from 'vue'
 import {MermaidRenderer, previewDocument} from '../mermaidPreview'
+import {signImageRefs} from '../signedImages'
 import MermaidDiagram from './MermaidDiagram.vue'
 const props = defineProps<{content: string; markdown: boolean}>()
 const root = ref<HTMLElement>(), host = ref<HTMLElement>(), html = ref('')
@@ -14,7 +15,9 @@ async function update() {
   renderer.value?.dispose()
   renderer.value = undefined
   const parsed = previewDocument(props.content, props.markdown, `mermaid-${Math.random().toString(36).slice(2)}`)
-  html.value = parsed.html
+  const signed = await signImageRefs(parsed.html)
+  if (generation !== id) return
+  html.value = signed
   await nextTick()
   if (generation !== id || !root.value || !host.value) return
   if (parsed.diagrams.length) {

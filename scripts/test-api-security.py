@@ -94,6 +94,17 @@ assert image["Ok"]
 image_id = image["Id"]
 assert request("/api2/file/getImage?fileId=" + image_id, token=admin_token)[1] == png
 assert request("/api2/file/getImage?fileId=" + image_id, token=token)[1] != png
+# Browser <img> tags cannot send Authorization, so a short-lived file-scoped
+# capability must work from a cookieless client and must not be reusable for
+# another user.
+anonymous = urllib.request.build_opener()
+capability = api("/api2/file/imageToken?" + urllib.parse.urlencode({"fileId": image_id}), token=admin_token)["Item"]["Url"]
+assert request(capability, opener=anonymous)[1] == png
+params = urllib.parse.parse_qs(urllib.parse.urlsplit(capability).query)
+assert request(capability.replace("uid=" + params["uid"][0], "uid=" + user), opener=anonymous)[1] != png
+assert request(capability.replace("token=" + params["token"][0], "token=" + params["token"][0] + "0"), opener=anonymous)[1] != png
+assert not api("/api2/file/imageToken?" + urllib.parse.urlencode({"fileId": image_id}), token=token)["Ok"]
+assert not api("/api2/file/imageToken?" + urllib.parse.urlencode({"fileId": image_id}))["Ok"]
 assert not upload("/api2/avatar", b"<html><script>alert(1)</script></html>", token)["Ok"]
 assert not upload("/api2/file/pasteImage", b'<svg onload="alert(1)"/>', admin_token, noteId=note)["Ok"]
 

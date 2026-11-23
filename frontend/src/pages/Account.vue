@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {errorMessage} from '../errors'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { request, upload, resolveAvatarUrl } from '../api'
+import { signImageSrc } from '../signedImages'
 import Navigation from '../components/Navigation.vue'
 import EmailVerification from '../components/EmailVerification.vue'
 import FeedbackMessage from '../components/FeedbackMessage.vue'
@@ -21,7 +22,8 @@ const oldPwd = ref('')
 const pwd = ref(''), confirmPwd = ref(''), passwordError = ref('')
 const usernameSaving = ref(false), passwordSaving = ref(false), avatarUploading = ref(false)
 const avatarInput = ref<HTMLInputElement>()
-const avatarSrc = computed(() => resolveAvatarUrl(user.value.Logo || ''))
+const avatarSrc = ref('')
+watch(() => user.value.Logo, async logo => { avatarSrc.value = await signImageSrc(resolveAvatarUrl(logo || '')) }, { immediate: true })
 const groups = ref<Group[]>([])
 const newGroupTitle = ref('')
 const addUserIdentities = ref<Record<string, string>>({})

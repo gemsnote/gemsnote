@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {errorMessage,errorCode} from '../errors'
-import {computed,onMounted,ref} from 'vue'
+import {computed,onMounted,ref,watch} from 'vue'
 import {request,resolveAvatarUrl} from '../api'
+import {signImageSrc} from '../signedImages'
 import {language,languages,setLanguage,t} from '../i18n'
 import brandMark from '../assets/gemsnote_s.png'
 
@@ -19,7 +20,8 @@ const aboutInfo=ref({Name:'Gemsnote',Version:'',Platform:'',Arch:'',Runtime:''})
 const serverInfo=ref({server:'',version:'',min_version:''})
 const serverAddress=location.origin
 const initials=computed(()=>(props.user?.Username||props.user?.Email||t('用户')).trim().slice(0,1).toUpperCase())
-const avatarSrc=computed(()=>resolveAvatarUrl(props.user?.Logo||''))
+const avatarSrc=ref('')
+watch(()=>props.user?.Logo,async logo=>{avatarSrc.value=await signImageSrc(resolveAvatarUrl(logo||''))},{immediate:true})
 // Desktop builds inject their canonical api/VERSION while compiling this
 // shared SPA. This is authoritative even when WebKit exposes an HTTP-like URL
 // and generated Wails bindings are unavailable.

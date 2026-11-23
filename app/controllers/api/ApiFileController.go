@@ -2,7 +2,9 @@ package api
 
 import (
 	"github.com/gemsnote/gemsnote/app/controllers"
+	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/revel/revel"
+	"gopkg.in/mgo.v2/bson"
 	//	"encoding/json"
 	//	. "github.com/gemsnote/gemsnote/app/lea"
 	//	"gopkg.in/mgo.v2/bson"
@@ -56,11 +58,36 @@ func (c ApiFile) DeleteImage(fileId string) revel.Result {
 // 输出image
 // [OK]
 func (c ApiFile) GetImage(fileId string) revel.Result {
-	path := fileService.GetFile(c.getUserId(), fileId) // 得到路径
+	userId := c.getUserId()
+	if userId == "" {
+		// Browser <img> requests cannot send an Authorization header, so the
+		// URL may carry a short-lived, file-scoped capability instead.
+		userId = controllers.ImageCapabilityUser(c.Controller, fileId)
+	}
+	path := fileService.GetFile(userId, fileId) // 得到路径
 	if path == "" {
 		return c.RenderText("")
 	}
 	return controllers.RenderStoredFile(c.Controller, path, "", revel.Inline)
+}
+
+// ImageToken issues a short-lived, file-scoped URL so browser <img> elements
+// can load an authorised image without an Authorization header.
+func (c ApiFile) ImageToken(fileId string) revel.Result {
+	re := info.NewRe()
+	userId := c.getUserId()
+	if userId == "" || !bson.IsObjectIdHex(fileId) || fileService.GetFile(userId, fileId) == "" {
+		re.Msg = "noPermission"
+		return c.RenderJSON(re)
+	}
+	url := controllers.SignedImagePath(fileId, userId)
+	if url == "" {
+		re.Msg = "noPermission"
+		return c.RenderJSON(re)
+	}
+	re.Ok = true
+	re.Item = map[string]interface{}{"Url": url, "ExpiresIn": int(controllers.ImageTokenTTL().Seconds())}
+	return c.RenderJSON(re)
 }
 
 // 下载附件
