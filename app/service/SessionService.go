@@ -7,11 +7,28 @@ import (
 	"github.com/gemsnote/gemsnote/app/info"
 	// . "github.com/gemsnote/gemsnote/app/lea"
 	"gopkg.in/mgo.v2/bson"
+	"github.com/revel/revel"
+	"strings"
 	"time"
 	//	"strings"
 )
 
 const apiTokenBytes = 32
+
+const defaultAPITokenIdleExpiry = 30 * 24 * time.Hour
+
+func configuredDuration(name string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(revel.Config.StringDefault(name, fallback.String()))
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func sessionExpired(updated time.Time, lifetime time.Duration) bool {
+	return updated.IsZero() || time.Since(updated) > lifetime
+}
 
 // NewAPIToken returns a 256-bit opaque credential. API tokens intentionally
 // remain server-side sessions so they can be revoked immediately; their value
@@ -56,6 +73,10 @@ func (this *SessionService) ValidateUserSession(sessionId, userId string) bool {
 	session := info.Session{}
 	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId, "UserId": userId}, &session)
 	if session.Id == "" || !db.UserAvailable(userId) {
+		return false
+	}
+	if sessionExpired(session.UpdatedTime, configuredDuration("session.expires", 3*time.Hour)) {
+		this.Clear(sessionId)
 		return false
 	}
 	return this.Update(sessionId, "UpdatedTime", time.Now())
@@ -126,6 +147,10 @@ func (this *SessionService) FindUserId(sessionId string) string {
 	session := info.Session{}
 	db.GetByQ(db.Sessions, bson.M{"SessionId": sessionId}, &session)
 	if session.Id == "" || !db.UserAvailable(session.UserId) {
+		return ""
+	}
+	if sessionExpired(session.UpdatedTime, configuredDuration("api.token.expires", defaultAPITokenIdleExpiry)) {
+		this.Clear(sessionId)
 		return ""
 	}
 	this.Update(sessionId, "UpdatedTime", time.Now())
