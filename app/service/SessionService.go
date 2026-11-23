@@ -32,6 +32,9 @@ func storedSessionKey(raw string) string {
 }
 
 func configuredDuration(name string, fallback time.Duration) time.Duration {
+	if revel.Config == nil {
+		return fallback
+	}
 	raw := strings.TrimSpace(revel.Config.StringDefault(name, fallback.String()))
 	value, err := time.ParseDuration(raw)
 	if err != nil || value <= 0 {

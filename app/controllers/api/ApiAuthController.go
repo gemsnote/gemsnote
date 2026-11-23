@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"github.com/gemsnote/gemsnote/app/controllers"
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/service"
 	"github.com/revel/revel"
@@ -34,6 +35,12 @@ func (c ApiAuth) Login(email, pwd string) revel.Result {
 	}
 	var msg = ""
 
+	clientIP := controllers.ClientIP(c.Controller)
+	if allowed, _ := service.LoginAttempts.Allow(email, clientIP); !allowed {
+		c.Response.Status = 429
+		return c.RenderJSON(info.ApiRe{Ok: false, Msg: c.Message("tooManyAttempts")})
+	}
+
 	userInfo, err := authService.Login(email, pwd)
 	if err == nil {
 		token, tokenErr := service.NewAPIToken()
@@ -45,9 +52,11 @@ func (c ApiAuth) Login(email, pwd string) revel.Result {
 		if !sessionService.SetUserId(token, userInfo.UserId.Hex()) {
 			return c.RenderJSON(info.ApiRe{Ok: false, Msg: "sessionCreationFailed"})
 		}
+		service.LoginAttempts.Success(email, clientIP)
 		return c.RenderJSON(info.AuthOk{Ok: true, Token: token, UserId: userInfo.UserId, Email: userInfo.Email, Username: userInfo.Username})
 	} else {
 		// 登录错误, 则错误次数++
+		service.LoginAttempts.Failure(email, clientIP)
 		msg = "wrongUsernameOrPassword"
 		if errors.Is(err, service.ErrUserDisabled) {
 			msg = "userDisabled"

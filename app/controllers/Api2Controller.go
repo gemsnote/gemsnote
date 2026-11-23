@@ -35,13 +35,20 @@ func (c Api2) TokenLogin() revel.Result {
 		p.Email = c.Params.Form.Get("email")
 		p.Pwd = c.Params.Form.Get("pwd")
 	}
+	clientIP := ClientIP(c.Controller)
+	if allowed, _ := service.LoginAttempts.Allow(p.Email, clientIP); !allowed {
+		c.Response.Status = 429
+		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("tooManyAttempts")})
+	}
 	user, err := authService.Login(p.Email, p.Pwd)
 	if err != nil {
+		service.LoginAttempts.Failure(p.Email, clientIP)
 		if errors.Is(err, service.ErrUserDisabled) {
 			return c.RenderJSON(info.Re{Ok: false, Msg: "userDisabled"})
 		}
 		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("wrongUsernameOrPassword")})
 	}
+	service.LoginAttempts.Success(p.Email, clientIP)
 	token, tokenErr := service.NewAPIToken()
 	if tokenErr != nil {
 		revel.AppLog.Error("API token generation failed", "error", tokenErr)

@@ -35,11 +35,18 @@ func (c Auth) Login(email, from string) revel.Result {
 // Shared login helper used by legacy server-rendered clients.
 func (c Auth) doLogin(email, pwd string) revel.Result {
 	sessionId := c.Session.ID()
+	clientIP := ClientIP(c.Controller)
 	var msg = ""
+
+	if allowed, _ := service.LoginAttempts.Allow(email, clientIP); !allowed {
+		c.Response.Status = 429
+		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("tooManyAttempts")})
+	}
 
 	userInfo, err := authService.Login(email, pwd)
 	if err != nil {
 		// 登录错误, 则错误次数++
+		service.LoginAttempts.Failure(email, clientIP)
 		msg = "wrongUsernameOrPassword"
 		if errors.Is(err, service.ErrUserDisabled) {
 			msg = "userDisabled"
@@ -48,6 +55,7 @@ func (c Auth) doLogin(email, pwd string) revel.Result {
 		if !c.SetSession(userInfo) {
 			return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("sessionCreationFailed")})
 		}
+		service.LoginAttempts.Success(email, clientIP)
 		sessionService.ClearLoginTimes(sessionId)
 		return c.RenderJSON(info.Re{Ok: true})
 	}
@@ -56,7 +64,13 @@ func (c Auth) doLogin(email, pwd string) revel.Result {
 }
 func (c Auth) DoLogin(email, pwd string, captcha string) revel.Result {
 	sessionId := c.Session.ID()
+	clientIP := ClientIP(c.Controller)
 	var msg = ""
+
+	if allowed, _ := service.LoginAttempts.Allow(email, clientIP); !allowed {
+		c.Response.Status = 429
+		return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("tooManyAttempts")})
+	}
 
 	// > 5次需要验证码, 直到登录成功
 	if sessionService.LoginTimesIsOver(sessionId) && sessionService.GetCaptcha(sessionId) != captcha {
@@ -65,6 +79,7 @@ func (c Auth) DoLogin(email, pwd string, captcha string) revel.Result {
 		userInfo, err := authService.Login(email, pwd)
 		if err != nil {
 			// 登录错误, 则错误次数++
+			service.LoginAttempts.Failure(email, clientIP)
 			msg = "wrongUsernameOrPassword"
 			if errors.Is(err, service.ErrUserDisabled) {
 				msg = "userDisabled"
@@ -74,6 +89,7 @@ func (c Auth) DoLogin(email, pwd string, captcha string) revel.Result {
 			if !c.SetSession(userInfo) {
 				return c.RenderJSON(info.Re{Ok: false, Msg: c.Message("sessionCreationFailed")})
 			}
+			service.LoginAttempts.Success(email, clientIP)
 			sessionService.ClearLoginTimes(sessionId)
 			return c.RenderJSON(info.Re{Ok: true})
 		}

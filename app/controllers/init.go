@@ -1,12 +1,36 @@
 package controllers
 
 import (
+	"net"
+	"strings"
+
 	"github.com/gemsnote/gemsnote/app/info"
 	"github.com/gemsnote/gemsnote/app/service"
 	//	. "github.com/gemsnote/gemsnote/app/lea"
 	"github.com/revel/revel"
-	"strings"
 )
+
+// ClientIP returns the address used for login throttling. X-Forwarded-For is
+// only trusted when login.trust.forwarded is enabled and the reverse proxy is
+// configured to overwrite the header.
+func ClientIP(c *revel.Controller) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	addr := strings.TrimSpace(c.Request.RemoteAddr)
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	if revel.Config != nil && revel.Config.BoolDefault("login.trust.forwarded", false) {
+		if forwarded := c.Request.Header.Get("X-Forwarded-For"); forwarded != "" {
+			first := strings.TrimSpace(strings.Split(forwarded, ",")[0])
+			if net.ParseIP(first) != nil {
+				return first
+			}
+		}
+	}
+	return addr
+}
 
 func isAPI2Request(c *revel.Controller) bool {
 	return c.Request != nil && strings.HasPrefix(c.Request.URL.Path, "/api2/")
