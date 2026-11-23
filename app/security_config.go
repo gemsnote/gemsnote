@@ -23,5 +23,10 @@ func init() {
 		if strings.TrimSpace(revel.Config.StringDefault("pdf.secret", "")) == "" {
 			revel.RevelLog.Info("pdf.secret is unset; deriving the PDF capability key from app.secret")
 		}
+		// Revel hardcodes HttpOnly on its session cookie (v1.0.0), but Secure
+		// still follows http.ssl unless explicitly configured.
+		if production && !revel.CookieSecure {
+			revel.RevelLog.Warn("session cookies are not marked Secure; terminate TLS and set http.ssl=true or cookie.secure=true")
+		}
 	})
 }
